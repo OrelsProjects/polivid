@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PoliVid
 
-## Getting Started
+News videos with receipts. Type a story, and PoliVid finds the numbers on primary sources, cites every one on screen, and builds a short video (vertical, square or wide).
 
-First, run the development server:
+The core rule: **the AI arranges the story, and code fills in every number from its source.** The AI never types a figure. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # then fill it in; see docs/SETUP.md
+npm run db:push              # create the tables in Postgres
+npm run dev                  # http://localhost:3100
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without `OPENROUTER_API_KEY` the app runs in **demo mode**, where every generated video uses fictional sample data that is labeled as such. Sign-in still needs the database plus Google or Resend.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server on port 3100 (WriteStack uses 3000) |
+| `npm run build` / `npm start` | Production build and server |
+| `npm run typecheck` | TypeScript check |
+| `npm run lint` | ESLint |
+| `npm run db:push` | Sync `prisma/schema.prisma` to the database (early development) |
+| `npm run db:migrate` | Create and apply a migration (once the schema settles) |
+| `npm run db:studio` | Browse the database in Prisma Studio |
+| `npm run try -- "story"` | Run the generation pipeline in the terminal (no app or DB needed; spends OpenRouter credits) |
 
-## Learn More
+## Docs
 
-To learn more about Next.js, take a look at the following resources:
+- [docs/PRD.md](docs/PRD.md): what we are building: users, principles, screens, video spec, requirements, milestones.
+- [docs/SETUP.md](docs/SETUP.md): every environment variable and where to get it (Postgres, Google, Resend, OpenRouter).
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the app is built (pipeline, rendering, auth, data model, folder map).
+- [docs/PLAN.md](docs/PLAN.md): product and go-to-market plan.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Next.js 16 (App Router, Cache Components) · React 19 · Tailwind 4 + shadcn (Base UI) · Remotion 4 (video) · AI SDK 7 + OpenRouter · Auth.js v5 (Google + Resend) · Prisma 6 + Postgres on AWS RDS.
 
-## Deploy on Vercel
+## Status
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Built: landing page, sign-in, dashboard, prompt-to-video generation with live progress, in-browser preview, and a receipts panel listing every fact with its source.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Not built yet: MP4 export (Remotion Lambda), voiceover, payments, and editing a video after generation.
+# polivid
