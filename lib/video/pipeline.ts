@@ -12,7 +12,6 @@ import {
   type ScenePlan,
   type SearchSource,
   type VideoFormat,
-  type VideoLength,
   FPS,
 } from "./schema";
 
@@ -25,7 +24,7 @@ import {
 export interface GenerateInput {
   prompt: string;
   format: VideoFormat;
-  length: VideoLength;
+  length: number;
   /** OpenRouter slug for the script. */
   model: string;
 }

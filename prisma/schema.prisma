@@ -21,6 +21,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   videos        Video[]
+  videoJobs     VideoJob[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -85,4 +86,62 @@ model Video {
   createdAt         DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// One user-facing video request. The row is the source of truth for progress.
+model VideoJob {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       String // queued | running | succeeded | failed | canceled
+  currentStep  String? // script | images | videos | render | finalize
+  progressPct  Int       @default(0)
+  input        Json
+  artifacts    Json      @default("{}")
+  outputUrl    String?
+  error        String?
+  errorDetail  Json?
+  attempt      Int       @default(0)
+  costUsd      Decimal   @default(0) @db.Decimal(10, 4)
+  creditsHeld  Int       @default(0)
+  triggerRunId String?
+  heartbeatAt  DateTime?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  providerJobs ProviderJob[]
+
+  @@index([userId, status])
+  @@index([status, heartbeatAt])
+  @@map("video_jobs")
+}
+
+/// One OpenRouter video job. The provider accepts no custom metadata, so this row maps the callback back to a scene.
+model ProviderJob {
+  providerJobId String   @id
+  provider      String   @default("openrouter")
+  jobId         String
+  job           VideoJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  sceneIdx      Int
+  waitToken     String?
+  status        String // pending | in_progress | completed | failed | cancelled | expired
+  costUsd       Decimal? @db.Decimal(10, 4)
+  contentUrl    String?
+  storedUrl     String?
+  lastPolledAt  DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([jobId, sceneIdx])
+  @@map("provider_jobs")
+}
+
+/// Dedupes OpenRouter webhook deliveries. The key is X-OpenRouter-Idempotency-Key.
+model WebhookEvent {
+  idempotencyKey String   @id
+  receivedAt     DateTime @default(now())
+  payload        Json
+
+  @@map("webhook_events")
 }

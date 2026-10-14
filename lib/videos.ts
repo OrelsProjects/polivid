@@ -2,6 +2,8 @@ import "server-only";
 import type { Prisma, Video } from "@/generated/prisma/client";
 import { db } from "./db";
 import { getCurrentUser } from "./session";
+import { listActiveVideoJobs } from "./video/jobs";
+import type { VideoJobView } from "./video/job-status";
 import type {
   Fact,
   ScenePlan,
@@ -16,6 +18,12 @@ import type {
  * Video data access. Reads resolve the signed-in user themselves, so a caller
  * can never ask for someone else's videos by passing an id.
  */
+
+/** Queued and running jobs for the signed-in user, newest first. */
+export async function listMyActiveJobs(): Promise<VideoJobView[]> {
+  const user = await getCurrentUser();
+  return listActiveVideoJobs(user.id);
+}
 
 export async function listMyVideos(): Promise<VideoRecord[]> {
   const user = await getCurrentUser();

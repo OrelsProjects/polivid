@@ -12,7 +12,7 @@ import { VideoPlayer } from "@/components/video/video-player";
 import { hasFootage } from "@/lib/video/footage";
 import { getMyVideo } from "@/lib/videos";
 import { domainOf, fillPlaceholders, formatFact, formatValue } from "@/lib/video/format";
-import { generationModelLabel } from "@/lib/video/models";
+import { generationModelBySlug, generationModelLabel } from "@/lib/video/models";
 import type { SceneType, VideoRecord } from "@/lib/video/schema";
 import { cn } from "@/lib/utils";
 
@@ -213,6 +213,17 @@ function Sources({ video }: { video: VideoRecord }) {
   );
 }
 
+function retryHref(video: VideoRecord) {
+  const params = new URLSearchParams({
+    prompt: video.prompt,
+    format: video.format,
+    length: String(video.length),
+  });
+  const model = generationModelBySlug(video.model);
+  if (model) params.set("model", model.id);
+  return `/create?${params.toString()}`;
+}
+
 function FailedVideo({ video }: { video: VideoRecord }) {
   return (
     <div className="flex flex-col gap-6">
@@ -223,7 +234,7 @@ function FailedVideo({ video }: { video: VideoRecord }) {
         </span>
         <span className="text-muted-foreground">{video.error}</span>
         <Link
-          href={`/create?prompt=${encodeURIComponent(video.prompt)}`}
+          href={retryHref(video)}
           className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 w-fit rounded-xl bg-white")}
         >
           Try again

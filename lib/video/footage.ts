@@ -7,7 +7,6 @@ import type { VideoFormat } from "./schema";
 
 const API = "https://openrouter.ai/api/v1";
 const POLL_MS = 3000;
-const POLL_LIMIT_MS = 4 * 60 * 1000;
 
 const MEDIA_DIR = path.join(process.cwd(), "data", "media");
 
@@ -42,11 +41,27 @@ export interface FootageClip {
   bytes: Uint8Array;
 }
 
+export class FootageStopped extends Error {
+  constructor() {
+    super("Stopped.");
+    this.name = "FootageStopped";
+  }
+}
+
 /**
  * Sends the prompt to an OpenRouter video model and returns the mp4 bytes.
  * Duration is snapped to a length the model accepts.
+ * There is no time limit. OpenRouter decides when the clip is done.
+ * `onSubmitted` runs after OpenRouter accepts the clip and before the wait,
+ * so the id can be saved even if this process stops.
+ * `shouldContinue` is checked between polls so a canceled job can stop waiting.
+ * A database error inside that check does not cancel the OpenRouter wait.
  */
-export const renderFootage = async (input: FootageRequest): Promise<FootageClip> => {
+export const renderFootage = async (
+  input: FootageRequest,
+  shouldContinue: () => Promise<boolean> = async () => true,
+  onSubmitted?: (providerJobId: string) => Promise<void>,
+): Promise<FootageClip> => {
   const model = generationModelBySlug(input.model);
   if (!model) {
     throw new Error("Pick Wan 3.0, MiniMax H3, Seedance 2.5, or FLUX 3. Those are the video models.");
@@ -57,7 +72,7 @@ export const renderFootage = async (input: FootageRequest): Promise<FootageClip>
 
   const duration = clipDuration(input.length, model.durations);
   const resolution = clipResolution(model.resolutions);
-  const jobId = await submitJob({
+  const providerJobId = await submitJob({
     model: model.slug,
     prompt: input.prompt,
     duration,
@@ -65,9 +80,21 @@ export const renderFootage = async (input: FootageRequest): Promise<FootageClip>
     aspect_ratio: input.format,
     generate_audio: model.audio,
   });
-  await waitForJob(jobId);
-  const bytes = await downloadJob(jobId);
+  if (onSubmitted) {
+    try {
+      await onSubmitted(providerJobId);
+    } catch (error) {
+      console.error("Could not save the OpenRouter video id", error);
+    }
+  }
+  const bytes = await finishFootage(providerJobId, shouldContinue);
   return { durationSec: duration, bytes };
+};
+
+/** Keeps polling an OpenRouter video that was already submitted. */
+export const finishFootage = async (providerJobId: string, shouldContinue: () => Promise<boolean> = async () => true) => {
+  await waitForJob(providerJobId, shouldContinue);
+  return downloadJob(providerJobId);
 };
 
 const apiKey = () => {
@@ -91,9 +118,13 @@ const submitJob = async (body: Record<string, unknown>) => {
   return job.id;
 };
 
-const waitForJob = async (jobId: string) => {
-  const started = Date.now();
-  while (Date.now() - started < POLL_LIMIT_MS) {
+const waitForJob = async (jobId: string, shouldContinue: () => Promise<boolean>) => {
+  while (true) {
+    try {
+      if (!(await shouldContinue())) throw new FootageStopped();
+    } catch (error) {
+      if (error instanceof FootageStopped) throw error;
+    }
     const response = await fetch(`${API}/videos/${jobId}`, {
       headers: { Authorization: `Bearer ${apiKey()}` },
     });
@@ -105,7 +136,6 @@ const waitForJob = async (jobId: string) => {
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
   }
-  throw new Error("The video model took too long. Try again with a shorter clip.");
 };
 
 const downloadJob = async (jobId: string) => {

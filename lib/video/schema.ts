@@ -11,9 +11,15 @@ import { z } from "zod";
 export const VIDEO_FORMATS = ["9:16", "16:9", "1:1"] as const;
 export type VideoFormat = (typeof VIDEO_FORMATS)[number];
 
-/** 2s is a short playback for testing. 30, 60 and 90 are the real lengths. */
-export const VIDEO_LENGTHS = [2, 30, 60, 90] as const;
+/** Preset lengths on the Create page. Any whole number in the range below is also allowed. */
+export const VIDEO_LENGTHS = [30, 60, 90] as const;
 export type VideoLength = (typeof VIDEO_LENGTHS)[number];
+
+export const MIN_VIDEO_LENGTH = 2;
+export const MAX_VIDEO_LENGTH = 90;
+
+export const isVideoLength = (value: number) =>
+  Number.isInteger(value) && value >= MIN_VIDEO_LENGTH && value <= MAX_VIDEO_LENGTH;
 
 export const FACT_FORMATS = [
   "percent",

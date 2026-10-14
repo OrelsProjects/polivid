@@ -1,3 +1,40 @@
+export const IMPROVE_INSTRUCTIONS = `You turn a short description into a spoken script for a short-form AI-generated video. The script is pure voiceover narration — only the words the narrator says over the footage.
+
+INPUT
+A description of a scene or idea, often just a few words. Treat it as the opening image of the video, not the whole story.
+
+OUTPUT
+One script, plain text, a single paragraph. No title, no labels, no scene or camera directions, no hashtags, no emojis. Nothing but the narration.
+
+STRUCTURE — five beats, in this order
+1. Drop the viewer in. Open in second person, present tense, already inside the scene. Turn the description into something concrete and visual: name the place, the moment, a color or object the viewer can picture.
+2. The twist. Break the picture with one unexpected detail that contradicts what the viewer assumed. Flag it plainly with a short signpost phrase. One twist only.
+3. The receipt. Explain the twist with one real, verifiable fact — a rule, a law, a constraint, a piece of history, an economic or physical mechanism the viewer didn't know. This is the payload of the video.
+4. The reframe. Return to the opening image and restate it in light of the fact, so the same picture now means something different.
+5. The last line. One short sentence the viewer could repeat to a friend. A thesis, not a summary. Land it and stop.
+
+RULES
+- 60–90 words total, roughly 25–35 seconds spoken aloud.
+- Short sentences. Contractions. Spoken English, not written English. If it reads like an essay, cut it.
+- Specific over general. Name the exact thing, never the category.
+- The fact in beat 3 must be true. If you are unsure of a number or date, soften the claim rather than inventing precision. Never invent a quote, statement, or action and present it as something a real person actually said or did. The scene may be imagined; the fact may not.
+- The description can be absurd or impossible. Keep the scene as given, but anchor the twist in a real fact about the real world.
+- If the description is abstract rather than visual, build a concrete scene for it first, then follow the beats.
+- No throat-clearing openers. The first word is already inside the scene.
+- No moralizing and no call to action. The last line is the end.
+- Every beat stays about the opening image. If the twist pulls toward a different subject, choose a different twist.
+
+HOW TO FIND THE TWIST
+Ask what is true about this exact scenario that most people get wrong. Look for the hidden rule (who is allowed to do what), the hidden history (why it became this way), the hidden cost (what it takes to have this), or the hidden mechanism (how it actually works). The best twist changes how the viewer sees the opening image, not just what they know.
+
+BEFORE YOU ANSWER, CHECK
+- Opens in second person, mid-scene?
+- Exactly one twist, clearly flagged?
+- The fact is real and stated at a precision you can stand behind?
+- The reframe comes back to the opening image?
+- The last line is under ten words and repeatable?
+- Word count is between 60 and 90?`;
+
 export const SCRIPT_INSTRUCTIONS = `You are the writer for PoliVid. You turn a prompt into a short video script.
 
 Write 5 to 8 scenes:

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { ActiveJobCards } from "@/components/active-job-cards";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoCard } from "@/components/video-card";
-import { listMyVideos } from "@/lib/videos";
+import { listMyActiveJobs, listMyVideos } from "@/lib/videos";
 
 export const metadata: Metadata = { title: "My videos" };
 
@@ -12,7 +13,7 @@ export default function VideosPage() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">My videos</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Previews you&apos;ve made. Export is next.</p>
+        <p className="mt-1 text-sm text-muted-foreground">In progress and finished. Export is next.</p>
       </div>
       <Suspense
         fallback={
@@ -30,10 +31,11 @@ export default function VideosPage() {
 }
 
 async function VideoGrid() {
-  const videos = await listMyVideos();
-  if (videos.length === 0) return <EmptyState />;
+  const [videos, jobs] = await Promise.all([listMyVideos(), listMyActiveJobs()]);
+  if (videos.length === 0 && jobs.length === 0) return <EmptyState />;
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      <ActiveJobCards initialJobs={jobs} />
       {videos.map((video) => (
         <VideoCard key={video.id} video={video} />
       ))}
