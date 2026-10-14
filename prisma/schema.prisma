@@ -1,0 +1,88 @@
+// PoliVid database schema.
+// User, Account, Session and VerificationToken are the Auth.js (NextAuth v5)
+// Prisma adapter models; keep their field names as they are.
+// Docs: docs/SETUP.md (database) and docs/ARCHITECTURE.md (data model).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  videos        Video[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+/// OAuth accounts linked to a user (Google).
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+/// Database sessions. The browser only holds the opaque sessionToken cookie.
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// One-time tokens for email (Resend magic link) sign-in.
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+/// A generated video. facts/quotes/plan are JSON matching lib/video/schema.ts.
+model Video {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prompt            String
+  format            String // "9:16" | "16:9" | "1:1"
+  length            Int // target seconds: 30 | 60 | 90
+  status            String // "ready" | "failed"
+  title             String
+  facts             Json // Fact[]
+  quotes            Json // SourcedQuote[]
+  plan              Json? // ScenePlan, null when generation failed
+  searchSources     Json // SearchSource[]: URLs the web search returned
+  unverifiedFactIds String[]
+  model             String // OpenRouter model slug, or "demo"
+  demo              Boolean  @default(false)
+  error             String?
+  createdAt         DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

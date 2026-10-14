@@ -1,0 +1,6 @@
+
+# Google OAuth client
+AUTH_GOOGLE_ID=
+AUTH_GOOGLE_SECRET=
+
+# Resend magic-link email: 

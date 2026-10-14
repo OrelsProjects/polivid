@@ -1,0 +1,71 @@
+import { Suspense, type ReactNode } from "react";
+import { connection } from "next/server";
+import { AppNav } from "@/components/app-nav";
+import { Logo } from "@/components/logo";
+import { UserMenu } from "@/components/user-menu";
+import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
+import { DEFAULT_GENERATION_MODEL, generationModelBySlug } from "@/lib/video/models";
+
+/**
+ * Shell for signed-in pages: sidebar on desktop, top nav on mobile.
+ * proxy.ts redirects signed-out visitors to /login before this renders.
+ */
+export default function AppLayout({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-svh flex-1 bg-background">
+      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-4 md:flex">
+        <Logo href="/dashboard" className="px-2 pt-1" />
+        <div className="mt-5">
+          <AppNav />
+        </div>
+        <div className="mt-auto flex flex-col gap-3">
+          <div className="rounded-2xl border border-border bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold">Free plan</span>
+              <Suspense fallback={null}>
+                <PlanBadge />
+              </Suspense>
+            </div>
+            <Suspense fallback={<div className="mt-2 h-8" />}>
+              <EngineStatus />
+            </Suspense>
+          </div>
+          <Suspense fallback={<div className="h-10" />}>
+            <UserMenu />
+          </Suspense>
+        </div>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex items-center justify-between gap-3 border-b border-border bg-sidebar px-4 py-3 md:hidden">
+          <Logo href="/dashboard" />
+          <AppNav orientation="horizontal" />
+        </header>
+        <main className="flex-1">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+async function PlanBadge() {
+  await connection();
+  return (
+    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-primary">
+      {hasOpenRouterKey() ? "LIVE" : "DEMO"}
+    </span>
+  );
+}
+
+/** Reads env at request time so adding a key takes effect without a rebuild. */
+async function EngineStatus() {
+  await connection();
+  return hasOpenRouterKey() ? (
+    <p className="mt-2 text-xs leading-relaxed text-muted-foreground" title={MODEL}>
+      Model: {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
+    </p>
+  ) : (
+    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+      Demo mode. Videos use fictional sample data until an API key is set.
+    </p>
+  );
+}

@@ -1,8 +1,8 @@
 # PoliVid
 
-News videos with receipts. Type a story, and PoliVid finds the numbers on primary sources, cites every one on screen, and builds a short video (vertical, square or wide).
+Turn any idea into a polished short video. Type a topic, and PoliVid writes the script, lays out the scenes, and builds a short video (vertical, square, or wide) with animated text, charts, and captions.
 
-The core rule: **the AI arranges the story, and code fills in every number from its source.** The AI never types a figure. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+When a video uses numbers, **the AI arranges the script and code fills in every figure from its source.** See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The name and niche are still open; see [docs/PRD.md](docs/PRD.md).
 
 ## Quick start
 
@@ -41,7 +41,7 @@ Next.js 16 (App Router, Cache Components) · React 19 · Tailwind 4 + shadcn (Ba
 
 ## Status
 
-Built: landing page, sign-in, dashboard, prompt-to-video generation with live progress, in-browser preview, and a receipts panel listing every fact with its source.
+Built: landing page, sign-in, dashboard, prompt-to-video generation with live progress, in-browser preview, and a sources panel when the video uses facts.
 
 Not built yet: MP4 export (Remotion Lambda), voiceover, payments, and editing a video after generation.
 # polivid
