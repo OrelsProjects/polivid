@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { rangedBytesResponse } from "@/lib/http/range";
-import { deleteUpload, getUpload, hasS3Config } from "@/lib/storage/s3";
+import { deleteUpload, getObjectIfExists, hasS3Config } from "@/lib/storage/s3";
 import { ownedUploadKey } from "@/lib/storage/upload-key";
 import { readJobInput } from "@/lib/video/job-status";
 
@@ -20,10 +20,17 @@ export async function GET(request: Request, context: { params: Promise<{ name: s
   if (!key || !hasS3Config()) return new Response("Not found.", { status: 404 });
 
   try {
-    const { bytes, contentType } = await getUpload(key);
-    return rangedBytesResponse(bytes, contentType, request.headers.get("range"), "private, max-age=31536000, immutable");
-  } catch {
-    return new Response("Not found.", { status: 404 });
+    const upload = await getObjectIfExists(key);
+    if (!upload) return new Response("Not found.", { status: 404 });
+    return rangedBytesResponse(
+      upload.bytes,
+      upload.contentType,
+      request.headers.get("range"),
+      "private, max-age=31536000, immutable",
+    );
+  } catch (error) {
+    console.error("Could not read the upload", { key, error });
+    return new Response("Couldn't load this picture.", { status: 500 });
   }
 }
 
