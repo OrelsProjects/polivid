@@ -38,6 +38,13 @@ const TOOLS = [
     icon: BarChart3,
     tint: "bg-amber-50 text-amber-700",
   },
+  {
+    href: "/create/voiceover",
+    title: "Voiceover video",
+    body: "Script or a link",
+    icon: Mic,
+    tint: "bg-violet-50 text-violet-700",
+  },
 ] as const;
 
 const STARTERS = [SHOWCASE[3], SHOWCASE[5], SHOWCASE[4]];
@@ -58,34 +65,22 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {TOOLS.map(({ href, title, body, icon: Icon, tint }) => (
-          <Link
-            key={href}
-            href={href}
-            className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm transition hover:border-primary/30"
-          >
-            <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", tint)}>
-              <Icon className="size-4" aria-hidden />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-medium">{title}</span>
-              <span className="block text-xs text-muted-foreground">{body}</span>
-            </span>
-          </Link>
-        ))}
-        <Link
-          href="/create/voiceover"
-          className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm transition hover:border-primary/30"
-        >
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
-            <Mic className="size-4" aria-hidden />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-medium">Voiceover video</span>
-            <span className="block text-xs text-muted-foreground">Script or a link</span>
-          </span>
-        </Link>
-      </div>
+          {TOOLS.map(({ href, title, body, icon: Icon, tint }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+            >
+              <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", tint)}>
+                <Icon className="size-4" aria-hidden />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-medium">{title}</span>
+                <span className="block text-xs text-muted-foreground">{body}</span>
+              </span>
+            </Link>
+          ))}
+        </div>
       </section>
 
       <Suspense fallback={<DashboardSkeleton />}>
@@ -104,17 +99,21 @@ export default function DashboardPage() {
             <li key={video.title}>
               <Link
                 href={showcaseHref(video)}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm transition hover:border-primary/30"
+                className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
               >
-                <StylePoster style={video.style} title={video.title} size="sm" className="w-16 shrink-0 rounded-xl" />
+                <span aria-hidden className="w-16 shrink-0">
+                  <StylePoster style={video.style} title={video.title} size="sm" className="w-full rounded-xl" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{video.title}</span>
                   <span className="mt-0.5 block text-xs text-muted-foreground">
-                    {showcaseMeta(video)} · {video.style[0].toUpperCase()}
-                    {video.style.slice(1)}
+                    {`${showcaseMeta(video)} · ${video.style[0].toUpperCase()}${video.style.slice(1)}`}
                   </span>
                 </span>
-                <span className={cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0 rounded-xl bg-white")}>
+                <span
+                  aria-hidden
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden shrink-0 rounded-xl bg-white sm:inline-flex")}
+                >
                   Create similar
                 </span>
               </Link>

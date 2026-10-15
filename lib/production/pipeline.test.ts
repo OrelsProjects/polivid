@@ -18,6 +18,7 @@ import { checkMediaFile, timelineDuration } from "./review/ffmpeg";
 import { DevelopOutputSchema, StructureOutputSchema } from "./schema";
 import { TimelineSchema } from "@/lib/editor/schema";
 import { compileToEditorTimeline, validateProductionTimeline } from "./timeline";
+import { normalizeContinuity } from "./validate";
 
 const execFileAsync = promisify(execFile);
 
@@ -338,6 +339,32 @@ test("shot graph generates speech before continuations", () => {
   assert.ok(angle?.dependsOnKeys.includes("review_shot:shot:shot_1"));
   const opening = steps.find((step) => step.kind === "shot_video" && step.targetKey === "shot:shot_1");
   assert.ok(!opening?.dependsOnKeys.some((key) => key.startsWith("review_shot:")));
+});
+
+test("a re-shot carries the rejected take's problems into the prompt", () => {
+  const structure = mockStructure();
+  const context = {
+    brief: mockDevelop("x").brief,
+    scene: structure.scenes[0]!,
+    shot: structure.shots[0]!,
+    characterNotes: [],
+    locationNotes: "apartment",
+  };
+  const retake = compileShotPrompt({ ...context, corrections: ["camera pushed in instead of staying locked"] });
+  assert.match(retake, /previous take was rejected/i);
+  assert.match(retake, /camera pushed in instead of staying locked/);
+  assert.doesNotMatch(compileShotPrompt(context), /previous take/i);
+});
+
+test("a new angle that opens another scene is relabeled as a new scene", () => {
+  const structure = mockStructure();
+  const continuityOf = (plan: typeof structure, id: string) => plan.shots.find((shot) => shot.id === id)?.continuity;
+  const moved = {
+    ...structure,
+    shots: structure.shots.map((shot) => (shot.id === "shot_2" ? { ...shot, sceneId: "scene_2" } : shot)),
+  };
+  assert.equal(continuityOf(normalizeContinuity(moved), "shot_2"), "new_scene");
+  assert.equal(continuityOf(normalizeContinuity(structure), "shot_2"), "new_angle");
 });
 
 test("transcript comparison treats low confidence as uncertain", () => {

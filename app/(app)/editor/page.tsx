@@ -1,9 +1,11 @@
+import { ChevronRight, Clapperboard } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { NewProjectButton } from "@/components/editor/new-project-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listMyProjects } from "@/lib/editor/projects";
+import { formatDate } from "@/lib/video/format";
 
 export const metadata: Metadata = { title: "Editor" };
 
@@ -40,12 +42,21 @@ async function ProjectGrid() {
         <li key={project.id}>
           <Link
             href={`/editor/${project.id}`}
-            className="flex flex-col gap-1 rounded-2xl border border-border bg-white p-4 shadow-sm hover:border-primary/40"
+            className="group flex items-center gap-3 rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md"
           >
-            <span className="font-medium">{project.title}</span>
-            <span className="text-xs text-muted-foreground">
-              {project.format} · {new Date(project.updatedAt).toLocaleDateString()}
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+              <Clapperboard className="size-4" aria-hidden />
             </span>
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="truncate font-medium">{project.title}</span>
+              <span className="text-xs text-muted-foreground">
+                {project.format} · Edited {formatDate(project.updatedAt)}
+              </span>
+            </span>
+            <ChevronRight
+              className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden
+            />
           </Link>
         </li>
       ))}

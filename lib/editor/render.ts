@@ -16,6 +16,19 @@ const remotionBundle = () => {
   if (!bundleLocation) {
     bundleLocation = bundle({
       entryPoint: path.join(process.cwd(), "remotion/index.ts"),
+      webpackOverride: (config) => ({
+        ...config,
+        resolve: {
+          ...config.resolve,
+          alias: {
+            ...(config.resolve?.alias as Record<string, string> | undefined),
+            "@": process.cwd(),
+          },
+        },
+      }),
+    }).catch((error: unknown) => {
+      bundleLocation = null;
+      throw error;
     });
   }
   return bundleLocation;

@@ -99,7 +99,7 @@ export default function LandingPage() {
     <div className="flex flex-1 flex-col bg-white">
       <SiteHeader />
 
-      <main>
+      <main id="main">
         <section className="px-4 pt-16 pb-20 text-center sm:px-6 sm:pt-24">
           <div className="mx-auto flex max-w-2xl flex-col items-center gap-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -146,7 +146,7 @@ export default function LandingPage() {
                 <Link
                   key={title}
                   href={href}
-                  className="flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:border-primary/30"
+                  className="group flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
                 >
                   <span className={cn("grid size-9 place-items-center rounded-xl", tint)}>
                     <Icon className="size-4" aria-hidden />
@@ -154,7 +154,10 @@ export default function LandingPage() {
                   <span className="font-semibold">{title}</span>
                   {example && <span className="text-sm text-muted-foreground">{example}</span>}
                   <span className="text-sm leading-relaxed text-muted-foreground">{body}</span>
-                  <span className="mt-auto text-sm font-medium text-primary">Try it →</span>
+                  <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-primary">
+                    Try it
+                    <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                  </span>
                 </Link>
               ))}
               <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border bg-white/60 p-5">
@@ -193,7 +196,7 @@ export default function LandingPage() {
                   <p className="text-xs text-muted-foreground">{showcaseMeta(video)}</p>
                   <Link
                     href={showcaseHref(video)}
-                    className={cn(buttonVariants({ variant: "outline", size: "sm" }), "rounded-xl bg-white")}
+                    className={cn(buttonVariants({ variant: "outline" }), "h-9 rounded-xl bg-white")}
                   >
                     Create similar
                   </Link>
@@ -227,21 +230,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="faq" className="bg-background px-4 pb-20 sm:px-6">
-          <div className="mx-auto max-w-6xl">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">FAQ</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Questions, answered.</h2>
-            <dl className="mt-8 grid gap-4 sm:grid-cols-2">
-              {FAQ.map((item) => (
-                <div key={item.q} className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-                  <dt className="font-semibold">{item.q}</dt>
-                  <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </section>
-
         <section id="pricing" className="scroll-mt-20 bg-white px-4 py-20 sm:px-6">
           <div className="mx-auto flex max-w-6xl flex-col gap-10">
             <div className="text-center">
@@ -256,6 +244,43 @@ export default function LandingPage() {
             <PricingCards mode="marketing" />
             <TopupPacks />
             <CreditExamples />
+          </div>
+        </section>
+
+        <section id="faq" className="scroll-mt-20 bg-background px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-6xl">
+            <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">FAQ</p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Questions, answered.</h2>
+            <dl className="mt-8 grid gap-4 sm:grid-cols-2">
+              {FAQ.map((item) => (
+                <div key={item.q} className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+                  <dt className="font-semibold">{item.q}</dt>
+                  <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+
+        <section className="bg-white px-4 py-20 sm:px-6">
+          <div className="mx-auto flex max-w-4xl flex-col items-center gap-5 rounded-3xl bg-[#0C1222] px-6 py-14 text-center text-white sm:px-12">
+            <span className="h-0.5 w-10 rounded-full bg-[#F5B942]" aria-hidden />
+            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+              Your next explainer is one prompt away.
+            </h2>
+            <p className="max-w-md text-sm text-pretty text-white/70 sm:text-base">
+              Start with 100 free credits. Preview every scene before anything leaves the app.
+            </p>
+            <Link
+              href="/create"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-11 rounded-xl bg-[#F5B942] px-5 text-[#0C1222] hover:bg-[#F5B942]/90",
+              )}
+            >
+              Try for free
+              <ArrowRight data-icon="inline-end" />
+            </Link>
           </div>
         </section>
       </main>

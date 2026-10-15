@@ -1,5 +1,5 @@
 import { signInWithEmail, signInWithGoogle } from "@/app/login/actions";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 
 /** Auth.js error codes shown as ?error=... on /login. */
 const AUTH_ERRORS: Record<string, string> = {
@@ -18,15 +18,14 @@ export const LoginForm = ({ callbackUrl }: { callbackUrl: string }) => {
     <div className="flex flex-col gap-4">
       <form action={signInWithGoogle}>
         <input type="hidden" name="callbackUrl" value={callbackUrl} />
-        <Button
-          type="submit"
+        <SubmitButton
           size="lg"
+          pendingLabel="Opening Google…"
           className="h-12 w-full rounded-xl bg-foreground text-background hover:bg-foreground/90"
-          aria-label="Continue with Google"
         >
           <GoogleIcon />
           Continue with Google
-        </Button>
+        </SubmitButton>
       </form>
 
       <div className="relative">
@@ -50,13 +49,12 @@ export const LoginForm = ({ callbackUrl }: { callbackUrl: string }) => {
           required
           autoComplete="email"
           placeholder="you@example.com"
-          aria-label="Email"
           aria-describedby="email-signin-hint"
-          className="h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-11 rounded-xl border border-border bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:text-sm"
         />
-        <Button type="submit" size="lg" className="h-11 w-full rounded-xl" aria-label="Email me a sign-in link">
+        <SubmitButton size="lg" pendingLabel="Sending link…" className="h-11 w-full rounded-xl">
           Email me a sign-in link
-        </Button>
+        </SubmitButton>
         <p id="email-signin-hint" className="text-xs leading-relaxed text-muted-foreground">
           The link will work once and expire in 24 hours.
         </p>

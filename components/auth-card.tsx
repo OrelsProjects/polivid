@@ -13,7 +13,7 @@ export function AuthCard({
   notice?: React.ReactNode;
 }) {
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-16">
+    <main id="main" className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="flex w-full max-w-[420px] flex-col items-center gap-4">
         <Logo className="text-lg" />
         <div className="flex w-full flex-col gap-5 rounded-3xl border border-border bg-white p-7 shadow-sm">

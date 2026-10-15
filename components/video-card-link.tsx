@@ -75,11 +75,11 @@ export const VideoCardLink = ({
       href={href}
       onClick={handleSeen}
       onPointerEnter={handleSeen}
-      className="group flex cursor-pointer flex-col gap-2.5 focus-visible:outline-none"
+      className="group flex cursor-pointer flex-col gap-2.5 rounded-2xl focus-visible:outline-none"
     >
       <div
         className={cn(
-          "relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border bg-white shadow-sm transition group-hover:border-primary/30",
+          "relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border bg-white shadow-sm transition group-hover:border-primary/30 group-hover:shadow-md group-focus-visible:ring-3 group-focus-visible:ring-ring/50 group-focus-visible:ring-offset-2",
           failed ? "border-red-100 bg-red-50" : "border-border",
         )}
       >
@@ -107,14 +107,16 @@ export const VideoCardLink = ({
             className={video.format === "9:16" ? "h-[92%] w-auto" : "w-[88%]"}
           />
         ) : (
-          <div className="flex flex-col items-center gap-2 px-4 text-center">
+          <div aria-hidden className="flex flex-col items-center gap-2 px-4 text-center">
             <TriangleAlert className="size-5 text-destructive" aria-hidden />
             <span className="text-sm font-medium text-red-900">{video.title}</span>
           </div>
         )}
       </div>
       <div className="flex flex-col gap-0.5 px-0.5">
-        <span className="line-clamp-2 text-sm font-medium group-hover:text-primary">{video.title}</span>
+        <span className="line-clamp-2 text-sm font-medium transition-colors group-hover:text-primary group-focus-visible:text-primary">
+          {video.title}
+        </span>
         <span className="text-xs text-muted-foreground">
           {video.format} · {video.length}s · {formatDate(video.createdAt)}
           {failed ? " · Try again" : ""}

@@ -1,10 +1,11 @@
-import { ArrowLeft, Download, ExternalLink, TriangleAlert } from "lucide-react";
-import { NewProjectButton } from "@/components/editor/new-project-button";
+import { Download, ExternalLink, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { BackLink } from "@/components/back-link";
 import { CopyButton } from "@/components/copy-button";
+import { NewProjectButton } from "@/components/editor/new-project-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,11 +50,8 @@ async function VideoDetail({ id }: { id: string }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <Link href="/videos" className="flex w-fit items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" aria-hidden />
-          My videos
-        </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">{video.title}</h1>
+        <BackLink href="/videos">My videos</BackLink>
+        <h1 className="text-3xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">{video.title}</h1>
         {video.parentVideoId && (
           <p className="text-sm text-muted-foreground">
             Edited from{" "}
@@ -77,7 +75,9 @@ async function VideoDetail({ id }: { id: string }) {
           <span aria-hidden>·</span>
           <span>{formatDate(video.createdAt)}</span>
           <span aria-hidden>·</span>
-          <span className="truncate">“{video.prompt}”</span>
+          <span className="block max-w-full min-w-0 truncate sm:max-w-md" title={video.prompt}>
+            “{video.prompt}”
+          </span>
           {video.demo && <Badge variant="outline">Sample data</Badge>}
         </div>
       </div>
@@ -129,9 +129,9 @@ function Script({ video }: { video: VideoRecord }) {
   const scenes = video.plan?.scenes ?? [];
   return (
     <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-0.5">
         <h2 className="font-semibold">Scenes · {scenes.length}</h2>
-        <span className="text-xs text-muted-foreground">In order. Open the editor to change clips, text, and audio.</span>
+        <p className="text-xs text-muted-foreground">In order. Open the editor to change clips, text, and audio.</p>
       </div>
       <ol className="mt-3 flex flex-col">
         {scenes.map((scene, index) => (

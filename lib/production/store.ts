@@ -16,6 +16,7 @@ import {
   type StepStatus,
   type VersionOrigin,
 } from "./schema";
+import { REVIEW_REJECTED } from "./progress";
 import type { EntityView, ProductionSummary, ProductionView, StepView } from "./types";
 
 export type { EntityView, ProductionSummary, ProductionView, StepView } from "./types";
@@ -261,21 +262,21 @@ export const enqueueStep = async (input: {
 export const listSteps = async (productionId: string) =>
   db.productionStep.findMany({ where: { productionId }, orderBy: { createdAt: "asc" } });
 
+const LEASABLE = { in: ["ready", "leased", "waiting_provider"] as StepStatus[] };
+const unleased = () => [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }];
+
 export const leaseReadySteps = async (workerId: string, limit = 4, leaseMs = 15 * 60_000) => {
   const ready = await db.productionStep.findMany({
-    where: {
-      status: { in: ["ready", "leased", "waiting_provider"] },
-      OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
-    },
+    where: { status: LEASABLE, OR: unleased() },
     take: limit * 3,
     orderBy: { createdAt: "asc" },
   });
   const leased = [];
   for (const step of ready) {
     if (leased.length >= limit) break;
-    if (step.status === "leased" && step.leaseUntil && step.leaseUntil > new Date()) continue;
+    // The lease check is repeated in the write so two overlapping ticks can never both claim a step.
     const result = await db.productionStep.updateMany({
-      where: { id: step.id, status: { in: ["ready", "leased", "waiting_provider"] } },
+      where: { id: step.id, status: LEASABLE, OR: unleased() },
       data: {
         status: "leased",
         workerId,
@@ -376,8 +377,14 @@ export const updateGenerationJob = async (
   });
 };
 
-export const latestJobForStep = async (stepId: string) =>
-  db.generationJob.findFirst({ where: { stepId }, orderBy: { createdAt: "desc" } });
+const isSuperseded = (settings: unknown) =>
+  Boolean(settings && typeof settings === "object" && (settings as { superseded?: unknown }).superseded);
+
+/** The step's current job. Jobs from a discarded take are superseded and never reused. */
+export const latestJobForStep = async (stepId: string) => {
+  const jobs = await db.generationJob.findMany({ where: { stepId }, orderBy: { createdAt: "desc" } });
+  return jobs.find((job) => !isSuperseded(job.settings)) ?? null;
+};
 
 export const addUsage = async (productionId: string, jobId: string | null, provider: string, model: string, usd: number, units: unknown) => {
   await db.usageLedger.create({
@@ -441,6 +448,42 @@ export const cancelOpenSteps = async (productionId: string) => {
   });
 };
 
+type StepRow = { id: string; idempotencyKey: string };
+
+const resetStep = (step: StepRow, status: "ready" | "pending") =>
+  db.productionStep.update({
+    where: { id: step.id },
+    data: {
+      status,
+      error: null,
+      leaseUntil: null,
+      workerId: null,
+      attempt: 0,
+      idempotencyKey: `${step.idempotencyKey}:retry${Date.now().toString(36)}`,
+    },
+  });
+
+/** A rejected review means the take itself is wrong: discard it, film the shot again, then review the new take. */
+const regenerateRejectedShot = async (productionId: string, review: StepRow & { targetKey: string }) => {
+  const takeSteps = await db.productionStep.findMany({
+    where: { productionId, targetKey: review.targetKey, kind: { in: ["shot_video", "lipsync"] } },
+  });
+  const jobs = await db.generationJob.findMany({
+    where: { stepId: { in: [...takeSteps.map((step) => step.id), review.id] } },
+  });
+  for (const job of jobs) {
+    const settings = job.settings && typeof job.settings === "object" && !Array.isArray(job.settings) ? job.settings : {};
+    await db.generationJob.update({ where: { id: job.id }, data: { settings: { ...settings, superseded: true } } });
+  }
+  const producedBy = jobs.flatMap((job) => [job.id, job.providerJobId].filter((id): id is string => Boolean(id)));
+  await db.productionAsset.updateMany({
+    where: { productionId, kind: "video", status: "accepted", producedByJobId: { in: producedBy } },
+    data: { status: "rejected" },
+  });
+  for (const step of [...takeSteps, review]) await resetStep(step, "pending");
+  await unblockDependents(productionId);
+};
+
 export const retryStep = async (productionId: string, stepId: string) => {
   const step = await db.productionStep.findFirst({ where: { id: stepId, productionId } });
   if (!step) return false;
@@ -452,21 +495,15 @@ export const retryStep = async (productionId: string, stepId: string) => {
   ) {
     return false;
   }
+  if (step.kind === "review_shot" && step.status === "failed" && step.error === REVIEW_REJECTED) {
+    await regenerateRejectedShot(productionId, step);
+    return true;
+  }
   await db.generationJob.updateMany({
     where: { stepId, status: { in: ["submitting", "needs_reconcile"] } },
     data: { status: "failed" },
   });
-  await db.productionStep.update({
-    where: { id: stepId },
-    data: {
-      status: "ready",
-      error: null,
-      leaseUntil: null,
-      workerId: null,
-      attempt: 0,
-      idempotencyKey: `${step.idempotencyKey}:retry${Date.now().toString(36)}`,
-    },
-  });
+  await resetStep(step, "ready");
   return true;
 };
 

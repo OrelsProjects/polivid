@@ -1,7 +1,7 @@
 import type { Planner } from "../planner";
 import { DEVELOP_INSTRUCTIONS, formatDevelopInput, formatStructureInput, STRUCTURE_INSTRUCTIONS } from "../prompts";
 import { DevelopOutputSchema, StructureOutputSchema, type DevelopOutput, type StructureOutput } from "../schema";
-import { validateDevelop, validateStructure, type ValidationResult } from "../validate";
+import { normalizeContinuity, validateDevelop, validateStructure, type ValidationResult } from "../validate";
 
 export interface PlanContext {
   text: string;
@@ -34,8 +34,9 @@ export const runStructurePass = async (
     system: STRUCTURE_INSTRUCTIONS,
     input: formatStructureInput({ developJson: JSON.stringify(develop), retryNotes: options.retryNotes }),
   });
-  const validation = validateStructure(develop, result.output);
-  return { structure: result.output, validation, usage: result.usage, model: result.model };
+  const structure = normalizeContinuity(result.output);
+  const validation = validateStructure(develop, structure);
+  return { structure, validation, usage: result.usage, model: result.model };
 };
 
 export const needsUserQuestions = (develop: DevelopOutput, delegated: boolean) => {

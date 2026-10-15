@@ -54,7 +54,13 @@ export function PromptBox({
         className="min-h-16 resize-none border-0 bg-transparent px-2 text-base shadow-none focus-visible:ring-0 md:text-base"
       />
       <div className="flex items-center justify-between gap-3 px-2 pt-1 pb-1">
-        <span className="text-xs text-muted-foreground">9:16 · 60s · Bold · Narrator</span>
+        <span className="text-xs text-muted-foreground">
+          <kbd className="font-sans font-medium text-foreground">Enter</kbd> to generate
+          <span className="hidden sm:inline">
+            {" "}
+            · <kbd className="font-sans font-medium text-foreground">Shift + Enter</kbd> for a new line
+          </span>
+        </span>
         <Button type="submit" size="lg" disabled={!prompt.trim()} className="h-10 rounded-xl px-4">
           Generate
           <ArrowRight data-icon="inline-end" />

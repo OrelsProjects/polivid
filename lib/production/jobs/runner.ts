@@ -9,6 +9,8 @@ const WORKER_ID = `worker_${process.pid}`;
 const ticker = globalThis as unknown as {
   productionTicker?: ReturnType<typeof setInterval>;
   productionTicking?: boolean;
+  /** Re-registered on every module load, so a hot-reloaded server never keeps ticking stale code. */
+  productionTick?: () => Promise<void>;
 };
 
 const runLeasedStep = async (step: Awaited<ReturnType<typeof leaseReadySteps>>[number]) => {
@@ -66,11 +68,13 @@ export const tickProductionJobs = async () => {
   }
 };
 
+ticker.productionTick = tickProductionJobs;
+
 export const startProductionTicker = () => {
   if (ticker.productionTicker) clearInterval(ticker.productionTicker);
   ticker.productionTicking = false;
   ticker.productionTicker = setInterval(() => {
-    void tickProductionJobs();
+    void ticker.productionTick?.();
   }, 2000);
   void tickProductionJobs();
 };

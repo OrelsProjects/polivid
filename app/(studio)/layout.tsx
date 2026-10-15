@@ -5,5 +5,9 @@ import type { ReactNode } from "react";
  * sidebar behind so the timeline can use the whole viewport.
  */
 export default function StudioLayout({ children }: { children: ReactNode }) {
-  return <div className="h-svh overflow-hidden bg-background">{children}</div>;
+  return (
+    <main id="main" className="h-svh overflow-hidden bg-background">
+      {children}
+    </main>
+  );
 }

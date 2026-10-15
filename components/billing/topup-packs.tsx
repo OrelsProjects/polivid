@@ -49,7 +49,7 @@ export function TopupPacks({ signedIn = false }: { signedIn?: boolean }) {
         {TOPUP_PACKS.map((pack) => (
           <article key={pack.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-white p-4 shadow-sm">
             <p className="font-semibold">{pack.name}</p>
-            <p className="text-2xl font-semibold tracking-tight">{formatUsdFromCents(pack.cents)}</p>
+            <p className="text-2xl font-semibold tracking-tight tabular-nums">{formatUsdFromCents(pack.cents)}</p>
             {signedIn ? (
               <Button
                 type="button"

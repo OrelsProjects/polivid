@@ -1,11 +1,19 @@
+import { Plus } from "lucide-react";
+import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
 import { PlanCard } from "@/components/billing/plan-card";
 import { Logo } from "@/components/logo";
+import { MobileNav } from "@/components/mobile-nav";
+import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
+import { cn } from "@/lib/utils";
 import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
-import { DEFAULT_GENERATION_MODEL, generationModelBySlug } from "@/lib/video/models";
+import {
+  DEFAULT_GENERATION_MODEL,
+  generationModelBySlug,
+} from "@/lib/video/models";
 
 /**
  * Shell for signed-in pages: sidebar on desktop, top nav on mobile.
@@ -20,7 +28,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <AppNav />
         </div>
         <div className="mt-auto flex flex-col gap-3">
-          <Suspense fallback={<div className="h-16 rounded-2xl border border-border bg-white" />}>
+          <Suspense
+            fallback={
+              <div className="h-16 rounded-2xl border border-border bg-white" />
+            }
+          >
             <PlanCard />
           </Suspense>
           <Suspense fallback={null}>
@@ -33,11 +45,38 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-3 border-b border-border bg-sidebar px-4 py-3 md:hidden">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar/95 px-4 backdrop-blur md:hidden">
           <Logo href="/dashboard" />
-          <AppNav orientation="horizontal" />
+          <div className="flex items-center gap-1">
+            <Link
+              href="/create"
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "h-10 rounded-xl px-3",
+              )}
+            >
+              <Plus data-icon="inline-start" />
+              New
+            </Link>
+            <Suspense fallback={<div className="size-10" />}>
+              <MobileNav>
+                <Suspense
+                  fallback={
+                    <div className="h-16 rounded-2xl border border-border bg-white" />
+                  }
+                >
+                  <PlanCard />
+                </Suspense>
+                <Suspense fallback={<div className="h-10" />}>
+                  <UserMenu />
+                </Suspense>
+              </MobileNav>
+            </Suspense>
+          </div>
         </header>
-        <main className="flex-1">{children}</main>
+        <main id="main" className="flex-1">
+          {children}
+        </main>
       </div>
     </div>
   );
@@ -47,8 +86,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 async function EngineStatus() {
   await connection();
   return hasOpenRouterKey() ? (
-    <p className="px-1 text-xs leading-relaxed text-muted-foreground" title={MODEL}>
-      {hasOpenRouterKey() ? "LIVE" : "DEMO"} · {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
+    <p
+      className="px-1 text-xs leading-relaxed text-muted-foreground"
+      title={MODEL}
+    >
+      {hasOpenRouterKey() ? "LIVE" : "DEMO"} ·{" "}
+      {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
     </p>
   ) : (
     <p className="px-1 text-xs leading-relaxed text-muted-foreground">

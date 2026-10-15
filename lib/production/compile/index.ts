@@ -7,6 +7,8 @@ export interface CompileContext {
   observation?: Observation | null;
   characterNotes: string[];
   locationNotes: string;
+  /** What the reviewer found wrong with a rejected earlier take of this shot. */
+  corrections?: string[];
 }
 
 export const compileShotPrompt = (context: CompileContext) => {
@@ -45,6 +47,10 @@ export const compileShotPrompt = (context: CompileContext) => {
   }
   parts.push(`Intended beginning: ${context.shot.intendedBeginning}.`);
   parts.push(`Intended ending: ${context.shot.intendedEnding}.`);
+  const corrections = context.corrections?.filter(Boolean) ?? [];
+  if (corrections.length > 0) {
+    parts.push(`A previous take was rejected. Avoid these problems: ${corrections.join("; ")}.`);
+  }
   return parts.filter(Boolean).join(" ");
 };
 

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
+import { BackLink } from "@/components/back-link";
 import { Generator } from "@/components/generator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
@@ -27,12 +27,7 @@ export default async function CreateModePage({ params }: PageProps<"/create/[mod
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
-      <Link
-        href="/tools"
-        className="w-fit text-sm text-muted-foreground transition hover:text-foreground"
-      >
-        All tools
-      </Link>
+      <BackLink href="/tools">All tools</BackLink>
       <Suspense fallback={<Skeleton className="h-[720px] rounded-2xl" />}>
         <GeneratorWithMode mode={resolved.mode.id} defaultModel={resolved.model?.id ?? "wan"} />
       </Suspense>

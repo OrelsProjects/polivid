@@ -1,5 +1,6 @@
 "use client";
 
+import { Check } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -47,16 +48,15 @@ export function PricingCards({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="mx-auto flex rounded-xl bg-muted p-1" role="tablist" aria-label="Billing interval">
+      <div className="mx-auto flex rounded-xl bg-muted p-1" role="group" aria-label="Billing interval">
         {(["month", "year"] as const).map((value) => (
           <button
             key={value}
             type="button"
-            role="tab"
-            aria-selected={interval === value}
+            aria-pressed={interval === value}
             onClick={() => setInterval(value)}
             className={cn(
-              "cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition",
+              "min-h-9 cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition",
               interval === value ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -107,7 +107,7 @@ export function PricingCards({
                 )}
               </div>
               <p>
-                <span className="text-3xl font-semibold tracking-tight">{price}</span>
+                <span className="text-3xl font-semibold tracking-tight tabular-nums">{price}</span>
                 {plan.id !== "free" && interval === "year" && (
                   <span className="ml-1 text-sm text-muted-foreground">equivalent</span>
                 )}
@@ -115,7 +115,10 @@ export function PricingCards({
               <p className="text-sm text-muted-foreground">{billed}</p>
               <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
                 {plan.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
+                  <li key={feature} className="flex items-start gap-2">
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                    {feature}
+                  </li>
                 ))}
               </ul>
               {mode === "marketing" ? (

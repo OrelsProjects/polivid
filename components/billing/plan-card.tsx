@@ -13,7 +13,10 @@ export async function PlanCard() {
     <div className="rounded-2xl border border-border bg-white p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold">{plan.name} plan</span>
-        <Link href="/billing" className="text-[10px] font-semibold tracking-wide text-primary hover:underline">
+        <Link
+          href="/billing"
+          className="-my-1 -mr-1.5 rounded-lg px-1.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/10"
+        >
           {balance.plan === "free" ? "Upgrade" : "Manage"}
         </Link>
       </div>

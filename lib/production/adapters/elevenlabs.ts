@@ -157,16 +157,19 @@ export const createElevenMusicAdapter = (): MediaAdapter => ({
   collect: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
 });
 
+/** ElevenLabs only accepts sound effects between 0.5 and 30 seconds long. */
+export const sfxGenerationBody = (request: { prompt: string; durationSec?: number }) => ({
+  text: request.prompt,
+  duration_seconds: Math.min(30, Math.max(0.5, request.durationSec ?? 2)),
+  model_id: "eleven_text_to_sound_v2" as const,
+});
+
 export const createElevenSfxAdapter = (): MediaAdapter => ({
   id: "eleven-sfx",
   estimate: (request) => (request.durationSec ?? 2) * (capabilityById("sfx-eleven")?.pricing.usd ?? 0.01),
   submit: async (request, idempotencyKey) => {
     try {
-      const { bytes, mime } = await postAudio(
-        "/v1/sound-generation",
-        { text: request.prompt, duration_seconds: request.durationSec ?? 2, model_id: "eleven_text_to_sound_v2" },
-        idempotencyKey,
-      );
+      const { bytes, mime } = await postAudio("/v1/sound-generation", sfxGenerationBody(request), idempotencyKey);
       if (bytes.byteLength === 0) throw new Error("ElevenLabs returned no sound.");
       return done(idempotencyKey, bytes, mime, (request.durationSec ?? 2) * 0.01);
     } catch (error) {

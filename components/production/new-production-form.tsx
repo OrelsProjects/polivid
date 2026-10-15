@@ -1,5 +1,6 @@
 "use client";
 
+import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MediaUpload } from "@/components/media-upload";
@@ -14,6 +15,10 @@ import {
   type StatusItem,
 } from "@/lib/production/progress";
 import type { ProductionStreamEvent } from "@/lib/production/stream";
+import { cn } from "@/lib/utils";
+
+const FIELD_CLASS =
+  "h-10 w-full rounded-xl border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:text-sm";
 
 const pauseForPaint = () => new Promise<void>((resolve) => window.setTimeout(resolve, 280));
 
@@ -29,7 +34,7 @@ export function NewProductionForm() {
   const [pending, setPending] = useState(false);
   const [items, setItems] = useState<StatusItem[]>([]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!pending || !startedAt) return;
@@ -108,14 +113,14 @@ export function NewProductionForm() {
 
   return (
     <form
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5"
+      className="flex flex-col gap-5 rounded-2xl border border-border bg-white p-5 shadow-sm"
       aria-busy={pending}
       onSubmit={(event) => {
         event.preventDefault();
         void handleSubmit();
       }}
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         <label htmlFor="production-input" className="text-sm font-medium">
           Idea, outline, or script
         </label>
@@ -126,8 +131,8 @@ export function NewProductionForm() {
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder="A woman waits at a kitchen table with an unopened letter…"
-          aria-label="Production idea"
           disabled={pending}
+          className="rounded-xl bg-background"
         />
       </div>
       <MediaUpload
@@ -139,60 +144,71 @@ export function NewProductionForm() {
         label="Reference pictures"
         hint="Optional. Faces, places, or the look you want · JPEG, PNG, or WebP under 4 MB"
       />
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <span className="text-muted-foreground">Format</span>
-          <select
-            className="rounded-lg border border-input bg-background px-2 py-1"
-            value={format}
-            onChange={(event) => setFormat(event.target.value as typeof format)}
-            aria-label="Format"
-            disabled={pending}
-          >
-            <option value="9:16">9:16</option>
-            <option value="16:9">16:9</option>
-            <option value="1:1">1:1</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-2">
-          <span className="text-muted-foreground">Seconds</span>
-          <input
-            type="number"
-            min={5}
-            max={180}
-            className="w-20 rounded-lg border border-input bg-background px-2 py-1"
-            value={durationSec}
-            onChange={(event) => setDurationSec(Number(event.target.value))}
-            aria-label="Target duration in seconds"
-            disabled={pending}
-          />
-        </label>
-        <fieldset className="flex items-center gap-3" disabled={pending}>
-          <legend className="sr-only">Mode</legend>
-          <label className="flex items-center gap-1.5">
+      <div className="grid gap-4 text-sm sm:grid-cols-2">
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1.5">
+            <span className="font-medium">Format</span>
+            <select
+              className={FIELD_CLASS}
+              value={format}
+              onChange={(event) => setFormat(event.target.value as typeof format)}
+              disabled={pending}
+            >
+              <option value="9:16">9:16 · Vertical</option>
+              <option value="16:9">16:9 · Wide</option>
+              <option value="1:1">1:1 · Square</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="font-medium">Length (seconds)</span>
             <input
-              type="radio"
-              name="mode"
-              checked={mode === "review"}
-              onChange={() => setMode("review")}
+              type="number"
+              inputMode="numeric"
+              min={5}
+              max={180}
+              className={cn(FIELD_CLASS, "tabular-nums")}
+              value={durationSec}
+              onChange={(event) => setDurationSec(Number(event.target.value))}
+              disabled={pending}
             />
-            Review plan
           </label>
-          <label className="flex items-center gap-1.5">
-            <input type="radio" name="mode" checked={mode === "auto"} onChange={() => setMode("auto")} />
-            Automatic
-          </label>
+        </div>
+        <fieldset className="flex flex-col gap-1.5" disabled={pending}>
+          <legend className="mb-1.5 font-medium">Plan review</legend>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <label className="flex min-h-10 cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === "review"}
+                onChange={() => setMode("review")}
+                className="size-4 accent-primary"
+              />
+              Review the plan first
+            </label>
+            <label className="flex min-h-10 cursor-pointer items-center gap-2">
+              <input
+                type="radio"
+                name="mode"
+                checked={mode === "auto"}
+                onChange={() => setMode("auto")}
+                className="size-4 accent-primary"
+              />
+              Automatic
+            </label>
+          </div>
         </fieldset>
-        <label className="flex items-center gap-1.5">
-          <input
-            type="checkbox"
-            checked={delegated}
-            onChange={(event) => setDelegated(event.target.checked)}
-            disabled={pending}
-          />
-          Delegate creative choices
-        </label>
       </div>
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={delegated}
+          onChange={(event) => setDelegated(event.target.checked)}
+          disabled={pending}
+          className="size-4 accent-primary"
+        />
+        Delegate creative choices
+      </label>
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -201,8 +217,21 @@ export function NewProductionForm() {
       {pending && items.length > 0 && (
         <StatusTimeline items={items} elapsed={elapsed} currentLabel={current?.label} />
       )}
-      <Button type="submit" disabled={pending || text.trim().length < 3} aria-live="polite">
-        {pending ? (current?.label ?? "Planning…") : "Develop plan"}
+      <Button
+        type="submit"
+        size="lg"
+        disabled={pending || text.trim().length < 3}
+        aria-live="polite"
+        className="h-11 rounded-xl px-5 sm:self-end"
+      >
+        {pending ? (
+          <>
+            <LoaderCircle className="animate-spin" data-icon="inline-start" aria-hidden />
+            {current?.label ?? "Planning…"}
+          </>
+        ) : (
+          "Develop plan"
+        )}
       </Button>
     </form>
   );

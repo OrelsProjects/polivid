@@ -24,8 +24,9 @@ const TASK_ENV: Record<PlannerTask, string> = {
   frontier: "PLANNER_MODEL_FRONTIER",
 };
 
+/** OpenAI by default: Claude rejects the develop and structure schemas as "compiled grammar is too large". */
 export const plannerProvider = (): PlannerProvider =>
-  process.env.PLANNER_PROVIDER === "openai" ? "openai" : "claude";
+  process.env.PLANNER_PROVIDER === "claude" ? "claude" : "openai";
 
 export const plannerModelFor = (task: PlannerTask, provider = plannerProvider()) => {
   const override = process.env[TASK_ENV[task]]?.trim();

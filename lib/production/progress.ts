@@ -70,6 +70,9 @@ export const STEP_KIND_LABEL: Record<StepKind, string> = {
   export: "Finishing up",
 };
 
+/** Error stored on a review step whose take was rejected; retrying it films the shot again. */
+export const REVIEW_REJECTED = "Review rejected the shot.";
+
 export const STEP_STATUS_LABEL: Record<StepStatus, string> = {
   pending: "Queued",
   ready: "Next",

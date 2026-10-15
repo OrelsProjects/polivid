@@ -21,7 +21,7 @@ The Productions tool turns an idea, outline, or script into a planned and assemb
 | Transcript | `scribe_v2` | — |
 | Assembly | FFmpeg + Remotion timeline export | — |
 
-Set `PLANNER_PROVIDER=openai` to switch the planner family. Override a task with `PLANNER_MODEL_DEVELOP`, `PLANNER_MODEL_EXTRACT`, and the other `PLANNER_MODEL_*` keys.
+The planner uses OpenAI by default; set `PLANNER_PROVIDER=claude` to switch the planner family. Override a task with `PLANNER_MODEL_DEVELOP`, `PLANNER_MODEL_EXTRACT`, and the other `PLANNER_MODEL_*` keys.
 
 ## Credentials
 

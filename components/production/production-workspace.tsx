@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
+import { BackLink } from "@/components/back-link";
 import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
 import { StatusTimeline } from "@/components/production/status-timeline";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import {
   generationItems,
   planningItemsFromStage,
   prettyTarget,
+  REVIEW_REJECTED,
   STATUS_LABEL,
   STEP_KIND_LABEL,
   STEP_STATUS_LABEL,
@@ -76,6 +78,17 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const runStartedAt = production.runStartedAt ? Date.parse(production.runStartedAt) : null;
   const elapsed = live && runStartedAt !== null ? formatElapsed(runStartedAt, now) : null;
 
+  /** True while a whole-production retry is in flight; polls may still return the stale failed snapshot. */
+  const restarting = useRef(false);
+
+  const refresh = async () => {
+    const response = await fetch(`/api/productions/${production.id}`);
+    const json = (await response.json()) as { production?: ProductionView };
+    if (!json.production) return;
+    if (restarting.current && !isLiveProductionStatus(json.production.status)) return;
+    setProduction(json.production);
+  };
+
   useEffect(() => {
     if (!live) return;
     const timer = setInterval(() => {
@@ -84,12 +97,6 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
     }, 1500);
     return () => clearInterval(timer);
   }, [live, production.id]);
-
-  const refresh = async () => {
-    const response = await fetch(`/api/productions/${production.id}`);
-    const json = (await response.json()) as { production?: ProductionView };
-    if (json.production) setProduction(json.production);
-  };
 
   const handleAnswers = async () => {
     setBusy("answers");
@@ -203,6 +210,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
     setBusy(stepId ?? "retry");
     setMessage(null);
     if (!stepId) {
+      restarting.current = true;
       setProduction((current) => ({
         ...current,
         status: current.steps.some((step) => step.status === "failed" || step.status === "canceled")
@@ -217,10 +225,13 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
       body: JSON.stringify(stepId ? { stepId } : {}),
     });
     const json = (await response.json().catch(() => null)) as { error?: string } | null;
+    restarting.current = false;
     if (!response.ok) setMessage(json?.error ?? "Couldn't retry from the last step.");
     await refresh();
     setBusy(null);
   };
+
+  const canceled = production.status === "canceled";
 
   const pendingQuestions =
     production.status === "awaiting_answers" &&
@@ -239,10 +250,8 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
     return (
       <div className="flex flex-col gap-6">
         <div>
-          <Link href="/productions" className="text-sm text-muted-foreground hover:text-foreground">
-            Productions
-          </Link>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{production.title}</h1>
+          <BackLink href="/productions">Productions</BackLink>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{production.title}</h1>
         </div>
         <Card>
           <CardHeader>
@@ -255,12 +264,13 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
                 <legend className="text-sm font-medium">{question.text}</legend>
                 <p className="text-xs text-muted-foreground">{question.whyItMatters}</p>
                 {question.options.map((option) => (
-                  <label key={option} className="flex items-center gap-2 text-sm">
+                  <label key={option} className="flex min-h-10 cursor-pointer items-center gap-2 text-sm">
                     <input
                       type="radio"
                       name={question.id}
                       checked={answers[question.id] === option}
                       onChange={() => setAnswers((current) => ({ ...current, [question.id]: option }))}
+                      className="size-4 accent-primary"
                     />
                     {option}
                   </label>
@@ -272,7 +282,13 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
                 {message}
               </p>
             )}
-            <Button onClick={() => void handleAnswers()} disabled={busy === "answers"}>
+            <Button
+              size="lg"
+              onClick={() => void handleAnswers()}
+              disabled={busy === "answers"}
+              className="h-10 rounded-xl px-4 sm:self-start"
+            >
+              {busy === "answers" && <LoaderCircle className="animate-spin" data-icon="inline-start" aria-hidden />}
               Continue
             </Button>
           </CardContent>
@@ -284,11 +300,9 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link href="/productions" className="text-sm text-muted-foreground hover:text-foreground">
-            Productions
-          </Link>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">{production.title}</h1>
+        <div className="min-w-0">
+          <BackLink href="/productions">Productions</BackLink>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance">{production.title}</h1>
           {!production.error && (
             <p className="mt-1 text-sm text-muted-foreground">{statusLine(production, estimatedCredits)}</p>
           )}
@@ -345,9 +359,9 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
             variant="outline"
             onClick={() => void handleRetry()}
             disabled={busy === "retry"}
-            aria-label="Retry from the last step"
+            aria-label={canceled ? "Start this production again" : "Retry from the last step"}
           >
-            {busy === "retry" ? "Retrying…" : "Retry"}
+            {busy === "retry" ? (canceled ? "Starting…" : "Retrying…") : canceled ? "Start again" : "Retry"}
           </Button>
         </div>
       )}
@@ -518,7 +532,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
                   </span>
                   {(step.status === "failed" || step.status === "canceled" || step.status === "blocked") && (
                     <Button size="sm" variant="outline" onClick={() => void handleRetry(step.id)} disabled={busy === step.id}>
-                      Retry
+                      {step.error === REVIEW_REJECTED ? "Regenerate shot" : "Retry"}
                     </Button>
                   )}
                 </div>

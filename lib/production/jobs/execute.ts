@@ -5,6 +5,7 @@ import { readProductionBytes, saveProductionBytes } from "../assets";
 import { saveFilmstrip } from "../filmstrip";
 import { compileImagePrompt, compileShotPrompt } from "../compile";
 import { defaultImageCapability, defaultVideoCapability } from "../capabilities";
+import { prettyTarget, REVIEW_REJECTED } from "../progress";
 import { captureBoundaryFrames, type BoundaryFrames } from "../review/frames";
 import { assembleClips, assetsByStep, videoForShot } from "./assemble";
 import { applyExtension, decideSubmit } from "./idempotency";
@@ -239,7 +240,11 @@ export const executeStep = async (userId: string, productionId: string, step: { 
     const observation = shot.dependsOn
       ? await currentEntityData<Observation>(productionId, "observation", shot.dependsOn)
       : null;
+    const previousTake = await currentEntityData<Observation>(productionId, "observation", shot.id);
     const prompt = compileShotPrompt({
+      corrections: previousTake
+        ? [...previousTake.deviations, ...previousTake.incompleteActions.map((action) => `not completed: ${action}`)]
+        : [],
       brief,
       scene: scene ?? {
         id: shot.sceneId,
@@ -279,6 +284,9 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       .filter((asset) => asset.kind === "video" && asset.status === "accepted")
       .map((asset) => asset.id);
     const saved = await saveFirstOutput(userId, productionId, result);
+    if (result.status === "completed" && !saved && !(await shotFootage(productionId, shot.id))) {
+      throw new Error("The video model finished without returning a clip.");
+    }
     if (saved && result.extensionSpan === "full") {
       const applied = applyExtension(previous, saved.id, "full");
       if (applied.replace.length > 0) {
@@ -313,7 +321,8 @@ export const executeStep = async (userId: string, productionId: string, step: { 
     const shotId = step.targetKey.replace(/^shot:/, "");
     const shot = structure?.shots.find((entry) => entry.id === shotId);
     const footage = shot ? await shotFootage(productionId, shot.id) : null;
-    const frames = footage ? await boundaryFramesFor(footage.bytes) : null;
+    if (!footage) throw new Error(`There is no footage to review for ${prettyTarget(step.targetKey)}.`);
+    const frames = await boundaryFramesFor(footage.bytes);
     const lastFrameAsset =
       frames && footage && shot ? await persistLastFrame(userId, productionId, frames.last, { shotId: shot.id, videoAssetId: footage.assetId }) : null;
     const result = await runAdapter({
@@ -355,7 +364,14 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         step.id,
       );
     }
-    await finishIfCurrent(result.status === "failed" || json?.passed === false ? "failed" : "succeeded", json?.passed === false ? "Review rejected the shot." : null);
+    const rejected = json?.passed === false;
+    await finishIfCurrent(result.status === "failed" || rejected ? "failed" : "succeeded", rejected ? REVIEW_REJECTED : null);
+    if (rejected) {
+      await updateProduction(productionId, {
+        status: "failed",
+        error: `The review rejected ${prettyTarget(step.targetKey)}. Retry to film it again.`,
+      });
+    }
     return;
   }
 

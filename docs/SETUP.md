@@ -14,7 +14,7 @@ When both files define a key, `.env.local` wins, **even if its value is empty**.
 | `POLIVID_MODEL` | Optional | Any OpenRouter model slug. Default `anthropic/claude-opus-5.5` |
 | `GEMINI_API_KEY` | Optional | Gemini Omni 1.1 Flash video (step 5). Without it, Omni is hidden |
 | `PRODUCTION_PROVIDERS` | Optional | `mock` (default) or `live` for the Productions tool |
-| `PLANNER_PROVIDER` | Optional | `claude` (default) or `openai` |
+| `PLANNER_PROVIDER` | Optional | `openai` (default) or `claude` |
 | `ELEVENLABS_API_KEY`, `SYNC_API_KEY` | Optional | Speech/music/sfx and lip sync in live Productions |
 | `AWS_S3_BUCKET` | Mode uploads (image, audio, video) | One existing bucket in us-east-1. Objects use the `uploads/` prefix. |
 | `AWS_ACCESS_KEY_APP`, `AWS_SECRET_KEY_APP`, `AWS_REGION_APP` | S3 uploads | The existing AWS app keys |

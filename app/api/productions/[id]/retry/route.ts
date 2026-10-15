@@ -2,7 +2,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { resumeFromLastStep } from "@/lib/production/jobs/coordinator";
 import { startProductionTicker, tickProductionJobs } from "@/lib/production/jobs/runner";
-import { getProductionForUser, retryStep } from "@/lib/production/store";
+import { getProductionForUser, retryStep, updateProduction } from "@/lib/production/store";
 
 const Schema = z.object({ stepId: z.string().min(1).optional() });
 
@@ -18,6 +18,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (parsed.data.stepId) {
     const ok = await retryStep(id, parsed.data.stepId);
     if (!ok) return Response.json({ error: "That step cannot be retried." }, { status: 409 });
+    await updateProduction(id, { status: "generating", error: null });
     startProductionTicker();
     await tickProductionJobs();
     return Response.json({ ok: true });

@@ -21,6 +21,7 @@ Choose exactly one continuity relationship:
 - continue_shot: same camera view; the next generation must start from the accepted outgoing edit point
 - new_angle: new composition in the same scene using established references
 - new_scene: new environment, carrying character and creative direction forward
+The first shot of every scene after the first is new_scene. new_angle and continue_shot only follow a shot in the same scene.
 
 Track motion and action at boundaries: position, direction, speed, gaze, camera, props, incomplete actions.
 

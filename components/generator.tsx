@@ -3,6 +3,7 @@
 import {
   ArrowRight,
   LoaderCircle,
+  Plus,
   RectangleHorizontal,
   RectangleVertical,
   Square,
@@ -331,13 +332,12 @@ export function Generator({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">1 · Your input</h2>
             {showInputTabs && (
-            <div className="flex rounded-xl bg-muted p-1" role="tablist" aria-label="Input type">
+            <div className="flex rounded-xl bg-muted p-1" role="group" aria-label="Input type">
               {INPUTS.map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
-                  role="tab"
-                  aria-selected={inputMode === id}
+                  aria-pressed={inputMode === id}
                   disabled={busy}
                   onClick={() => setInputMode(id)}
                   className={cn(
@@ -486,9 +486,7 @@ export function Generator({
             )}
             <div className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
               <div className="grid aspect-[3/4] place-items-center rounded-2xl border border-dashed border-border bg-muted/40 text-muted-foreground">
-                <span className="text-2xl" aria-hidden>
-                  +
-                </span>
+                <Plus className="size-6" aria-hidden />
               </div>
               <div>
                 <p className="text-sm font-medium">
@@ -632,6 +630,29 @@ export function Generator({
           </ul>
         </section>
 
+        {needsUpgrade && (
+          <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary" role="status">
+            This video needs {estimatedCredits.toLocaleString()} credits. You have {creditBalance?.toLocaleString()} left.{" "}
+            <Link href="/billing" className="font-medium underline underline-offset-4">
+              Get more credits
+            </Link>
+          </p>
+        )}
+        {status.state === "failed" && (
+          <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm" role="alert">
+            <span className="flex items-center gap-2 font-medium text-destructive">
+              <TriangleAlert className="size-4" aria-hidden />
+              Couldn&apos;t make this video
+            </span>
+            <span className="text-muted-foreground">{status.error}</span>
+            {status.videoId && (
+              <Link href={`/videos/${status.videoId}`} className="w-fit text-primary underline-offset-4 hover:underline">
+                See what was found
+              </Link>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             {demo ? "Demo mode is free · " : estimatedCredits > 0 ? `Uses ${estimatedCredits.toLocaleString()} credits · ` : ""}
@@ -654,7 +675,7 @@ export function Generator({
         </div>
       </form>
 
-      <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
+      <aside className="hidden flex-col gap-4 lg:sticky lg:top-6 lg:flex">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium">Preview</span>
           <span className="text-muted-foreground">Bold · {format} · {lengthValid ? `${activeLength}s` : "custom"}</span>
@@ -671,31 +692,8 @@ export function Generator({
           <dd className="text-right font-medium">MP4 download</dd>
         </dl>
         <p className="text-xs text-muted-foreground">
-          The frame on the right is a style sample. Generate films the prompt with the model you picked.
+          The frame above is a style sample. Generate films the prompt with the model you picked.
         </p>
-
-        {needsUpgrade && (
-          <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
-            This video needs {estimatedCredits.toLocaleString()} credits. You have {creditBalance?.toLocaleString()} left.{" "}
-            <Link href="/billing" className="font-medium underline-offset-4 hover:underline">
-              Upgrade
-            </Link>
-          </p>
-        )}
-        {status.state === "failed" && (
-          <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm" role="alert">
-            <span className="flex items-center gap-2 font-medium text-destructive">
-              <TriangleAlert className="size-4" aria-hidden />
-              Couldn&apos;t make this video
-            </span>
-            <span className="text-muted-foreground">{status.error}</span>
-            {status.videoId && (
-              <Link href={`/videos/${status.videoId}`} className="text-primary underline-offset-4 hover:underline">
-                See what was found
-              </Link>
-            )}
-          </div>
-        )}
       </aside>
       <UpgradeDialog
         open={upgrade !== null}

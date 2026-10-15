@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { ActiveJobCards } from "@/components/active-job-cards";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoCard } from "@/components/video-card";
-import { parseVideoFilter, VideoFilters, type VideoFilter } from "@/components/video-filters";
+import { parseVideoFilter, VideoFilters, videoFilterHref, type VideoFilter } from "@/components/video-filters";
 import type { VideoRecord } from "@/lib/video/schema";
 import { listMyActiveJobs, listMyVideos } from "@/lib/videos";
 
@@ -65,9 +66,12 @@ async function VideoGrid({ filter }: { filter: VideoFilter }) {
   if (visibleVideos.length === 0 && visibleJobs.length === 0) {
     if (filter === "all") return <EmptyState />;
     return (
-      <p className="rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm text-muted-foreground">
-        {EMPTY_FILTER[filter]}
-      </p>
+      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm">
+        <p className="text-muted-foreground">{EMPTY_FILTER[filter]}</p>
+        <Link href={videoFilterHref("all")} className="rounded-md font-medium text-primary underline-offset-4 hover:underline">
+          Show all videos
+        </Link>
+      </div>
     );
   }
 

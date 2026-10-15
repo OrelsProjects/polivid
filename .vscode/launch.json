@@ -5,13 +5,13 @@
       "name": "Next.js: debug server-side",
       "type": "node-terminal",
       "request": "launch",
-      "command": "npm run dev --turbo"
+      "command": "lsof -ti :3100 | xargs kill -9 2>/dev/null; npm run dev --turbo"
     },
     {
       "name": "Next.js: debug client-side",
       "type": "chrome",
       "request": "launch",
-      "url": "http://localhost:3000",
+      "url": "http://localhost:3100",
       "resolveSourceMapLocations": [
         "${workspaceFolder}/**",
         "!**/node_modules/**"

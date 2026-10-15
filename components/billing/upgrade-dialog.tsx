@@ -1,7 +1,8 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
+import { X } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useRef, type MouseEvent } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,27 +17,37 @@ export function UpgradeDialog({
   balance: number;
   onClose: () => void;
 }) {
-  if (!open) return null;
+  const dialogRef = useRef<HTMLDialogElement>(null);
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") onClose();
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  const handleBackdropClick = (event: MouseEvent<HTMLDialogElement>) => {
+    if (event.target === event.currentTarget) onClose();
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
       aria-labelledby="upgrade-title"
-      tabIndex={0}
-      onClick={onClose}
-      onKeyDown={handleKeyDown}
+      onClose={onClose}
+      onClick={handleBackdropClick}
+      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-white p-0 text-foreground shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-in open:fade-in-0 open:zoom-in-95"
     >
-      <div
-        className="w-full max-w-md rounded-2xl border border-border bg-white p-6 shadow-lg"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="upgrade-title" className="text-lg font-semibold">
+      <div className="relative p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3 right-3 grid size-9 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <X className="size-4" aria-hidden />
+        </button>
+        <h2 id="upgrade-title" className="pr-8 text-lg font-semibold">
           You need more credits
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -44,7 +55,7 @@ export function UpgradeDialog({
           boost to keep generating.
         </p>
         <div className="mt-5 flex flex-wrap gap-2">
-          <Link href="/billing" className={cn(buttonVariants(), "h-10 rounded-xl px-4")}>
+          <Link href="/billing" autoFocus className={cn(buttonVariants(), "h-10 rounded-xl px-4")}>
             See plans
           </Link>
           <button
@@ -56,6 +67,6 @@ export function UpgradeDialog({
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

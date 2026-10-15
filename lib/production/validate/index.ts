@@ -82,6 +82,34 @@ const scriptHasDialogue = (script: DevelopOutput["script"], line: ExactDialogue)
     scene.dialogue.some((spoken) => spoken.line.trim() === line.line.trim() && (!line.speaker || spoken.speaker === line.speaker)),
   );
 
+type PlannedShot = StructureOutput["shots"][number];
+
+const shotsInOrder = (structure: StructureOutput) => [...structure.shots].sort((a, b) => a.order - b.order);
+
+/** The shot a given shot follows on from: its explicit dependency, or the one before it. */
+const parentShot = (shot: PlannedShot, index: number, ordered: PlannedShot[], byId: Map<string, PlannedShot>) =>
+  shot.dependsOn ? byId.get(shot.dependsOn) : ordered[index - 1];
+
+/** A "new angle" whose parent sits in another scene is, by definition, the opening shot of a new scene. */
+export const normalizeContinuity = (structure: StructureOutput): StructureOutput => {
+  const ordered = shotsInOrder(structure);
+  const byId = new Map(structure.shots.map((shot) => [shot.id, shot]));
+  const openingShotIds = new Set(
+    ordered
+      .filter((shot, index) => {
+        if (shot.continuity !== "new_angle" || index === 0) return false;
+        const parent = parentShot(shot, index, ordered, byId);
+        return Boolean(parent && parent.sceneId !== shot.sceneId);
+      })
+      .map((shot) => shot.id),
+  );
+  if (openingShotIds.size === 0) return structure;
+  return {
+    ...structure,
+    shots: structure.shots.map((shot) => (openingShotIds.has(shot.id) ? { ...shot, continuity: "new_scene" } : shot)),
+  };
+};
+
 export const validateStructure = (develop: DevelopOutput, structure: StructureOutput): ValidationResult => {
   const issues: ValidationIssue[] = [];
   const characters = new Set(structure.characters.map((item) => item.id));
@@ -99,7 +127,7 @@ export const validateStructure = (develop: DevelopOutput, structure: StructureOu
     }
   }
 
-  const ordered = [...structure.shots].sort((a, b) => a.order - b.order);
+  const ordered = shotsInOrder(structure);
   for (const [index, shot] of ordered.entries()) {
     if (!scenes.has(shot.sceneId)) {
       issues.push(issue("error", "unknown_scene", `Shot ${shot.id} references missing scene ${shot.sceneId}.`));
@@ -111,7 +139,7 @@ export const validateStructure = (develop: DevelopOutput, structure: StructureOu
       issues.push(issue("error", "continue_without_parent", `Shot ${shot.id} continues a view but has no predecessor.`));
     }
     if (shot.continuity === "new_angle" && index > 0) {
-      const parent = shot.dependsOn ? shots.get(shot.dependsOn) : ordered[index - 1];
+      const parent = parentShot(shot, index, ordered, shots);
       if (parent && parent.sceneId !== shot.sceneId) {
         issues.push(issue("error", "angle_scene_mismatch", `Shot ${shot.id} is a new angle in a different scene.`));
       }
