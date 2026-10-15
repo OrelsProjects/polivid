@@ -1,5 +1,8 @@
 import { ArrowRight, BarChart3, FileText, Mic, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { CreditExamples } from "@/components/billing/credit-examples";
+import { PricingCards } from "@/components/billing/pricing-cards";
+import { TopupPacks } from "@/components/billing/topup-packs";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
 import { HeroStyles, StylePoster } from "@/components/style-frame";
@@ -79,7 +82,15 @@ const FAQ = [
   },
   {
     q: "What does it cost?",
-    a: "The app is free while it is in demo. Paid plans will be priced in videos, not credits. Prices are not set yet.",
+    a: "New accounts get 100 free credits, no card required. Starter is $19/month for 800 credits, Growth is $39/month for 2,000, and Ultra is $199/month for 12,000. Yearly billing is about 16% less. A typical 30-second Wan 720p video costs 300 credits.",
+  },
+  {
+    q: "Do unused credits roll over?",
+    a: "Plan credits reset to your plan amount each month and do not stack. Credit boosts and leftover trial credits never expire.",
+  },
+  {
+    q: "Can I cancel anytime?",
+    a: "Yes. Cancel from Billing. Your plan stays active until the end of the period you paid for, and you keep the videos you made.",
   },
 ] as const;
 
@@ -118,7 +129,7 @@ export default function LandingPage() {
                 Watch examples
               </a>
             </div>
-            <p className="text-xs text-muted-foreground">No credit card required · free while the app is in demo</p>
+            <p className="text-xs text-muted-foreground">No credit card required · 100 free credits</p>
           </div>
           <HeroStyles />
           <p className="mt-8 text-sm text-muted-foreground">
@@ -231,18 +242,20 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="pricing" className="scroll-mt-20 bg-white px-4 py-20 text-center sm:px-6">
-          <div className="mx-auto flex max-w-xl flex-col items-center gap-4">
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Your next video is one prompt away.
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Free while PoliVid is in demo. Paid plans will be priced in videos, not credits.
-            </p>
-            <Link href="/create" className={cn(buttonVariants({ size: "lg" }), "h-11 rounded-xl px-5")}>
-              Try for free
-            </Link>
-            <p className="text-xs text-muted-foreground">No credit card required</p>
+        <section id="pricing" className="scroll-mt-20 bg-white px-4 py-20 sm:px-6">
+          <div className="mx-auto flex max-w-6xl flex-col gap-10">
+            <div className="text-center">
+              <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">PRICING</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+                Credits for the videos you actually make.
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+                Start with 100 free credits. Subscribe when you need more. Unused boost credits never expire.
+              </p>
+            </div>
+            <PricingCards mode="marketing" />
+            <TopupPacks />
+            <CreditExamples />
           </div>
         </section>
       </main>

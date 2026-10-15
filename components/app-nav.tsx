@@ -1,6 +1,6 @@
 "use client";
 
-import { Film, Images, LayoutGrid, LayoutTemplate, Plus, Settings, Wrench } from "lucide-react";
+import { Clapperboard, CreditCard, Film, Images, LayoutGrid, LayoutTemplate, Plus, Settings, Sparkles, Wrench } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
@@ -9,7 +9,10 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/tools", label: "Tools", icon: Wrench },
+  { href: "/productions", label: "Productions", icon: Sparkles },
   { href: "/videos", label: "My videos", icon: Film },
+  { href: "/editor", label: "Editor", icon: Clapperboard },
+  { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/dashboard#showcase", label: "Showcase", icon: Images },
 ] as const;
 
@@ -37,9 +40,15 @@ export function AppNav({ orientation = "vertical" }: { orientation?: "vertical" 
           const active =
             path === "/videos"
               ? pathname.startsWith("/videos")
-              : path === "/tools"
-                ? pathname === "/tools" || pathname.startsWith("/create/")
-                : pathname === path && !href.includes("#");
+              : path === "/editor"
+                ? pathname.startsWith("/editor")
+                :             path === "/tools"
+                  ? pathname === "/tools" || pathname.startsWith("/create/")
+                  : path === "/productions"
+                    ? pathname.startsWith("/productions")
+                  : path === "/billing"
+                    ? pathname.startsWith("/billing")
+                  : pathname === path && !href.includes("#");
           return (
             <Link
               key={href}

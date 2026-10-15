@@ -12,8 +12,14 @@ When both files define a key, `.env.local` wins, **even if its value is empty**.
 | `AUTH_RESEND_KEY` (or `RESEND_API_KEY`), `AUTH_EMAIL_FROM` | Email sign-in links | Resend (step 4) |
 | `OPENROUTER_API_KEY` | Real videos from web sources | OpenRouter (step 5). Without it, demo mode |
 | `POLIVID_MODEL` | Optional | Any OpenRouter model slug. Default `anthropic/claude-opus-5.5` |
+| `GEMINI_API_KEY` | Optional | Gemini Omni 1.1 Flash video (step 5). Without it, Omni is hidden |
+| `PRODUCTION_PROVIDERS` | Optional | `mock` (default) or `live` for the Productions tool |
+| `PLANNER_PROVIDER` | Optional | `claude` (default) or `openai` |
+| `ELEVENLABS_API_KEY`, `SYNC_API_KEY` | Optional | Speech/music/sfx and lip sync in live Productions |
 | `AWS_S3_BUCKET` | Mode uploads (image, audio, video) | One existing bucket in us-east-1. Objects use the `uploads/` prefix. |
 | `AWS_ACCESS_KEY_APP`, `AWS_SECRET_KEY_APP`, `AWS_REGION_APP` | S3 uploads | The existing AWS app keys |
+| `STRIPE_SECRET_KEY` | Paid plans and credit top-ups | Stripe Dashboard → Developers → API keys. Prefer a restricted key (`rk_`). |
+| `STRIPE_WEBHOOK_SECRET` | Credit grants after checkout | Stripe Dashboard webhook for `/api/stripe/webhook`, or `stripe listen --forward-to localhost:3100/api/stripe/webhook` |
 
 After changing `.env.local`, restart `npm run dev`.
 
@@ -137,6 +143,7 @@ Clicking "Email me a sign-in link" sends a one-time link that's valid for 24 hou
 
 1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys) and put it in `OPENROUTER_API_KEY`.
 2. Optionally set `POLIVID_MODEL` to a different slug (for example `anthropic/claude-sonnet-5.5` to cut cost). Check quality on a few real topics before switching.
+3. Optionally add Google's Gemini Omni 1.1 Flash. It is not on OpenRouter, so it calls the Gemini API directly. Create a key on a paid-tier project at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and put it in `GEMINI_API_KEY`. Omni films 3–10 second clips in 16:9 or 9:16, about $0.10 a second at 720p.
 
 To test generation without the app, database or sign-in, run `npm run try -- "Why sleep matters for memory"`. It prints the facts, their sources, the scene plan and the number-check result.
 
@@ -162,3 +169,4 @@ Image, avatar, music, captions, and AV-to-video store the uploaded file in **one
 | Prisma "Can't reach database server" | The RDS security group doesn't allow your current IP (it changes on new networks), Public access is off, or `DATABASE_URL` is wrong |
 | Prisma "permission denied for schema public" | The tables were created as a user that doesn't own the database. Connect as `politivid_app` (step 1) |
 | Upload says "Uploads are not configured yet" | `AWS_S3_BUCKET` is missing, or the existing AWS app keys cannot reach that bucket |
+| `POST /api/stripe/webhook` 404 in local Next logs | `stripe listen` defaulted to port 3000 (WriteStack). Use `npm run stripe:listen`, then put that CLI `whsec_` in `.env.local` and restart `npm run dev`. The Dashboard endpoint (`https://polivid.io/api/stripe/webhook`) only works on the deployed app. |

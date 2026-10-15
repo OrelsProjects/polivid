@@ -3,6 +3,7 @@ import type { Asset, Timeline } from "./schema";
 
 export const browserAssetUrl = (asset: Asset) => {
   if (asset.source.type === "upload") return uploadFileUrl(asset.source.key);
+  if (asset.source.type === "production") return `/api/productions/assets/${asset.source.assetId}`;
   return `/api/videos/${asset.source.videoId}/file`;
 };
 

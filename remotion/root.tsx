@@ -1,6 +1,6 @@
 import { Composition } from "remotion";
 import { TimelineComposition, type TimelineCompositionProps } from "@/components/editor/composition/timeline-composition";
-import { emptyTimeline, timelineDurationInFrames } from "@/lib/editor/schema";
+import { emptyTimeline, TimelineSchema, timelineDurationInFrames } from "@/lib/editor/schema";
 import { FPS, dimensionsFor } from "@/lib/video/schema";
 
 const fallback: TimelineCompositionProps = {
@@ -8,17 +8,28 @@ const fallback: TimelineCompositionProps = {
   assetUrls: {},
 };
 
+const TimelineVideo = (props: Record<string, unknown>) => {
+  const parsed = TimelineSchema.safeParse(props.timeline);
+  const timeline = parsed.success ? parsed.data : fallback.timeline;
+  const assetUrls =
+    props.assetUrls && typeof props.assetUrls === "object" && !Array.isArray(props.assetUrls)
+      ? (props.assetUrls as Record<string, string>)
+      : {};
+  return <TimelineComposition timeline={timeline} assetUrls={assetUrls} />;
+};
+
 export const RemotionRoot = () => (
   <Composition
     id="Timeline"
-    component={TimelineComposition}
+    component={TimelineVideo}
     durationInFrames={FPS}
     fps={FPS}
     width={1080}
     height={1920}
     defaultProps={fallback}
     calculateMetadata={({ props }) => {
-      const timeline = props.timeline ?? fallback.timeline;
+      const parsed = TimelineSchema.safeParse(props.timeline);
+      const timeline = parsed.success ? parsed.data : fallback.timeline;
       const { width, height } = dimensionsFor(timeline.format);
       return {
         durationInFrames: timelineDurationInFrames(timeline),

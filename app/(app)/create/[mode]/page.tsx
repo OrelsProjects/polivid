@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { Generator } from "@/components/generator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
+import { availableGenerationModelIds } from "@/lib/video/available-models";
 import type { GenerationModelId } from "@/lib/video/models";
 import { resolveModeTier, videoModeById, VIDEO_MODES, type VideoModeId } from "@/lib/video/modes";
 
@@ -47,5 +48,12 @@ async function GeneratorWithMode({
   defaultModel: GenerationModelId;
 }) {
   await connection();
-  return <Generator demo={!hasOpenRouterKey()} defaultModel={defaultModel} mode={mode} />;
+  return (
+    <Generator
+      demo={!hasOpenRouterKey()}
+      defaultModel={defaultModel}
+      models={availableGenerationModelIds()}
+      mode={mode}
+    />
+  );
 }

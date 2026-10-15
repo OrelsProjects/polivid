@@ -1,5 +1,16 @@
-import { AbsoluteFill, Audio, Img, OffthreadVideo, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  Audio,
+  Html5Video,
+  Img,
+  OffthreadVideo,
+  getRemotionEnvironment,
+  interpolate,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { SceneFrame } from "@/components/video/composition";
+import { coverFrame } from "@/lib/editor/framing";
 import type { Asset, AudioItem, ImageItem, SceneItem, TextItem, Transform, VideoItem } from "@/lib/editor/schema";
 
 const transformStyle = (transform: Transform, opacity: number) => ({
@@ -30,15 +41,16 @@ export function VideoLayer({
       </AbsoluteFill>
     );
   }
+  const media = {
+    src,
+    trimBefore: item.trimStart,
+    volume: muted ? 0 : item.volume,
+    muted,
+    style: { width: "100%", height: "100%", objectFit: item.transform.fit },
+  };
   return (
-    <AbsoluteFill style={transformStyle(item.transform, item.opacity)}>
-      <OffthreadVideo
-        src={src}
-        trimBefore={item.trimStart}
-        volume={muted ? 0 : item.volume}
-        muted={muted}
-        style={{ width: "100%", height: "100%", objectFit: item.transform.fit }}
-      />
+    <AbsoluteFill style={transformStyle(coverFrame(item.transform), item.opacity)}>
+      {getRemotionEnvironment().isPlayer ? <Html5Video {...media} /> : <OffthreadVideo {...media} />}
     </AbsoluteFill>
   );
 }

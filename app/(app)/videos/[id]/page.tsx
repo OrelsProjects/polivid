@@ -1,4 +1,5 @@
 import { ArrowLeft, Download, ExternalLink, TriangleAlert } from "lucide-react";
+import { NewProjectButton } from "@/components/editor/new-project-button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -54,6 +55,14 @@ async function VideoDetail({ id }: { id: string }) {
           My videos
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">{video.title}</h1>
+        {video.parentVideoId && (
+          <p className="text-sm text-muted-foreground">
+            Edited from{" "}
+            <Link href={`/videos/${video.parentVideoId}`} className="text-primary underline-offset-4 hover:underline">
+              the original video
+            </Link>
+          </p>
+        )}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
           <span>{video.format}</span>
           <span aria-hidden>·</span>
@@ -88,6 +97,7 @@ async function VideoDetail({ id }: { id: string }) {
               footageUrl={footageUrl}
               className={video.format === "9:16" ? "mx-auto w-full max-w-[380px]" : "w-full"}
             />
+            <NewProjectButton videoId={video.id} label="Edit in editor" />
             {footageUrl ? (
               <a href={footageUrl} download className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 rounded-xl")}>
                 <Download data-icon="inline-start" />
@@ -122,7 +132,7 @@ function Script({ video }: { video: VideoRecord }) {
     <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold">Scenes · {scenes.length}</h2>
-        <span className="text-xs text-muted-foreground">In order. Editing one scene is next.</span>
+        <span className="text-xs text-muted-foreground">In order. Open the editor to change clips, text, and audio.</span>
       </div>
       <ol className="mt-3 flex flex-col">
         {scenes.map((scene, index) => (

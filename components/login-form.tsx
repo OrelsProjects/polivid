@@ -1,11 +1,13 @@
-import { signInWithGoogle } from "@/app/login/actions";
+import { signInWithEmail, signInWithGoogle } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 
 /** Auth.js error codes shown as ?error=... on /login. */
 const AUTH_ERRORS: Record<string, string> = {
   OAuthAccountNotLinked: "That email already signed in another way. Use the same method as before.",
   AccessDenied: "Access was denied.",
-  Configuration: "Sign-in isn't configured yet. Check the AUTH_* variables in .env.local.",
+  Configuration: "Email sign-in isn't available right now. Try Google, or try again in a moment.",
+  EmailSignin: "We couldn't send the sign-in link. Check the address and try again.",
+  Verification: "That sign-in link is invalid or has expired. Request a new one.",
 };
 
 export const authErrorMessage = (error: string | null) =>
@@ -36,21 +38,29 @@ export const LoginForm = ({ callbackUrl }: { callbackUrl: string }) => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Email</span>
+      <form action={signInWithEmail} className="flex flex-col gap-2">
+        <input type="hidden" name="callbackUrl" value={callbackUrl} />
+        <label htmlFor="email" className="text-sm font-medium">
+          Email
+        </label>
         <input
-          disabled
+          id="email"
+          type="email"
+          name="email"
+          required
+          autoComplete="email"
           placeholder="you@example.com"
           aria-label="Email"
-          className="h-11 rounded-xl border border-border bg-muted/40 px-3 text-sm text-muted-foreground"
+          aria-describedby="email-signin-hint"
+          className="h-11 rounded-xl border border-border bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
         />
-        <Button type="button" disabled size="lg" className="h-11 w-full rounded-xl">
+        <Button type="submit" size="lg" className="h-11 w-full rounded-xl" aria-label="Email me a sign-in link">
           Email me a sign-in link
         </Button>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          Email sign-in is coming next. The link will work once and expire in 24 hours. Use Google for now.
+        <p id="email-signin-hint" className="text-xs leading-relaxed text-muted-foreground">
+          The link will work once and expire in 24 hours.
         </p>
-      </div>
+      </form>
     </div>
   );
 };

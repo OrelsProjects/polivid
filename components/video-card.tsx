@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 
 export function VideoCard({ video }: { video: VideoRecord }) {
   const failed = video.status === "failed" || !video.plan;
+  const href = failed ? `/videos/${video.id}` : `/editor/open/${video.id}`;
 
   return (
-    <Link href={`/videos/${video.id}`} className="group flex cursor-pointer flex-col gap-2.5 focus-visible:outline-none">
+    <Link href={href} className="group flex cursor-pointer flex-col gap-2.5 focus-visible:outline-none">
       <div
         className={cn(
           "relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border bg-white shadow-sm transition group-hover:border-primary/30",

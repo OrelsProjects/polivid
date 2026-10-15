@@ -13,18 +13,46 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  videos        Video[]
-  videoJobs     VideoJob[]
-  editProjects  EditProject[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  name               String?
+  email              String    @unique
+  emailVerified      DateTime?
+  image              String?
+  stripeCustomerId   String?   @unique
+  plan               String    @default("free")
+  subscriptionId     String?
+  subscriptionStatus String?
+  billingInterval    String?
+  currentPeriodEnd   DateTime?
+  planCredits        Int       @default(0)
+  bonusCredits       Int       @default(100)
+  creditsRefillAt    DateTime?
+  accounts           Account[]
+  sessions           Session[]
+  videos             Video[]
+  videoJobs          VideoJob[]
+  editProjects       EditProject[]
+  productions        Production[]
+  creditLedger       CreditLedger[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+/// One credit grant, hold, refund, or refill. Stripe event IDs are idempotency keys.
+model CreditLedger {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  delta          Int
+  bucket         String // plan | bonus
+  reason         String // trial | refill | topup | video_hold | video_refund | production_hold | production_refund
+  refType        String?
+  refId          String?
+  idempotencyKey String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("credit_ledger")
 }
 
 /// OAuth accounts linked to a user (Google).
@@ -109,6 +137,7 @@ model EditProject {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   exports       Video[]  @relation("EditExports")
+  productions   Production[] @relation("ProductionEdit")
 
   @@index([userId, updatedAt])
   @@map("edit_projects")
@@ -143,7 +172,7 @@ model VideoJob {
   @@map("video_jobs")
 }
 
-/// One OpenRouter video job. The provider accepts no custom metadata, so this row maps the callback back to a scene.
+/// One provider video job (OpenRouter or Google). Providers accept no custom metadata, so this row maps the job back to a scene.
 model ProviderJob {
   providerJobId String   @id
   provider      String   @default("openrouter")
@@ -170,4 +199,168 @@ model WebhookEvent {
   payload        Json
 
   @@map("webhook_events")
+}
+
+/// A staged AI video production. The database is authoritative for every stage.
+model Production {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title              String
+  status             String // drafting | awaiting_answers | preview | generating | reviewing | assembling | ready | failed | canceled
+  stage              String // intake | develop | structure | preview | references | speech | shots | review | music | assemble | done
+  mode               String // review | auto
+  creativeDelegation Boolean  @default(false)
+  plannerProvider    String // claude | openai
+  budgetUsd          Decimal  @default(10) @db.Decimal(10, 4)
+  spentUsd           Decimal  @default(0) @db.Decimal(10, 4)
+  creditsHeld        Int      @default(0)
+  format             String
+  targetDurationSec  Int
+  editProjectId      String?
+  editProject        EditProject? @relation("ProductionEdit", fields: [editProjectId], references: [id], onDelete: SetNull)
+  error              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  entities           ProductionEntity[]
+  assets             ProductionAsset[]
+  steps              ProductionStep[]
+  jobs               GenerationJob[]
+  dependencies       ProductionDependency[]
+  usage              UsageLedger[]
+
+  @@index([userId, updatedAt])
+  @@map("productions")
+}
+
+model ProductionEntity {
+  id                String   @id @default(uuid())
+  productionId      String
+  production        Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  kind              String
+  stableKey         String
+  currentVersionId  String?
+  acceptedVersionId String?
+  createdAt         DateTime @default(now())
+  versions          EntityVersion[]
+
+  @@unique([productionId, kind, stableKey])
+  @@index([productionId, kind])
+  @@map("production_entities")
+}
+
+model EntityVersion {
+  id              String   @id @default(uuid())
+  entityId        String
+  entity          ProductionEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  version         Int
+  data            Json
+  origin          String // user | planner | observed | system
+  createdByStepId String?
+  status          String // draft | accepted | superseded | stale
+  createdAt       DateTime @default(now())
+
+  @@unique([entityId, version])
+  @@index([entityId, status])
+  @@map("entity_versions")
+}
+
+model ProductionAsset {
+  id              String   @id @default(uuid())
+  productionId    String
+  production      Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  storageKey      String
+  kind            String // image | video | audio | caption
+  mime            String
+  sha256          String
+  probe           Json     @default("{}")
+  producedByJobId String?
+  inputVersionIds String[]
+  status          String // candidate | accepted | rejected | alternate
+  createdAt       DateTime @default(now())
+
+  @@index([productionId, kind])
+  @@map("production_assets")
+}
+
+model ProductionStep {
+  id              String    @id @default(uuid())
+  productionId    String
+  production      Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  kind            String
+  status          String // pending | ready | leased | waiting_provider | succeeded | failed | canceled | blocked
+  dependsOn       String[]
+  leaseUntil      DateTime?
+  workerId        String?
+  attempt         Int       @default(0)
+  maxAttempts     Int       @default(2)
+  idempotencyKey  String    @unique
+  inputHash       String
+  targetKey       String    @default("")
+  error           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  jobs            GenerationJob[]
+
+  @@index([productionId, status])
+  @@index([status, leaseUntil])
+  @@map("production_steps")
+}
+
+model GenerationJob {
+  id                 String    @id @default(uuid())
+  productionId       String
+  production         Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  stepId             String
+  step               ProductionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  provider           String
+  route              String
+  modelId            String
+  request            Json
+  settings           Json      @default("{}")
+  interactionContext Json?
+  providerJobId      String?
+  status             String // pending | submitting | in_progress | completed | failed | canceled | expired | needs_reconcile
+  outputs            Json      @default("[]")
+  usage              Json      @default("{}")
+  estimatedUsd       Decimal   @default(0) @db.Decimal(10, 4)
+  actualUsd          Decimal   @default(0) @db.Decimal(10, 4)
+  submittedAt        DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([productionId, status])
+  @@index([providerJobId])
+  @@map("generation_jobs")
+}
+
+model ProductionDependency {
+  id               String   @id @default(uuid())
+  productionId     String
+  production       Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  fromKind         String // entity_version | asset | timeline_span
+  fromId           String
+  toKind           String
+  toId             String
+  createdAt        DateTime @default(now())
+
+  @@index([productionId, fromId])
+  @@index([productionId, toId])
+  @@map("production_dependencies")
+}
+
+model UsageLedger {
+  id           String   @id @default(uuid())
+  productionId String
+  production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  jobId        String?
+  provider     String
+  model        String
+  units        Json     @default("{}")
+  usd          Decimal  @default(0) @db.Decimal(10, 4)
+  createdAt    DateTime @default(now())
+
+  @@index([productionId, createdAt])
+  @@map("usage_ledger")
 }

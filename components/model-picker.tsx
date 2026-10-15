@@ -8,11 +8,14 @@ import { GENERATION_MODELS, type GenerationModelId } from "@/lib/video/models";
 export function ModelPicker({
   value,
   onChange,
+  models,
   disabled,
   requireReferenceImages,
 }: {
   value: GenerationModelId;
   onChange: (id: GenerationModelId) => void;
+  /** Models this server can film with. Others are hidden. */
+  models: GenerationModelId[];
   disabled?: boolean;
   requireReferenceImages?: boolean;
 }) {
@@ -20,7 +23,8 @@ export function ModelPicker({
   const rootRef = useRef<HTMLDivElement>(null);
   const labelId = useId();
   const panelId = useId();
-  const selected = GENERATION_MODELS.find((model) => model.id === value) ?? GENERATION_MODELS[0];
+  const offered = GENERATION_MODELS.filter((model) => models.includes(model.id));
+  const selected = offered.find((model) => model.id === value) ?? offered[0] ?? GENERATION_MODELS[0];
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +42,7 @@ export function ModelPicker({
     };
   }, [open]);
 
-  const allowed = GENERATION_MODELS.filter((model) => !requireReferenceImages || model.referenceImages);
+  const allowed = offered.filter((model) => !requireReferenceImages || model.referenceImages);
 
   const handleGroupKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const index = allowed.findIndex((model) => model.id === value);
@@ -78,9 +82,12 @@ export function ModelPicker({
         role="radiogroup"
         aria-labelledby={labelId}
         onKeyDown={handleGroupKeyDown}
-        className="grid grid-cols-2 gap-1 rounded-xl bg-muted/60 p-1 sm:grid-cols-4"
+        className={cn("grid grid-cols-2 gap-1 rounded-xl bg-muted/60 p-1", {
+          "sm:grid-cols-4": offered.length <= 4,
+          "sm:grid-cols-5": offered.length > 4,
+        })}
       >
-        {GENERATION_MODELS.map((model) => {
+        {offered.map((model) => {
           const active = model.id === value;
           const blocked = Boolean(requireReferenceImages && !model.referenceImages);
           return (
@@ -126,7 +133,7 @@ export function ModelPicker({
             This model films the prompt. The player shows that footage.
           </p>
           <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
-            {GENERATION_MODELS.map((model) => {
+            {offered.map((model) => {
               const active = model.id === value;
               const blocked = Boolean(requireReferenceImages && !model.referenceImages);
               return (

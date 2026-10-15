@@ -1,9 +1,10 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
+import { refundCredits, reserveCredits } from "@/lib/billing/credits";
 import { db } from "@/lib/db";
 import {
   assertJobTransition,
-  CREDITS_HELD_ON_SUBMIT,
   isJobStatus,
   isJobStep,
   readJobInput,
@@ -25,39 +26,57 @@ export interface VideoJobInput {
   referenceKeys?: string[];
   showText?: boolean;
   projectId?: string;
+  creditsHeld?: number;
 }
 
 export const createQueuedVideoJob = async (userId: string, input: VideoJobInput) => {
-  return db.videoJob.create({
-    data: {
-      userId,
-      status: "queued",
-      progressPct: 0,
-      creditsHeld: CREDITS_HELD_ON_SUBMIT,
-      input: {
-        prompt: input.prompt,
-        style: "bold",
-        aspectRatio: input.format,
-        duration: input.length,
-        model: input.model,
-        mode: input.mode ?? "",
-        tier: input.tier ?? "",
-        resolution: input.resolution ?? "",
-        imageKey: input.imageKey ?? input.mediaKey ?? "",
-        mediaKey: input.mediaKey ?? input.imageKey ?? "",
-        referenceKeys: input.referenceKeys ?? [],
-        showText: input.showText !== false,
-        projectId: input.projectId ?? "",
+  const id = randomUUID();
+  const creditsHeld = input.creditsHeld ?? 0;
+  return db.$transaction(async (tx) => {
+    if (creditsHeld > 0) {
+      await reserveCredits(
+        userId,
+        creditsHeld,
+        {
+          reason: "video_hold",
+          refType: "video_job",
+          refId: id,
+          idempotencyKey: `video_hold:${id}`,
+        },
+        tx,
+      );
+    }
+    return tx.videoJob.create({
+      data: {
+        id,
+        userId,
+        status: "queued",
+        progressPct: 0,
+        creditsHeld,
+        input: {
+          prompt: input.prompt,
+          style: "bold",
+          aspectRatio: input.format,
+          duration: input.length,
+          model: input.model,
+          mode: input.mode ?? "",
+          tier: input.tier ?? "",
+          resolution: input.resolution ?? "",
+          imageKey: input.imageKey ?? input.mediaKey ?? "",
+          mediaKey: input.mediaKey ?? input.imageKey ?? "",
+          referenceKeys: input.referenceKeys ?? [],
+          showText: input.showText !== false,
+          projectId: input.projectId ?? "",
+        },
+        artifacts: {},
       },
-      artifacts: {},
-    },
+    });
   });
 };
 
 /**
- * Moves a job only along the allowed path. Failed, canceled, and succeeded
- * release the held credits. There is no user balance yet, so the release is
- * the job column returning to 0.
+ * Moves a job only along the allowed path. Failed and canceled jobs refund
+ * the held credits. Succeeded jobs keep the charge and clear the hold.
  */
 export const transitionVideoJob = async (
   jobId: string,
@@ -77,6 +96,20 @@ export const transitionVideoJob = async (
 
     const now = new Date();
     const terminal = to === "succeeded" || to === "failed" || to === "canceled";
+    if (terminal && job.creditsHeld > 0 && (to === "failed" || to === "canceled")) {
+      await refundCredits(
+        job.userId,
+        job.creditsHeld,
+        {
+          reason: "video_refund",
+          refType: "video_job",
+          refId: jobId,
+          idempotencyKey: `video_refund:${jobId}`,
+          holdKey: `video_hold:${jobId}`,
+        },
+        tx,
+      );
+    }
     const updated = await tx.videoJob.updateMany({
       where: { id: jobId, status: job.status },
       data: {

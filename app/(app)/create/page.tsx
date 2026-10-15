@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Generator } from "@/components/generator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
+import { availableGenerationModelIds } from "@/lib/video/available-models";
 import { generationModelIdForSlug } from "@/lib/video/models";
 
 export const metadata: Metadata = { title: "Create" };
@@ -20,5 +21,11 @@ export default function CreatePage() {
 
 async function GeneratorWithMode() {
   await connection();
-  return <Generator demo={!hasOpenRouterKey()} defaultModel={generationModelIdForSlug(MODEL)} />;
+  return (
+    <Generator
+      demo={!hasOpenRouterKey()}
+      defaultModel={generationModelIdForSlug(MODEL)}
+      models={availableGenerationModelIds()}
+    />
+  );
 }

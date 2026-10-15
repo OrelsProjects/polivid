@@ -10,10 +10,10 @@ import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, save
 import { progressFor, readJobInput } from "./job-status";
 import { markVideoJobProgress, transitionVideoJob } from "./jobs";
 import { footageFromPrepared, prepareModeJob } from "./mode-prepare";
-import { clipDuration, generationModelBySlug } from "./models";
+import { clipDuration, generationModelBySlug, isVideoProvider, type VideoProvider } from "./models";
 import { modeNeedsUpload, videoModeById } from "./modes";
 import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
-import { VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
+import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
 const FILMING_PROGRESS = progressFor("images") - 1;
@@ -65,7 +65,7 @@ export const resumeOpenVideos = async (userId: string) => {
     if (runs.has(job.id)) continue;
     const provider = job.providerJobs.find((row) => row.status === "in_progress" || row.status === "pending");
     if (job.status === "running" && provider) {
-      track(job.id, finishKnownFootage(userId, job.id, provider.providerJobId));
+      track(job.id, finishKnownFootage(userId, job.id, provider.providerJobId, provider.provider));
       continue;
     }
     if (job.status === "running") {
@@ -151,7 +151,7 @@ const filmEditorExport = async (userId: string, jobId: string, input: JobInput) 
   if (!(await markVideoJobProgress(jobId, "render", 10))) return;
   await renderEditProject(userId, jobId, project.timeline);
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
-  const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / 30));
+  const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / FPS));
   const plan = footagePlan(project.title, length, project.title);
   await createVideo(userId, {
     ...readyRecord(jobId, { ...input, length }, plan, length, false),
@@ -178,7 +178,7 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
   const clip = await renderFootage(
     footageFromPrepared(prepared),
     () => isStillRunning(userId, jobId),
-    (providerJobId) => rememberProviderJob(jobId, providerJobId),
+    (providerJobId, provider) => rememberProviderJob(jobId, providerJobId, provider),
   );
   await storeClip(userId, jobId, input, clip.durationSec, clip.bytes, prepared.prompt);
 };
@@ -212,7 +212,7 @@ const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
   await transitionVideoJob(jobId, "succeeded", { outputUrl: null, error: null });
 };
 
-const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string) => {
+const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string, provider: string) => {
   const job = await db.videoJob.findFirst({ where: { id: jobId, userId } });
   if (!job || job.status !== "running") return;
   const input = readJobInput(job.input);
@@ -220,7 +220,9 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
   const model = generationModelBySlug(input.model);
   if (!model) return;
   try {
-    const bytes = await finishFootage(providerJobId, () => isStillRunning(userId, jobId));
+    const bytes = await finishFootage(providerJobId, isVideoProvider(provider) ? provider : model.provider, () =>
+      isStillRunning(userId, jobId),
+    );
     await db.providerJob.update({
       where: { providerJobId },
       data: { status: "completed", lastPolledAt: new Date() },
@@ -262,11 +264,11 @@ const storeClip = async (
   });
 };
 
-const rememberProviderJob = async (jobId: string, providerJobId: string) => {
-  console.info("Waiting on OpenRouter", { jobId, providerJobId });
+const rememberProviderJob = async (jobId: string, providerJobId: string, provider: VideoProvider) => {
+  console.info("Waiting on the video model", { jobId, providerJobId, provider });
   await db.providerJob.deleteMany({ where: { jobId, sceneIdx: 0 } });
   await db.providerJob.create({
-    data: { providerJobId, jobId, sceneIdx: 0, status: "in_progress" },
+    data: { providerJobId, provider, jobId, sceneIdx: 0, status: "in_progress" },
   });
 };
 

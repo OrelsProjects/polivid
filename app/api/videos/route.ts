@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { auth } from "@/auth";
+import { hasOpenRouterKey } from "@/lib/ai/openrouter";
+import { videoJobCredits } from "@/lib/billing/estimate";
+import { InsufficientCreditsError, insufficientCreditsResponse } from "@/lib/billing/errors";
 import { isAudioKey, isImageKey, isMediaKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
+import { isGenerationModelAvailable } from "@/lib/video/available-models";
 import { createQueuedVideoJob, listActiveVideoJobs } from "@/lib/video/jobs";
 import { GENERATION_MODEL_IDS, generationModelById } from "@/lib/video/models";
 import {
@@ -63,8 +67,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Write a few words first." }, { status: 400 });
   }
 
-  const modelSlug = resolved?.chatModel ?? resolved?.model?.slug ?? (parsed.data.model ? generationModelById(parsed.data.model)?.slug : null);
+  const videoModel = resolved ? resolved.model : parsed.data.model ? generationModelById(parsed.data.model) : null;
+  const modelSlug = resolved?.chatModel ?? videoModel?.slug;
   if (!modelSlug) return Response.json({ error: "Pick a generation model and try again." }, { status: 400 });
+  if (videoModel && !isGenerationModelAvailable(videoModel)) {
+    return Response.json({ error: `${videoModel.name} isn't set up on this server. Pick another model.` }, { status: 400 });
+  }
+  if (videoModel && !videoModel.aspectRatios.includes(parsed.data.format)) {
+    const formats = new Intl.ListFormat("en", { type: "disjunction" }).format(
+      VIDEO_FORMATS.filter((format) => videoModel.aspectRatios.includes(format)),
+    );
+    return Response.json({ error: `${videoModel.name} only films ${formats} video.` }, { status: 400 });
+  }
 
   const referenceKeys = parsed.data.mode
     ? []
@@ -77,13 +91,21 @@ export async function POST(request: Request) {
     if (invalid) {
       return Response.json({ error: "Upload a reference picture." }, { status: 400 });
     }
-    const picked = parsed.data.model ? generationModelById(parsed.data.model) : null;
-    if (!picked?.referenceImages) {
+    if (!videoModel?.referenceImages) {
       return Response.json({ error: "This model can't use a reference picture." }, { status: 400 });
     }
   }
 
   try {
+    const credits = videoJobCredits({
+      demo: !hasOpenRouterKey(),
+      mode: resolved?.mode.id,
+      tier: resolved?.tier,
+      modelId: videoModel?.id,
+      modelSlug: videoModel?.slug ?? modelSlug,
+      resolution: resolved?.resolution,
+      length: parsed.data.length,
+    });
     const job = await createQueuedVideoJob(userId, {
       prompt,
       format: parsed.data.format,
@@ -96,12 +118,14 @@ export async function POST(request: Request) {
       imageKey: resolved && modeNeedsUpload(resolved.mode) ? mediaKey : undefined,
       referenceKeys: referenceKeys.length > 0 ? referenceKeys : undefined,
       showText: parsed.data.showText,
+      creditsHeld: credits,
     });
     void startVideoJob(userId, job.id).catch((error) => {
       console.error("Video stopped", error);
     });
     return Response.json({ jobId: job.id }, { status: 202 });
   } catch (error) {
+    if (error instanceof InsufficientCreditsError) return insufficientCreditsResponse(error);
     console.error("Could not start the video", error);
     return Response.json({ error: "Couldn't start the video. Try again." }, { status: 500 });
   }

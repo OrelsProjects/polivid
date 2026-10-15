@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { rangedBytesResponse } from "@/lib/http/range";
 import { deleteUpload, getUpload, hasS3Config } from "@/lib/storage/s3";
 import { ownedUploadKey } from "@/lib/storage/upload-key";
 import { readJobInput } from "@/lib/video/job-status";
@@ -13,19 +14,14 @@ const resolveKey = async (context: { params: Promise<{ name: string }> }) => {
 };
 
 /** Streams one of the signed-in user's pictures. Keys are unique, so the bytes never change. */
-export async function GET(_request: Request, context: { params: Promise<{ name: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ name: string }> }) {
   const { userId, key } = await resolveKey(context);
   if (!userId) return new Response("Sign in to see this picture.", { status: 401 });
   if (!key || !hasS3Config()) return new Response("Not found.", { status: 404 });
 
   try {
     const { bytes, contentType } = await getUpload(key);
-    return new Response(Buffer.from(bytes), {
-      headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "private, max-age=31536000, immutable",
-      },
-    });
+    return rangedBytesResponse(bytes, contentType, request.headers.get("range"), "private, max-age=31536000, immutable");
   } catch {
     return new Response("Not found.", { status: 404 });
   }

@@ -10,13 +10,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
 import { MediaUpload } from "@/components/media-upload";
 import { ModelPicker } from "@/components/model-picker";
 import { TierPicker } from "@/components/tier-picker";
 import { PreviewSample, StylePoster } from "@/components/style-frame";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { videoJobCredits } from "@/lib/billing/estimate";
 import { cn } from "@/lib/utils";
 import { clearCreateDraft, readCreateDraft, writeCreateDraft } from "@/lib/video/create-draft";
 import { generationModelById, generationModelBySlug, type GenerationModelId } from "@/lib/video/models";
@@ -64,10 +66,13 @@ const isInput = (value: string | null): value is InputMode =>
 export function Generator({
   demo,
   defaultModel,
+  models,
   mode,
 }: {
   demo: boolean;
   defaultModel: GenerationModelId;
+  /** Models this server can film with. */
+  models: GenerationModelId[];
   mode?: VideoModeId;
 }) {
   const router = useRouter();
@@ -80,9 +85,10 @@ export function Generator({
   const lengthFromUrl = isVideoLength(lengthParam);
   const presetFromUrl = lengthFromUrl && (LENGTH_CHOICES as readonly number[]).includes(lengthParam);
   const modelParam = searchParams.get("model");
-  const modelFromUrl = modelParam
+  const requestedModel = modelParam
     ? (generationModelById(modelParam)?.id ?? generationModelBySlug(modelParam)?.id ?? null)
     : null;
+  const modelFromUrl = requestedModel && models.includes(requestedModel) ? requestedModel : null;
   const videoMode = mode ? videoModeById(mode) : null;
   const tierParam = searchParams.get("tier");
   const [prompt, setPrompt] = useState(initialPrompt);
@@ -103,6 +109,8 @@ export function Generator({
   const [improveError, setImproveError] = useState<string | null>(null);
   const autoStarted = useRef(false);
   const [draftReady, setDraftReady] = useState(false);
+  const [creditBalance, setCreditBalance] = useState<number | null>(null);
+  const [upgrade, setUpgrade] = useState<{ required: number; balance: number } | null>(null);
   const busy = improving || submitting;
   const styleNote = requestedStyle === "minimal" || requestedStyle === "editorial";
   const activeLength = customLength === "" ? length : Number(customLength);
@@ -114,6 +122,18 @@ export function Generator({
   const promptReady = Boolean(videoMode?.promptOptional) || prompt.trim().length >= 3;
   const hasReferences = referenceKeys.length > 0;
   const canHideText = videoMode?.id !== "lyrics" && videoMode?.id !== "captions";
+  const estimatedCredits = useMemo(
+    () =>
+      videoJobCredits({
+        demo,
+        mode: videoMode?.id,
+        tier,
+        modelId: model,
+        length: lengthValid ? activeLength : MIN_VIDEO_LENGTH,
+      }),
+    [demo, videoMode?.id, tier, model, lengthValid, activeLength],
+  );
+  const needsUpgrade = creditBalance !== null && estimatedCredits > creditBalance && !demo;
 
   const generate = async (text = prompt) => {
     const value = text.trim();
@@ -151,7 +171,17 @@ export function Generator({
         router.push(`/login?callbackUrl=${encodeURIComponent(createPath)}`);
         return;
       }
-      const body = (await res.json().catch(() => null)) as { jobId?: string; error?: string } | null;
+      const body = (await res.json().catch(() => null)) as {
+        jobId?: string;
+        error?: string;
+        code?: string;
+        required?: number;
+        balance?: number;
+      } | null;
+      if (res.status === 402 && body?.code === "insufficient_credits") {
+        setUpgrade({ required: body.required ?? 0, balance: body.balance ?? 0 });
+        return;
+      }
       if (res.status !== 202 || !body?.jobId) {
         throw new Error(body?.error ?? "Couldn't queue the video.");
       }
@@ -179,7 +209,7 @@ export function Generator({
         setLength(draft.length);
         setCustomLength(draft.customLength);
       }
-      if (!modelFromUrl) setModel(draft.model);
+      if (!modelFromUrl && models.includes(draft.model)) setModel(draft.model);
       if (!(tierParam && isVideoTier(tierParam))) setTier(draft.tier);
       if (draft.mediaKey) setMediaKey(draft.mediaKey);
       if (draft.referenceKeys.length > 0) setReferenceKeys(draft.referenceKeys);
@@ -250,6 +280,15 @@ export function Generator({
       setImproving(false);
     }
   };
+
+  useEffect(() => {
+    const loadCredits = async () => {
+      const response = await fetch("/api/billing/credits");
+      const body = (await response.json().catch(() => null)) as { total?: number } | null;
+      if (response.ok && typeof body?.total === "number") setCreditBalance(body.total);
+    };
+    void loadCredits();
+  }, []);
 
   useEffect(() => {
     if (autoStarted.current || searchParams.get("start") !== "1" || !prompt.trim()) return;
@@ -555,7 +594,7 @@ export function Generator({
             {videoMode ? (
               <TierPicker mode={videoMode} value={tier} onChange={setTier} disabled={busy} />
             ) : (
-              <ModelPicker value={model} onChange={setModel} disabled={busy} />
+              <ModelPicker value={model} onChange={setModel} models={models} disabled={busy} />
             )}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
@@ -595,10 +634,11 @@ export function Generator({
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            {demo ? "Uses sample data · " : ""}
+            {demo ? "Demo mode is free · " : estimatedCredits > 0 ? `Uses ${estimatedCredits.toLocaleString()} credits · ` : ""}
+            {needsUpgrade ? "You need more credits. " : ""}
             You&apos;ll go to My videos while it generates. Come back here to start another.
           </p>
-          <Button type="submit" size="lg" disabled={!promptReady || busy || !lengthValid || (needsUpload && !mediaKey)} className="h-11 rounded-xl px-5">
+          <Button type="submit" size="lg" disabled={!promptReady || busy || !lengthValid || (needsUpload && !mediaKey) || needsUpgrade} className="h-11 rounded-xl px-5">
             {submitting ? (
               <>
                 <LoaderCircle className="animate-spin" data-icon="inline-start" />
@@ -634,6 +674,14 @@ export function Generator({
           The frame on the right is a style sample. Generate films the prompt with the model you picked.
         </p>
 
+        {needsUpgrade && (
+          <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary">
+            This video needs {estimatedCredits.toLocaleString()} credits. You have {creditBalance?.toLocaleString()} left.{" "}
+            <Link href="/billing" className="font-medium underline-offset-4 hover:underline">
+              Upgrade
+            </Link>
+          </p>
+        )}
         {status.state === "failed" && (
           <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm" role="alert">
             <span className="flex items-center gap-2 font-medium text-destructive">
@@ -649,6 +697,12 @@ export function Generator({
           </div>
         )}
       </aside>
+      <UpgradeDialog
+        open={upgrade !== null}
+        required={upgrade?.required ?? 0}
+        balance={upgrade?.balance ?? 0}
+        onClose={() => setUpgrade(null)}
+      />
     </div>
   );
 }

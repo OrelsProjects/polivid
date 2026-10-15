@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
 import { AppNav } from "@/components/app-nav";
+import { PlanCard } from "@/components/billing/plan-card";
 import { Logo } from "@/components/logo";
 import { UserMenu } from "@/components/user-menu";
 import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
@@ -19,17 +20,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <AppNav />
         </div>
         <div className="mt-auto flex flex-col gap-3">
-          <div className="rounded-2xl border border-border bg-white p-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold">Free plan</span>
-              <Suspense fallback={null}>
-                <PlanBadge />
-              </Suspense>
-            </div>
-            <Suspense fallback={<div className="mt-2 h-8" />}>
-              <EngineStatus />
-            </Suspense>
-          </div>
+          <Suspense fallback={<div className="h-16 rounded-2xl border border-border bg-white" />}>
+            <PlanCard />
+          </Suspense>
+          <Suspense fallback={null}>
+            <EngineStatus />
+          </Suspense>
           <Suspense fallback={<div className="h-10" />}>
             <UserMenu />
           </Suspense>
@@ -47,24 +43,15 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
-async function PlanBadge() {
-  await connection();
-  return (
-    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-primary">
-      {hasOpenRouterKey() ? "LIVE" : "DEMO"}
-    </span>
-  );
-}
-
 /** Reads env at request time so adding a key takes effect without a rebuild. */
 async function EngineStatus() {
   await connection();
   return hasOpenRouterKey() ? (
-    <p className="mt-2 text-xs leading-relaxed text-muted-foreground" title={MODEL}>
-      Model: {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
+    <p className="px-1 text-xs leading-relaxed text-muted-foreground" title={MODEL}>
+      {hasOpenRouterKey() ? "LIVE" : "DEMO"} · {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
     </p>
   ) : (
-    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+    <p className="px-1 text-xs leading-relaxed text-muted-foreground">
       Demo mode. Videos use fictional sample data until an API key is set.
     </p>
   );

@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import { readAssetToken } from "@/lib/editor/asset-token";
 import { db } from "@/lib/db";
+import { rangedBytesResponse, rangedFileResponse } from "@/lib/http/range";
 import { getUpload, hasS3Config } from "@/lib/storage/s3";
 import { isOwnedUploadKey } from "@/lib/storage/upload-key";
 import { footagePath, hasFootage } from "@/lib/video/footage";
@@ -19,10 +19,11 @@ const contentTypeFor = (name: string) => {
   return "video/mp4";
 };
 
-export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
   const payload = readAssetToken(decodeURIComponent(token));
   if (!payload) return new Response("Not found.", { status: 404 });
+  const range = request.headers.get("range");
 
   try {
     if (payload.source.type === "upload") {
@@ -30,12 +31,16 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
         return new Response("Not found.", { status: 404 });
       }
       const { bytes, contentType } = await getUpload(payload.source.key);
-      return new Response(Buffer.from(bytes), {
-        headers: {
-          "Content-Type": contentType,
-          "Cache-Control": "private, max-age=300",
-        },
-      });
+      return rangedBytesResponse(bytes, contentType, range, "private, max-age=300");
+    }
+
+    if (payload.source.type === "production") {
+      const { getAssetForUser } = await import("@/lib/production/store");
+      const { readProductionBytes } = await import("@/lib/production/assets");
+      const asset = await getAssetForUser(payload.userId, payload.source.assetId);
+      if (!asset) return new Response("Not found.", { status: 404 });
+      const file = await readProductionBytes(asset.storageKey);
+      return rangedBytesResponse(file.bytes, file.contentType, range, "private, max-age=300");
     }
 
     const row = await db.video.findFirst({
@@ -43,13 +48,7 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
       select: { id: true },
     });
     if (!row || !hasFootage(row.id)) return new Response("Not found.", { status: 404 });
-    const bytes = await readFile(footagePath(row.id));
-    return new Response(bytes, {
-      headers: {
-        "Content-Type": contentTypeFor(footagePath(row.id)),
-        "Cache-Control": "private, max-age=300",
-      },
-    });
+    return rangedFileResponse(footagePath(row.id), contentTypeFor(footagePath(row.id)), range, "private, max-age=300");
   } catch {
     return new Response("Not found.", { status: 404 });
   }

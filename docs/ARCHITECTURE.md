@@ -96,7 +96,9 @@ app/
   (app)/dashboard/            prompt box, stats, recent videos
   (app)/create/               generator UI (format, length, progress)
   (app)/videos/               video list and video page (player, sources, script)
+  (app)/productions/          staged AI production: plan, generate, review
   api/videos/route.ts         POST: generate a video, streams progress
+  api/productions/            create, plan, approve, and resume productions
   api/auth/[...nextauth]/     Auth.js endpoints
 auth.ts                       Auth.js config
 proxy.ts                      optimistic sign-in redirect
@@ -111,11 +113,12 @@ lib/
   video/pipeline.ts           model calls + checks (no DB/auth; used by the app and scripts/)
   video/generate.ts           pipeline + progress steps + saving
   video/demo.ts               fictional sample video
+  production/                 staged production schemas, planner, jobs, adapters
   ai/openrouter.ts, ai/prompts.ts
   db.ts, session.ts, videos.ts
 prisma/schema.prisma
 scripts/try-pipeline.ts       run the pipeline from the terminal (npm run try)
-docs/                         PLAN.md, SETUP.md, ARCHITECTURE.md
+docs/                         PLAN.md, SETUP.md, ARCHITECTURE.md, PRODUCTION.md
 ```
 
 ## What's next

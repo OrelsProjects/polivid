@@ -66,9 +66,8 @@ A specific niche is chosen after v1 works (see section 14).
 
 **Non-goals for v1:**
 - choosing a niche or positioning,
-- talking-head avatars,
-- AI-generated video footage (text-to-video models),
-- frame-by-frame timeline editing,
+- talking-head avatars in the original Create flow,
+- replacing Create modes with Productions (Productions is a separate tool; see [PRODUCTION.md](PRODUCTION.md)),
 - auto-posting to social platforms,
 - team collaboration,
 - languages other than English.

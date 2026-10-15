@@ -7,25 +7,9 @@ import type { VideoFormat } from "@/lib/video/schema";
 import { getVideoForUser } from "@/lib/videos";
 import { timelineFromVideo } from "./from-video";
 import { emptyTimeline, TimelineSchema, type Timeline } from "./schema";
+import type { EditProjectSummary, EditProjectView } from "./types";
 
-export interface EditProjectView {
-  id: string;
-  title: string;
-  format: VideoFormat;
-  timeline: Timeline;
-  version: number;
-  sourceVideoId: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface EditProjectSummary {
-  id: string;
-  title: string;
-  format: VideoFormat;
-  sourceVideoId: string | null;
-  updatedAt: string;
-}
+export type { EditProjectSummary, EditProjectView } from "./types";
 
 export class ProjectConflictError extends Error {
   constructor() {
@@ -118,6 +102,16 @@ export const createProjectFromVideoForUser = async (userId: string, videoId: str
 
 export const createProjectFromVideo = async (videoId: string) =>
   createProjectFromVideoForUser((await getCurrentUser()).id, videoId);
+
+/** The latest edit of this video, or a new one when none exists yet. Null when the video is not ready. */
+export const openProjectForVideoForUser = async (userId: string, videoId: string) => {
+  const existing = await db.editProject.findFirst({
+    where: { userId, sourceVideoId: videoId },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (existing) return toView(existing);
+  return createProjectFromVideoForUser(userId, videoId);
+};
 
 export const saveProjectForUser = async (
   userId: string,

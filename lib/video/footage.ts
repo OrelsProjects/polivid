@@ -2,11 +2,25 @@ import "server-only";
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { clipDuration, clipResolution, generationModelBySlug } from "./models";
+import { finishGeminiVideo, submitGeminiVideo } from "./gemini-footage";
+import { clipDuration, clipResolution, GENERATION_MODELS, generationModelBySlug, type VideoProvider } from "./models";
+import { prepareFootageForSeeking } from "./prepare-footage";
+import {
+  checkVideoBytes,
+  errorMessage,
+  FootageStopped,
+  isRetryableStatus,
+  logMiss,
+  messageFrom,
+  ModelDeclined,
+  sleep,
+  stopIfCanceled,
+} from "./provider-http";
 import type { VideoFormat } from "./schema";
 
+export { FootageStopped } from "./provider-http";
+
 const API = "https://openrouter.ai/api/v1";
-const POLL_MS = 3000;
 
 const MEDIA_DIR = path.join(process.cwd(), "data", "media");
 
@@ -26,13 +40,30 @@ export const saveFootage = async (id: string, bytes: Uint8Array) => {
   const file = footagePath(id);
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, bytes);
+  try {
+    await prepareFootageForSeeking(file);
+  } catch (error) {
+    console.error("Could not prepare footage for seeking. The clip will still play.", error);
+  }
+  try {
+    const { extractScrubFrames } = await import("./scrub-frames");
+    await extractScrubFrames(id);
+  } catch (error) {
+    console.error("Could not build scrub frames. Dragging the playhead may feel slow.", error);
+  }
+  try {
+    const { extractWaveform } = await import("./waveform");
+    await extractWaveform(id);
+  } catch (error) {
+    console.error("Could not build a waveform. The sound lane may stay empty.", error);
+  }
 };
 
 export interface FootageRequest {
   prompt: string;
   format: VideoFormat;
   length: number;
-  /** OpenRouter video-model slug. */
+  /** Video-model slug from GENERATION_MODELS. */
   model: string;
   /** Preferred resolution. Falls back to the model's default when unsupported. */
   resolution?: string;
@@ -47,31 +78,28 @@ export interface FootageClip {
   bytes: Uint8Array;
 }
 
-export class FootageStopped extends Error {
-  constructor() {
-    super("Stopped.");
-    this.name = "FootageStopped";
-  }
-}
+const MODEL_NAMES = new Intl.ListFormat("en", { type: "disjunction" }).format(
+  GENERATION_MODELS.map((model) => model.name),
+);
 
 /**
- * Sends the prompt to an OpenRouter video model and returns the mp4 bytes.
+ * Sends the prompt to the model's provider (OpenRouter or Google) and returns the mp4 bytes.
  * Duration is snapped to a length the model accepts.
  * There is no time limit. A missing reply does not end the job.
- * OpenRouter decides when the clip is done.
- * `onSubmitted` runs after OpenRouter accepts the clip and before the wait,
+ * The provider decides when the clip is done.
+ * `onSubmitted` runs after the provider accepts the clip and before the wait,
  * so the id can be saved even if this process stops.
  * `shouldContinue` is checked between polls so a canceled job can stop waiting.
- * A database error inside that check does not cancel the OpenRouter wait.
+ * A database error inside that check does not cancel the wait.
  */
 export const renderFootage = async (
   input: FootageRequest,
   shouldContinue: () => Promise<boolean> = async () => true,
-  onSubmitted?: (providerJobId: string) => Promise<void>,
+  onSubmitted?: (providerJobId: string, provider: VideoProvider) => Promise<void>,
 ): Promise<FootageClip> => {
   const model = generationModelBySlug(input.model);
   if (!model) {
-    throw new Error("Pick Wan 3.0, MiniMax H3, Seedance 2.5, or FLUX 3. Those are the video models.");
+    throw new Error(`Pick ${MODEL_NAMES}. Those are the video models.`);
   }
   if (!model.aspectRatios.includes(input.format)) {
     throw new Error(`${model.name} does not film ${input.format} video.`);
@@ -82,39 +110,55 @@ export const renderFootage = async (
     input.resolution && model.resolutions.includes(input.resolution)
       ? input.resolution
       : clipResolution(model.resolutions);
-  const providerJobId = await submitJob({
-    model: model.slug,
-    prompt: input.prompt,
-    duration,
-    resolution,
-    aspect_ratio: input.format,
-    generate_audio: model.audio,
-    ...(input.imageDataUrl
-      ? {
-          frame_images: [
-            {
-              type: "image_url",
-              image_url: { url: input.imageDataUrl },
-              frame_type: "first_frame",
-            },
-          ],
-        }
-      : {}),
-    ...(input.inputReferences?.length ? { input_references: input.inputReferences } : {}),
-  });
+  const providerJobId =
+    model.provider === "google"
+      ? await submitGeminiVideo({
+          model: model.slug,
+          prompt: input.prompt,
+          duration,
+          resolution,
+          aspectRatio: input.format,
+          imageDataUrl: input.imageDataUrl,
+          inputReferences: input.inputReferences,
+        })
+      : await submitJob({
+          model: model.slug,
+          prompt: input.prompt,
+          duration,
+          resolution,
+          aspect_ratio: input.format,
+          generate_audio: model.audio,
+          ...(input.imageDataUrl
+            ? {
+                frame_images: [
+                  {
+                    type: "image_url",
+                    image_url: { url: input.imageDataUrl },
+                    frame_type: "first_frame",
+                  },
+                ],
+              }
+            : {}),
+          ...(input.inputReferences?.length ? { input_references: input.inputReferences } : {}),
+        });
   if (onSubmitted) {
     try {
-      await onSubmitted(providerJobId);
+      await onSubmitted(providerJobId, model.provider);
     } catch (error) {
-      console.error("Could not save the OpenRouter video id", error);
+      console.error("Could not save the video job id", error);
     }
   }
-  const bytes = await finishFootage(providerJobId, shouldContinue);
+  const bytes = await finishFootage(providerJobId, model.provider, shouldContinue);
   return { durationSec: duration, bytes };
 };
 
-/** Keeps polling an OpenRouter video that was already submitted. */
-export const finishFootage = async (providerJobId: string, shouldContinue: () => Promise<boolean> = async () => true) => {
+/** Keeps polling a video that was already submitted to `provider`. */
+export const finishFootage = async (
+  providerJobId: string,
+  provider: VideoProvider,
+  shouldContinue: () => Promise<boolean> = async () => true,
+) => {
+  if (provider === "google") return finishGeminiVideo(providerJobId, shouldContinue);
   await waitForJob(providerJobId, shouldContinue);
   return downloadJob(providerJobId);
 };
@@ -125,15 +169,10 @@ const apiKey = () => {
   return key;
 };
 
-/** The model answered that this clip will not be made. Silence is not this. */
-class ModelDeclined extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ModelDeclined";
-  }
-}
+export const submitOpenRouterVideoJob = async (body: Record<string, unknown>) =>
+  submitJob(body);
 
-const sleep = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+export const downloadOpenRouterVideoJob = async (jobId: string) => downloadJob(jobId);
 
 const submitJob = async (body: Record<string, unknown>) => {
   let misses = 0;
@@ -147,9 +186,7 @@ const submitJob = async (body: Record<string, unknown>) => {
         },
         body: JSON.stringify(body),
       });
-      if (response.status === 408 || response.status === 429 || response.status >= 500) {
-        throw new Error(`Video request failed (${response.status}).`);
-      }
+      if (isRetryableStatus(response.status)) throw new Error(`Video request failed (${response.status}).`);
       if (!response.ok) throw new ModelDeclined(await errorMessage(response));
       const job = (await response.json()) as { id?: string };
       if (!job.id) throw new Error("The video model did not start a job.");
@@ -157,9 +194,7 @@ const submitJob = async (body: Record<string, unknown>) => {
     } catch (error) {
       if (error instanceof ModelDeclined) throw error;
       misses += 1;
-      if (misses === 1 || misses % 10 === 0) {
-        console.error("The video model has not accepted the clip yet. Still trying.", causeText(error));
-      }
+      logMiss(misses, "The video model has not accepted the clip yet. Still trying.", error);
       await sleep();
     }
   }
@@ -168,11 +203,7 @@ const submitJob = async (body: Record<string, unknown>) => {
 const waitForJob = async (jobId: string, shouldContinue: () => Promise<boolean>) => {
   let misses = 0;
   while (true) {
-    try {
-      if (!(await shouldContinue())) throw new FootageStopped();
-    } catch (error) {
-      if (error instanceof FootageStopped) throw error;
-    }
+    await stopIfCanceled(shouldContinue);
     try {
       const response = await fetch(`${API}/videos/${jobId}`, {
         headers: { Authorization: `Bearer ${apiKey()}` },
@@ -187,9 +218,7 @@ const waitForJob = async (jobId: string, shouldContinue: () => Promise<boolean>)
     } catch (error) {
       if (error instanceof ModelDeclined || error instanceof FootageStopped) throw error;
       misses += 1;
-      if (misses === 1 || misses % 10 === 0) {
-        console.error("The video model has not replied. Still waiting.", causeText(error));
-      }
+      logMiss(misses, "The video model has not replied. Still waiting.", error);
     }
     await sleep();
   }
@@ -205,15 +234,11 @@ const downloadJob = async (jobId: string) => {
       if (!response.ok) throw new Error(await errorMessage(response));
       const type = response.headers.get("content-type") ?? "";
       if (type.includes("application/json")) throw new Error(await errorMessage(response));
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.byteLength < 1000) throw new Error("The video model returned an empty file.");
-      return bytes;
+      return checkVideoBytes(new Uint8Array(await response.arrayBuffer()));
     } catch (error) {
       if (error instanceof FootageStopped) throw error;
       misses += 1;
-      if (misses === 1 || misses % 10 === 0) {
-        console.error("The video file is not back yet. Still waiting.", causeText(error));
-      }
+      logMiss(misses, "The video file is not back yet. Still waiting.", error);
       await sleep();
     }
   }
@@ -225,30 +250,4 @@ export const footageErrorMessage = (error: unknown) => {
     return "Couldn't reach the video model. Try again.";
   }
   return error instanceof Error ? error.message : "The video didn't finish.";
-};
-
-const causeText = (error: unknown) => {
-  if (!(error instanceof Error)) return "No reply";
-  const cause = error.cause;
-  return cause instanceof Error && cause.message ? cause.message : error.message;
-};
-
-const errorMessage = async (response: Response) => {
-  const text = await response.text();
-  return messageFrom(parseJson(text)) || text.slice(0, 300) || `Video request failed (${response.status}).`;
-};
-
-const parseJson = (text: string) => {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
-};
-
-const messageFrom = (value: unknown): string | null => {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  if (!value || typeof value !== "object") return null;
-  const record = value as { message?: unknown; error?: unknown };
-  return messageFrom(record.message) ?? messageFrom(record.error);
 };

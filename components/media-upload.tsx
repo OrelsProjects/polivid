@@ -2,7 +2,7 @@
 
 import { FileAudio, FileVideo, ImagePlus, LoaderCircle, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { ImageLibrary } from "@/components/image-library";
+import { ImageLibrary, type LibrarySource } from "@/components/image-library";
 import { Button } from "@/components/ui/button";
 import { uploadFileUrl } from "@/lib/storage/upload-key";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,8 @@ type MediaUploadProps = {
   disabled?: boolean;
   label?: string;
   hint?: string;
+  librarySource?: LibrarySource;
+  libraryLayout?: "popover" | "inline";
 } & (
   | {
       multiple?: false;
@@ -88,6 +90,8 @@ export function MediaUpload({
   disabled,
   label,
   hint,
+  librarySource,
+  libraryLayout = "popover",
   ...props
 }: MediaUploadProps) {
   const inputId = useId();
@@ -101,6 +105,9 @@ export function MediaUpload({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const Icon = kind === "audio" ? FileAudio : kind === "image" ? ImagePlus : FileVideo;
+  const library = librarySource ?? (kind === "video" ? "video" : kind === "image" ? "image" : null);
+  const accept =
+    library === "visual" ? `${ACCEPT.image},${ACCEPT.video}` : ACCEPT[kind];
   const multiple = props.multiple === true;
   const parentKeyList = multiple ? props.mediaKeys.join("\0") : "";
   const savedSingleKey = !multiple ? props.mediaKey : null;
@@ -154,13 +161,21 @@ export function MediaUpload({
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const handleToggleLibraryPicture = (key: string, url: string) => {
-    if (itemsRef.current.some((item) => item.key === key)) {
-      handleRemoveKey(key);
+  const handleToggleLibraryPicture = (key: string, url: string, mediaKind: "image" | "video" = "image") => {
+    if (multiple) {
+      if (itemsRef.current.some((item) => item.key === key)) {
+        handleRemoveKey(key);
+        return;
+      }
+      if (itemsRef.current.length >= MAX_REFERENCE_IMAGES) return;
+      commitItems([...itemsRef.current, { key, preview: url, kind: mediaKind, fileName: "Library item" }]);
       return;
     }
-    if (itemsRef.current.length >= MAX_REFERENCE_IMAGES) return;
-    commitItems([...itemsRef.current, { key, preview: url, kind: "image", fileName: "Library picture" }]);
+    if (props.mediaKey === key) {
+      props.onChange(null);
+      return;
+    }
+    props.onChange(key);
   };
 
   const handleClear = () => {
@@ -177,12 +192,14 @@ export function MediaUpload({
     if (!file || disabled || uploading || multiple) return;
     setUploading(true);
     setError(null);
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-    const nextPreview = URL.createObjectURL(file);
-    previewUrl.current = nextPreview;
-    setPreview(nextPreview);
-    setFileName(file.name);
-    setPreviewKind(previewKindFor(file.type));
+    if (libraryLayout !== "inline") {
+      if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+      const nextPreview = URL.createObjectURL(file);
+      previewUrl.current = nextPreview;
+      setPreview(nextPreview);
+      setFileName(file.name);
+      setPreviewKind(previewKindFor(file.type));
+    }
 
     try {
       const key = await uploadFile(file);
@@ -229,14 +246,14 @@ export function MediaUpload({
 
   return (
     <div className="flex flex-col gap-2">
-      <span id={`${inputId}-label`} className="text-sm font-medium">
+      <span id={`${inputId}-label`} className={libraryLayout === "inline" ? "sr-only" : "text-sm font-medium"}>
         {namedLabel}
       </span>
       <input
         ref={inputRef}
         id={inputId}
         type="file"
-        accept={ACCEPT[kind]}
+        accept={accept}
         multiple={multiple}
         disabled={disabled || uploading || atLimit}
         aria-labelledby={`${inputId}-label`}
@@ -280,13 +297,15 @@ export function MediaUpload({
                 </Button>
               </div>
             ))}
-            {kind === "image" ? (
+            {library ? (
               <ImageLibrary
+                source={library}
+                layout={libraryLayout}
                 selectedKeys={items.map((item) => item.key)}
                 maxSelected={MAX_REFERENCE_IMAGES}
                 disabled={disabled}
                 uploading={uploading}
-                triggerLabel={items.length ? "Add another reference picture" : namedLabel}
+                triggerLabel={items.length ? "Add another" : namedLabel}
                 onToggle={handleToggleLibraryPicture}
                 onUploadNew={handlePick}
                 onDeleted={handleRemoveKey}
@@ -321,6 +340,19 @@ export function MediaUpload({
           </div>
           <p className="text-xs text-muted-foreground">{namedHint}</p>
         </div>
+      ) : library && (libraryLayout === "inline" || (!savedSingleKey && !preview)) ? (
+        <ImageLibrary
+          source={library}
+          layout={libraryLayout}
+          selectedKeys={savedSingleKey ? [savedSingleKey] : []}
+          maxSelected={1}
+          disabled={disabled}
+          uploading={uploading}
+          triggerLabel={namedLabel}
+          onToggle={handleToggleLibraryPicture}
+          onUploadNew={handlePick}
+          onDeleted={() => props.onChange(null)}
+        />
       ) : preview || savedSingleKey ? (
         <div className="relative overflow-hidden rounded-xl border border-border">
           {preview && previewKind === "image" ? (

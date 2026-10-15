@@ -129,8 +129,6 @@ export const stepIsComplete = (step: JobStep, current: JobStep | null, progressP
   const next = JOB_STEPS[stepIndex + 1];
   return progressPct >= (next ? progressFor(next) : 100);
 };
-export const CREDITS_HELD_ON_SUBMIT = 0;
-
 /** Progress band for a step. Within videos, pass how many clips are already stored. */
 export const progressFor = (step: JobStep, clipsDone = 0, clipsTotal = 1) => {
   if (step === "script") return 10;

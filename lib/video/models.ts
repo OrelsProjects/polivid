@@ -1,17 +1,24 @@
 /**
- * Video models the creator can pick on the Create page.
- * Each one is an OpenRouter text-to-video model. The prompt is filmed by that model.
- * Gemini Omni Flash 1.1 is not on OpenRouter, so it is not listed.
+ * Video models the creator can pick on the Create page. The prompt is filmed by that model.
+ * Most are OpenRouter text-to-video models. Gemini Omni is not on OpenRouter,
+ * so it goes straight to Google's Gemini API and needs GEMINI_API_KEY.
  */
 
 const seconds = (min: number, max: number) =>
   Array.from({ length: max - min + 1 }, (_, index) => min + index);
 
-export const GENERATION_MODEL_IDS = ["wan", "hailuo", "seedance", "flux"] as const;
+export const GENERATION_MODEL_IDS = ["wan", "hailuo", "seedance", "flux", "omni"] as const;
 export type GenerationModelId = (typeof GENERATION_MODEL_IDS)[number];
+
+export const VIDEO_PROVIDERS = ["openrouter", "google"] as const;
+export type VideoProvider = (typeof VIDEO_PROVIDERS)[number];
+
+export const isVideoProvider = (value: string): value is VideoProvider =>
+  (VIDEO_PROVIDERS as readonly string[]).includes(value);
 
 export interface GenerationModel {
   id: GenerationModelId;
+  provider: VideoProvider;
   slug: string;
   name: string;
   summary: string;
@@ -30,6 +37,7 @@ export interface GenerationModel {
 export const GENERATION_MODELS: readonly GenerationModel[] = [
   {
     id: "wan",
+    provider: "openrouter",
     slug: "alibaba/wan-3.0",
     name: "Wan 3.0",
     summary: "Best overall. 2–30 seconds.",
@@ -43,6 +51,7 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
   },
   {
     id: "hailuo",
+    provider: "openrouter",
     slug: "minimax/hailuo-3",
     name: "MiniMax H3",
     summary: "Realistic motion. 5–15 seconds.",
@@ -56,6 +65,7 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
   },
   {
     id: "seedance",
+    provider: "openrouter",
     slug: "bytedance/seedance-2.5",
     name: "Seedance 2.5",
     summary: "Cinematic scenes. 4–30 seconds.",
@@ -69,6 +79,7 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
   },
   {
     id: "flux",
+    provider: "openrouter",
     slug: "black-forest-labs/flux-3-video",
     name: "FLUX 3",
     summary: "Visual styling. 5–20 seconds.",
@@ -77,6 +88,21 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     resolutions: ["720p", "1080p"],
     aspectRatios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
     pricePerSecond: { "720p": 0.17 },
+    audio: true,
+    referenceImages: true,
+  },
+  {
+    id: "omni",
+    provider: "google",
+    slug: "google/gemini-omni-1.1-flash",
+    name: "Omni 1.1 Flash",
+    summary: "Google's Gemini Omni. 3–10 seconds, 16:9 or 9:16.",
+    detail:
+      "Google's Gemini Omni films the prompt at 720p, about $0.10 a second. Portrait or landscape only. A 2 second request becomes 3 seconds.",
+    durations: seconds(3, 10),
+    resolutions: ["360p", "720p", "1080p", "4k"],
+    aspectRatios: ["16:9", "9:16"],
+    pricePerSecond: { "720p": 0.1 },
     audio: true,
     referenceImages: true,
   },
