@@ -26,7 +26,7 @@ export async function UserMenu() {
         <button
           type="submit"
           aria-label="Sign out"
-          className="grid size-8 place-items-center rounded-lg text-muted-foreground hover:bg-white hover:text-foreground"
+          className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground hover:bg-white hover:text-foreground"
         >
           <LogOut className="size-3.5" />
         </button>

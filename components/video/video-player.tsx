@@ -44,7 +44,7 @@ export function VideoPlayer({
       )}
     </div>
   );
-}
+};
 
 export function VideoThumbnail({
   className,

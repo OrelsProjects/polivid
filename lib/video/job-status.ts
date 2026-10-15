@@ -47,6 +47,8 @@ export interface VideoJobView {
   outputUrl: string | null;
   error: string | null;
   createdAt: string;
+  /** When the job moved to running. Null while it is still queued. */
+  startedAt: string | null;
   prompt: string;
   format: string;
   length: number;
@@ -54,10 +56,40 @@ export interface VideoJobView {
 
 const VIDEO_FORMATS = ["9:16", "1:1", "16:9"] as const;
 
+export interface JobInputFields {
+  prompt: string;
+  format: string;
+  length: number;
+  model: string;
+  mode: string;
+  tier: string;
+  resolution: string;
+  imageKey: string;
+  mediaKey: string;
+  referenceKeys: string[];
+  showText: boolean;
+  projectId: string;
+}
+
+const EMPTY_JOB_INPUT: JobInputFields = {
+  prompt: "Untitled video",
+  format: "9:16",
+  length: 0,
+  model: "",
+  mode: "",
+  tier: "",
+  resolution: "",
+  imageKey: "",
+  mediaKey: "",
+  referenceKeys: [],
+  showText: true,
+  projectId: "",
+};
+
 /** Prompt and settings stored on the job, with safe fallbacks for a bad payload. */
-export const readJobInput = (input: unknown): { prompt: string; format: string; length: number; model: string } => {
+export const readJobInput = (input: unknown): JobInputFields => {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return { prompt: "Untitled video", format: "9:16", length: 0, model: "" };
+    return EMPTY_JOB_INPUT;
   }
   const record = input as Record<string, unknown>;
   const prompt =
@@ -67,7 +99,22 @@ export const readJobInput = (input: unknown): { prompt: string; format: string; 
     : "9:16";
   const length = typeof record.duration === "number" && Number.isInteger(record.duration) ? record.duration : 0;
   const model = typeof record.model === "string" ? record.model : "";
-  return { prompt, format, length, model };
+  const mode = typeof record.mode === "string" ? record.mode : "";
+  const tier = typeof record.tier === "string" ? record.tier : "";
+  const resolution = typeof record.resolution === "string" ? record.resolution : "";
+  const imageKey = typeof record.imageKey === "string" ? record.imageKey : "";
+  const mediaKey =
+    typeof record.mediaKey === "string" && record.mediaKey
+      ? record.mediaKey
+      : imageKey;
+  const referenceKeys = Array.isArray(record.referenceKeys)
+    ? record.referenceKeys.filter((key): key is string => typeof key === "string" && key.trim().length > 0)
+    : typeof record.referenceKey === "string" && record.referenceKey.trim()
+      ? [record.referenceKey]
+      : [];
+  const showText = record.showText !== false;
+  const projectId = typeof record.projectId === "string" ? record.projectId : "";
+  return { prompt, format, length, model, mode, tier, resolution, imageKey, mediaKey, referenceKeys, showText, projectId };
 };
 
 /**

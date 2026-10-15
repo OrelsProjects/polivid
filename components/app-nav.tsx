@@ -1,6 +1,6 @@
 "use client";
 
-import { Film, Images, LayoutGrid, LayoutTemplate, Plus, Settings } from "lucide-react";
+import { Film, Images, LayoutGrid, LayoutTemplate, Plus, Settings, Wrench } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
+  { href: "/tools", label: "Tools", icon: Wrench },
   { href: "/videos", label: "My videos", icon: Film },
   { href: "/dashboard#showcase", label: "Showcase", icon: Images },
 ] as const;
@@ -33,14 +34,19 @@ export function AppNav({ orientation = "vertical" }: { orientation?: "vertical" 
       <nav className={cn("flex gap-1", vertical ? "flex-col" : "flex-row")} aria-label="App">
         {NAV.map(({ href, label, icon: Icon }) => {
           const path = href.split("#")[0];
-          const active = path === "/videos" ? pathname.startsWith("/videos") : pathname === path && !href.includes("#");
+          const active =
+            path === "/videos"
+              ? pathname.startsWith("/videos")
+              : path === "/tools"
+                ? pathname === "/tools" || pathname.startsWith("/create/")
+                : pathname === path && !href.includes("#");
           return (
             <Link
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition",
+                "flex cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition",
                 active
                   ? "bg-white font-medium text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-white/70 hover:text-foreground",

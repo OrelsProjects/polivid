@@ -26,13 +26,13 @@ export function SiteHeader() {
         <Logo />
         <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex" aria-label="Page">
           {LINKS.map((link) => (
-            <a key={link.href} href={link.href} className="transition hover:text-foreground">
+            <a key={link.href} href={link.href} className="cursor-pointer transition hover:text-foreground">
               {link.label}
             </a>
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <Link href="/login" className="hidden px-3 py-2 text-sm text-foreground sm:inline">
+          <Link href="/login" className="hidden cursor-pointer px-3 py-2 text-sm text-foreground sm:inline">
             Sign in
           </Link>
           <Link href="/create" className={cn(buttonVariants({ size: "lg" }), "h-10 rounded-xl px-4")}>
@@ -40,7 +40,7 @@ export function SiteHeader() {
           </Link>
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-xl text-foreground md:hidden"
+            className="grid size-10 cursor-pointer place-items-center rounded-xl text-foreground md:hidden"
             aria-expanded={open}
             aria-label={open ? "Close menu" : "Open menu"}
             onClick={handleToggle}

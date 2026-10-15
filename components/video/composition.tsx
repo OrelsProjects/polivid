@@ -77,7 +77,7 @@ export function PoliVidComposition({ plan, facts, quotes, demo }: CompositionPro
   );
 }
 
-function SceneFrame({
+export function SceneFrame({
   scene,
   facts,
   quotes,

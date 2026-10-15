@@ -17,6 +17,14 @@ export interface VideoJobInput {
   format: string;
   length: number;
   model: string;
+  mode?: string;
+  tier?: string;
+  resolution?: string;
+  imageKey?: string;
+  mediaKey?: string;
+  referenceKeys?: string[];
+  showText?: boolean;
+  projectId?: string;
 }
 
 export const createQueuedVideoJob = async (userId: string, input: VideoJobInput) => {
@@ -32,6 +40,14 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
         aspectRatio: input.format,
         duration: input.length,
         model: input.model,
+        mode: input.mode ?? "",
+        tier: input.tier ?? "",
+        resolution: input.resolution ?? "",
+        imageKey: input.imageKey ?? input.mediaKey ?? "",
+        mediaKey: input.mediaKey ?? input.imageKey ?? "",
+        referenceKeys: input.referenceKeys ?? [],
+        showText: input.showText !== false,
+        projectId: input.projectId ?? "",
       },
       artifacts: {},
     },
@@ -127,6 +143,7 @@ const toView = (job: {
   outputUrl: string | null;
   error: string | null;
   createdAt: Date;
+  startedAt: Date | null;
   input: Prisma.JsonValue;
 }): VideoJobView => {
   if (!isJobStatus(job.status)) throw new Error(`Video job ${job.id} has an unknown status.`);
@@ -139,6 +156,7 @@ const toView = (job: {
     outputUrl: job.outputUrl,
     error: job.error,
     createdAt: job.createdAt.toISOString(),
+    startedAt: job.startedAt?.toISOString() ?? null,
     prompt: input.prompt,
     format: input.format,
     length: input.length,

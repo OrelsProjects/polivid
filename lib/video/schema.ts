@@ -18,6 +18,13 @@ export type VideoLength = (typeof VIDEO_LENGTHS)[number];
 export const MIN_VIDEO_LENGTH = 2;
 export const MAX_VIDEO_LENGTH = 90;
 
+/** Prompt text accepted by POST /api/videos. */
+export const MIN_PROMPT_LENGTH = 3;
+export const MAX_PROMPT_LENGTH = 10_000;
+
+/** Optional reference pictures on the Create page. */
+export const MAX_REFERENCE_IMAGES = 8;
+
 export const isVideoLength = (value: number) =>
   Number.isInteger(value) && value >= MIN_VIDEO_LENGTH && value <= MAX_VIDEO_LENGTH;
 
@@ -135,6 +142,8 @@ export interface VideoRecord {
   model: string;
   demo: boolean;
   error: string | null;
+  parentVideoId?: string | null;
+  editProjectId?: string | null;
 }
 
 export const FPS = 30;

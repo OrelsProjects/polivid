@@ -12,6 +12,8 @@ When both files define a key, `.env.local` wins, **even if its value is empty**.
 | `AUTH_RESEND_KEY` (or `RESEND_API_KEY`), `AUTH_EMAIL_FROM` | Email sign-in links | Resend (step 4) |
 | `OPENROUTER_API_KEY` | Real videos from web sources | OpenRouter (step 5). Without it, demo mode |
 | `POLIVID_MODEL` | Optional | Any OpenRouter model slug. Default `anthropic/claude-opus-5.5` |
+| `AWS_S3_BUCKET` | Mode uploads (image, audio, video) | One existing bucket in us-east-1. Objects use the `uploads/` prefix. |
+| `AWS_ACCESS_KEY_APP`, `AWS_SECRET_KEY_APP`, `AWS_REGION_APP` | S3 uploads | The existing AWS app keys |
 
 After changing `.env.local`, restart `npm run dev`.
 
@@ -140,6 +142,14 @@ To test generation without the app, database or sign-in, run `npm run try -- "Wh
 
 Generation makes two model calls per video: research with OpenRouter's web plugin, then the scene plan. If the plan fails the number check, it makes one more call to repair it. See [ARCHITECTURE.md](ARCHITECTURE.md#generation-pipeline).
 
+## 6. S3 (mode uploads)
+
+Image, avatar, music, captions, and AV-to-video store the uploaded file in **one** S3 bucket. S3 has no nested buckets, so do not create a second bucket under the current one. Put files at `uploads/{userId}/{id}.{ext}` in the same bucket you already use for this app.
+
+1. If you do not have a media bucket yet, create `polivid-media` in **us-east-1 (N. Virginia)** to sit next to RDS. Block public access. The app reads objects back with the existing AWS app keys.
+2. Set `AWS_S3_BUCKET` to that bucket name. The app already reads `AWS_ACCESS_KEY_APP`, `AWS_SECRET_KEY_APP`, and `AWS_REGION_APP`.
+3. Grant those keys `s3:PutObject` and `s3:GetObject` on `arn:aws:s3:::YOUR_BUCKET/uploads/*`.
+
 ## Troubleshooting
 
 | Symptom | Cause |
@@ -151,3 +161,4 @@ Generation makes two model calls per video: research with OpenRouter's web plugi
 | Every video says "Sample data" | `OPENROUTER_API_KEY` isn't set (demo mode) |
 | Prisma "Can't reach database server" | The RDS security group doesn't allow your current IP (it changes on new networks), Public access is off, or `DATABASE_URL` is wrong |
 | Prisma "permission denied for schema public" | The tables were created as a user that doesn't own the database. Connect as `politivid_app` (step 1) |
+| Upload says "Uploads are not configured yet" | `AWS_S3_BUCKET` is missing, or the existing AWS app keys cannot reach that bucket |

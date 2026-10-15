@@ -34,10 +34,75 @@ test("reads the prompt stored on a video job", () => {
       duration: 5,
       model: "alibaba/wan-3.0",
     }),
-    { prompt: "A man walking down Paris", format: "9:16", length: 5, model: "alibaba/wan-3.0" },
+    {
+      prompt: "A man walking down Paris",
+      format: "9:16",
+      length: 5,
+      model: "alibaba/wan-3.0",
+      mode: "",
+      tier: "",
+      resolution: "",
+      imageKey: "",
+      mediaKey: "",
+      referenceKeys: [],
+      showText: true,
+      projectId: "",
+    },
   );
-  assert.deepEqual(readJobInput(null), { prompt: "Untitled video", format: "9:16", length: 0, model: "" });
+  assert.deepEqual(readJobInput(null), {
+    prompt: "Untitled video",
+    format: "9:16",
+    length: 0,
+    model: "",
+    mode: "",
+    tier: "",
+    resolution: "",
+    imageKey: "",
+    mediaKey: "",
+    referenceKeys: [],
+    showText: true,
+    projectId: "",
+  });
   assert.equal(readJobInput({ prompt: "  ", aspectRatio: "square", duration: 1.5 }).format, "9:16");
+  assert.deepEqual(
+    readJobInput({
+      prompt: "A man walking down Paris",
+      aspectRatio: "9:16",
+      duration: 5,
+      model: "bytedance/seedance-2.5",
+      referenceKey: "uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg",
+    }).referenceKeys,
+    ["uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg"],
+  );
+  assert.deepEqual(
+    readJobInput({
+      prompt: "A man walking down Paris",
+      aspectRatio: "9:16",
+      duration: 5,
+      model: "bytedance/seedance-2.5",
+      referenceKeys: [
+        "uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg",
+        "uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png",
+      ],
+    }).referenceKeys,
+    [
+      "uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg",
+      "uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png",
+    ],
+  );
+});
+
+test("reads showText off from a stored job", () => {
+  assert.equal(
+    readJobInput({
+      prompt: "A man walking down Paris",
+      aspectRatio: "9:16",
+      duration: 5,
+      model: "alibaba/wan-3.0",
+      showText: false,
+    }).showText,
+    false,
+  );
 });
 
 test("a skipped step stays incomplete until progress enters the next band", () => {

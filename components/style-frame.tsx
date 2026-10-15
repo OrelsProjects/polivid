@@ -27,7 +27,7 @@ export function StylePoster({
   size = "md",
 }: {
   style: VisualStyle;
-  title: string;
+  title?: string;
   className?: string;
   size?: "md" | "sm" | "picker";
 }) {
@@ -43,25 +43,29 @@ export function StylePoster({
       )}
     >
       <span className={cn("h-0.5 rounded-full", compact ? "w-4" : "w-8", RULE[style])} />
-      <span
-        className={cn(
-          "font-semibold tracking-[0.16em]",
-          compact ? "mt-1 text-[8px]" : "mt-3 text-[10px]",
-          KICKER[style],
-        )}
-      >
-        {style.toUpperCase()}
-      </span>
-      <p
-        className={cn(
-          "mt-auto leading-tight font-semibold tracking-tight text-balance",
-          picker ? "text-4xl" : compact ? "text-[10px]" : "text-lg",
-          style === "editorial" && !compact && "font-serif text-xl font-normal",
-          style === "editorial" && compact && "font-serif font-normal",
-        )}
-      >
-        {title}
-      </p>
+      {title ? (
+        <span
+          className={cn(
+            "font-semibold tracking-[0.16em]",
+            compact ? "mt-1 text-[8px]" : "mt-3 text-[10px]",
+            KICKER[style],
+          )}
+        >
+          {style.toUpperCase()}
+        </span>
+      ) : null}
+      {title ? (
+        <p
+          className={cn(
+            "mt-auto leading-tight font-semibold tracking-tight text-balance",
+            picker ? "text-4xl" : compact ? "text-[10px]" : "text-lg",
+            style === "editorial" && !compact && "font-serif text-xl font-normal",
+            style === "editorial" && compact && "font-serif font-normal",
+          )}
+        >
+          {title}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -22,6 +22,7 @@ model User {
   sessions      Session[]
   videos        Video[]
   videoJobs     VideoJob[]
+  editProjects  EditProject[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -83,9 +84,34 @@ model Video {
   model             String // OpenRouter model slug, or "demo"
   demo              Boolean  @default(false)
   error             String?
+  parentVideoId     String?
+  parentVideo       Video?   @relation("VideoLineage", fields: [parentVideoId], references: [id], onDelete: SetNull)
+  childVideos       Video[]  @relation("VideoLineage")
+  editProjectId     String?
+  editProject       EditProject? @relation("EditExports", fields: [editProjectId], references: [id], onDelete: SetNull)
+  sourceProjects    EditProject[] @relation("EditSource")
   createdAt         DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+/// A timeline the user is editing. Copy-on-edit: the source video is never written.
+model EditProject {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceVideoId String?
+  sourceVideo   Video?   @relation("EditSource", fields: [sourceVideoId], references: [id], onDelete: SetNull)
+  title         String
+  format        String
+  timeline      Json
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  exports       Video[]  @relation("EditExports")
+
+  @@index([userId, updatedAt])
+  @@map("edit_projects")
 }
 
 /// One user-facing video request. The row is the source of truth for progress.

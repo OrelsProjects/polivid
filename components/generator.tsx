@@ -2,8 +2,6 @@
 
 import {
   ArrowRight,
-  Circle,
-  CircleCheck,
   LoaderCircle,
   RectangleHorizontal,
   RectangleVertical,
@@ -13,15 +11,17 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { MediaUpload } from "@/components/media-upload";
 import { ModelPicker } from "@/components/model-picker";
+import { TierPicker } from "@/components/tier-picker";
 import { PreviewSample, StylePoster } from "@/components/style-frame";
-import { StartWorkerButton } from "@/components/start-worker-button";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { isJobStep, JOB_STEPS, stepIsComplete, type JobStep, type VideoJobView } from "@/lib/video/job-status";
+import { clearCreateDraft, readCreateDraft, writeCreateDraft } from "@/lib/video/create-draft";
 import { generationModelById, generationModelBySlug, type GenerationModelId } from "@/lib/video/models";
-import { isVideoLength, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
+import { isVideoTier, modeNeedsUpload, videoModeById, type VideoModeId, type VideoTier } from "@/lib/video/modes";
+import { isVideoLength, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
 import type { VisualStyle } from "@/lib/showcase";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
@@ -50,22 +50,10 @@ const PLACEHOLDERS: Record<InputMode, string> = {
   data: "Describe the data story. Name the figures you want on screen. Numbers still have to come from a source.",
 };
 
-const STEP_LABEL: Record<JobStep, string> = {
-  script: "Writing the script",
-  images: "Making the frames",
-  videos: "Filming the scenes",
-  render: "Stitching the video",
-  finalize: "Finishing up",
-};
-
 const LENGTH_CHOICES = [30, 60, 90] as const;
 const DEFAULT_CUSTOM_LENGTH = 5;
 
-type Status =
-  | { state: "idle" }
-  | { state: "running"; jobId: string; step: JobStep | null; progress: number }
-  | { state: "canceled" }
-  | { state: "failed"; error: string; videoId: string | null };
+type Status = { state: "idle" } | { state: "failed"; error: string; videoId: string | null };
 
 const isFormat = (value: string | null): value is VideoFormat =>
   value === "9:16" || value === "1:1" || value === "16:9";
@@ -73,7 +61,15 @@ const isFormat = (value: string | null): value is VideoFormat =>
 const isInput = (value: string | null): value is InputMode =>
   value === "topic" || value === "article" || value === "data";
 
-export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel: GenerationModelId }) {
+export function Generator({
+  demo,
+  defaultModel,
+  mode,
+}: {
+  demo: boolean;
+  defaultModel: GenerationModelId;
+  mode?: VideoModeId;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialPrompt = searchParams.get("prompt") ?? "";
@@ -87,6 +83,8 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
   const modelFromUrl = modelParam
     ? (generationModelById(modelParam)?.id ?? generationModelBySlug(modelParam)?.id ?? null)
     : null;
+  const videoMode = mode ? videoModeById(mode) : null;
+  const tierParam = searchParams.get("tier");
   const [prompt, setPrompt] = useState(initialPrompt);
   const [inputMode, setInputMode] = useState<InputMode>(isInput(inputParam) ? inputParam : "topic");
   const [format, setFormat] = useState<VideoFormat>(isFormat(formatParam) ? formatParam : "9:16");
@@ -95,40 +93,70 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
     presetFromUrl ? "" : String(lengthFromUrl ? lengthParam : DEFAULT_CUSTOM_LENGTH),
   );
   const [model, setModel] = useState<GenerationModelId>(modelFromUrl ?? defaultModel);
+  const [tier, setTier] = useState<VideoTier>(tierParam && isVideoTier(tierParam) ? tierParam : "pro");
+  const [mediaKey, setMediaKey] = useState<string | null>(null);
+  const [referenceKeys, setReferenceKeys] = useState<string[]>([]);
+  const [showText, setShowText] = useState(true);
   const [status, setStatus] = useState<Status>({ state: "idle" });
   const [improving, setImproving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [canceling, setCanceling] = useState(false);
   const [improveError, setImproveError] = useState<string | null>(null);
   const autoStarted = useRef(false);
-  const cancelRequested = useRef(false);
-  const running = status.state === "running";
-  const busy = running || improving || submitting || canceling;
+  const [draftReady, setDraftReady] = useState(false);
+  const busy = improving || submitting;
   const styleNote = requestedStyle === "minimal" || requestedStyle === "editorial";
   const activeLength = customLength === "" ? length : Number(customLength);
   const lengthValid = isVideoLength(activeLength);
+  const createPath = videoMode ? `/create/${videoMode.id}` : "/create";
+  const needsUpload = videoMode ? modeNeedsUpload(videoMode) : false;
+  const uploadKind = videoMode && videoMode.upload !== "none" ? videoMode.upload : null;
+  const showInputTabs = !videoMode || videoMode.id === "prompt";
+  const promptReady = Boolean(videoMode?.promptOptional) || prompt.trim().length >= 3;
+  const hasReferences = referenceKeys.length > 0;
+  const canHideText = videoMode?.id !== "lyrics" && videoMode?.id !== "captions";
 
   const generate = async (text = prompt) => {
     const value = text.trim();
-    if (!value || busy || !lengthValid) return;
-    cancelRequested.current = false;
+    if (busy || !lengthValid || !promptReady) return;
+    if (!videoMode?.promptOptional && !value) return;
+    if (needsUpload && !mediaKey) return;
     setSubmitting(true);
 
     try {
       const res = await fetch("/api/videos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: value, format, length: activeLength, model }),
+        body: JSON.stringify(
+          videoMode
+            ? {
+                prompt: value,
+                format,
+                length: activeLength,
+                mode: videoMode.id,
+                tier,
+                ...(needsUpload && mediaKey ? { mediaKey, imageKey: mediaKey } : {}),
+                showText,
+              }
+            : {
+                prompt: value,
+                format,
+                length: activeLength,
+                model,
+                ...(hasReferences ? { referenceKeys } : {}),
+                showText,
+              },
+        ),
       });
       if (res.status === 401) {
-        router.push(`/login?callbackUrl=${encodeURIComponent("/create")}`);
+        router.push(`/login?callbackUrl=${encodeURIComponent(createPath)}`);
         return;
       }
       const body = (await res.json().catch(() => null)) as { jobId?: string; error?: string } | null;
       if (res.status !== 202 || !body?.jobId) {
         throw new Error(body?.error ?? "Couldn't queue the video.");
       }
-      setStatus({ state: "running", jobId: body.jobId, step: null, progress: 0 });
+      clearCreateDraft(videoMode?.id);
+      router.push("/videos");
     } catch (error) {
       setStatus({
         state: "failed",
@@ -140,68 +168,61 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
     }
   };
 
-  const watchedJobId = status.state === "running" ? status.jobId : null;
-
   useEffect(() => {
-    if (!watchedJobId) return;
-    let stopped = false;
-
-    const tick = async () => {
-      const response = await fetch(`/api/videos/${watchedJobId}`, { cache: "no-store" });
-      if (!response.ok || stopped || cancelRequested.current) return;
-      const job = (await response.json()) as VideoJobView;
-      if (stopped || cancelRequested.current) return;
-      if (job.status === "succeeded") {
-        router.push(`/videos/${job.id}`);
-        return;
+    /* eslint-disable react-hooks/set-state-in-effect -- hydrate create draft from localStorage after SSR */
+    const draft = readCreateDraft(videoMode?.id);
+    if (draft) {
+      if (!initialPrompt) setPrompt(draft.prompt);
+      if (!isInput(inputParam)) setInputMode(draft.inputMode);
+      if (!isFormat(formatParam)) setFormat(draft.format);
+      if (!lengthFromUrl) {
+        setLength(draft.length);
+        setCustomLength(draft.customLength);
       }
-      if (job.status === "canceled") {
-        setStatus({ state: "canceled" });
-        return;
-      }
-      if (job.status === "failed") {
-        setStatus({ state: "failed", error: job.error ?? "The video didn't finish.", videoId: job.id });
-        return;
-      }
-      setStatus({
-        state: "running",
-        jobId: job.id,
-        step: isJobStep(job.currentStep) ? job.currentStep : null,
-        progress: job.progressPct,
-      });
-    };
-
-    void tick();
-    const timer = setInterval(() => void tick(), 3000);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
-  }, [router, watchedJobId]);
-
-  useEffect(() => {
-    let stopped = false;
-    const loadActive = async () => {
-      const response = await fetch("/api/videos?status=active", { cache: "no-store" });
-      if (!response.ok || stopped || cancelRequested.current) return;
-      const body = (await response.json().catch(() => null)) as { jobs?: VideoJobView[] } | null;
-      const job = body?.jobs?.[0];
-      if (!job || stopped || cancelRequested.current) return;
-      setStatus((current) => {
-        if (current.state !== "idle") return current;
-        return {
-          state: "running",
-          jobId: job.id,
-          step: isJobStep(job.currentStep) ? job.currentStep : null,
-          progress: job.progressPct,
-        };
-      });
-    };
-    void loadActive();
-    return () => {
-      stopped = true;
-    };
+      if (!modelFromUrl) setModel(draft.model);
+      if (!(tierParam && isVideoTier(tierParam))) setTier(draft.tier);
+      if (draft.mediaKey) setMediaKey(draft.mediaKey);
+      if (draft.referenceKeys.length > 0) setReferenceKeys(draft.referenceKeys);
+      setShowText(draft.showText);
+    }
+    setDraftReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    // Restore once from localStorage. URL query params already won on first render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!draftReady || submitting) return;
+    writeCreateDraft(
+      {
+        prompt,
+        inputMode,
+        format,
+        length,
+        customLength,
+        model,
+        tier,
+        mediaKey,
+        referenceKeys,
+        showText,
+      },
+      videoMode?.id,
+    );
+  }, [
+    draftReady,
+    submitting,
+    prompt,
+    inputMode,
+    format,
+    length,
+    customLength,
+    model,
+    tier,
+    mediaKey,
+    referenceKeys,
+    showText,
+    videoMode?.id,
+  ]);
 
   const handleImprove = async () => {
     const description = prompt.trim();
@@ -215,7 +236,7 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         body: JSON.stringify({ description }),
       });
       if (response.status === 401) {
-        router.push(`/login?callbackUrl=${encodeURIComponent("/create")}`);
+        router.push(`/login?callbackUrl=${encodeURIComponent(createPath)}`);
         return;
       }
       const body = (await response.json().catch(() => null)) as { script?: string; error?: string } | null;
@@ -227,32 +248,6 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
       setImproveError(error instanceof Error ? error.message : "Couldn't improve that.");
     } finally {
       setImproving(false);
-    }
-  };
-
-  const handleCancel = async () => {
-    if (status.state !== "running" || canceling) return;
-    cancelRequested.current = true;
-    setCanceling(true);
-    try {
-      const response = await fetch(`/api/videos/${status.jobId}/cancel`, { method: "POST" });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (response.status === 401) {
-        cancelRequested.current = false;
-        router.push(`/login?callbackUrl=${encodeURIComponent("/create")}`);
-        return;
-      }
-      if (!response.ok) throw new Error(body?.error ?? "Couldn't cancel the video.");
-      setStatus({ state: "canceled" });
-    } catch (error) {
-      cancelRequested.current = false;
-      setStatus({
-        state: "failed",
-        error: error instanceof Error ? error.message : "Couldn't cancel the video.",
-        videoId: status.state === "running" ? status.jobId : null,
-      });
-    } finally {
-      setCanceling(false);
     }
   };
 
@@ -274,8 +269,12 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         className="flex flex-col gap-4"
       >
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Let&apos;s configure your video</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Ready in minutes. Preview everything before you post.</p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {videoMode?.title ?? "Let's configure your video"}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {videoMode?.description ?? "Ready in minutes. Preview everything before you post."}
+          </p>
         </div>
 
         {demo && (
@@ -292,6 +291,7 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-sm font-semibold">1 · Your input</h2>
+            {showInputTabs && (
             <div className="flex rounded-xl bg-muted p-1" role="tablist" aria-label="Input type">
               {INPUTS.map(({ id, label }) => (
                 <button
@@ -302,7 +302,7 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
                   disabled={busy}
                   onClick={() => setInputMode(id)}
                   className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                    "cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition",
                     inputMode === id ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
@@ -314,7 +314,13 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
                 <span className="text-[10px] font-semibold tracking-wide">SOON</span>
               </span>
             </div>
+            )}
           </div>
+          {uploadKind && (
+            <div className="mt-3">
+              <MediaUpload kind={uploadKind} mediaKey={mediaKey} onChange={setMediaKey} disabled={busy} />
+            </div>
+          )}
           <Textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -325,11 +331,25 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
               }
             }}
             rows={4}
+            maxLength={MAX_PROMPT_LENGTH}
             disabled={busy}
-            placeholder={PLACEHOLDERS[inputMode]}
+            placeholder={videoMode?.placeholder ?? PLACEHOLDERS[inputMode]}
             aria-label="Your video prompt"
             className="mt-3 min-h-28 resize-none rounded-xl bg-background text-base md:text-sm"
           />
+          {!videoMode && (
+            <div className="mt-3">
+              <MediaUpload
+                kind="image"
+                multiple
+                mediaKeys={referenceKeys}
+                onChangeKeys={setReferenceKeys}
+                disabled={busy}
+                label="Reference pictures"
+                hint="Optional. JPEG, PNG, or WebP · under 4 MB each"
+              />
+            </div>
+          )}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
             <Button
               type="button"
@@ -360,29 +380,72 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
           )}
         </section>
 
-        <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+        <section className="min-w-0 rounded-2xl border border-border bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold">2 · Visual style</h2>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {STYLES.map((style) => (
-              <div key={style.id} className="flex flex-col gap-2">
+          <div
+            className="-mx-1 mt-3 flex gap-3 overflow-x-auto px-1 pt-1 pb-2"
+            role="group"
+            aria-label="Visual style"
+          >
+            {STYLES.map((style) => {
+              const selected = style.id === "bold" && (showText || !canHideText);
+              const poster = (
                 <StylePoster
                   style={style.id}
                   title="40%"
                   size="picker"
-                  className={cn("aspect-[3/4] w-full", style.id === "bold" && "ring-2 ring-primary ring-offset-2")}
+                  className={cn("aspect-[3/4] w-full", selected && "ring-2 ring-primary ring-offset-2")}
                 />
+              );
+              return (
+                <div key={style.id} className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
+                  {style.id === "bold" && canHideText ? (
+                    <button
+                      type="button"
+                      aria-pressed={showText}
+                      disabled={busy}
+                      onClick={() => setShowText(true)}
+                      className="cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {poster}
+                    </button>
+                  ) : (
+                    poster
+                  )}
+                  <div>
+                    <p className="text-sm font-medium">
+                      {style.title}
+                      {style.soon && (
+                        <span className="ml-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">SOON</span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{style.body}</p>
+                  </div>
+                </div>
+              );
+            })}
+            {canHideText && (
+              <div className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
+                <button
+                  type="button"
+                  aria-pressed={!showText}
+                  disabled={busy}
+                  onClick={() => setShowText(false)}
+                  className="cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <StylePoster
+                    style="bold"
+                    size="picker"
+                    className={cn("aspect-[3/4] w-full", !showText && "ring-2 ring-primary ring-offset-2")}
+                  />
+                </button>
                 <div>
-                  <p className="text-sm font-medium">
-                    {style.title}
-                    {style.soon && (
-                      <span className="ml-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">SOON</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{style.body}</p>
+                  <p className="text-sm font-medium">No text</p>
+                  <p className="text-xs text-muted-foreground">Footage only, no titles</p>
                 </div>
               </div>
-            ))}
-            <div className="flex flex-col gap-2">
+            )}
+            <div className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
               <div className="grid aspect-[3/4] place-items-center rounded-2xl border border-dashed border-border bg-muted/40 text-muted-foreground">
                 <span className="text-2xl" aria-hidden>
                   +
@@ -411,7 +474,7 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
                   aria-pressed={format === value}
                   onClick={() => setFormat(value)}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition",
+                    "flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition",
                     format === value
                       ? "border-primary bg-primary/5 text-foreground"
                       : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground",
@@ -441,7 +504,7 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
                   setLength(value);
                 }}
                 className={cn(
-                  "h-9 rounded-xl px-3 text-sm font-medium transition disabled:opacity-50",
+                  "h-9 cursor-pointer rounded-xl px-3 text-sm font-medium transition disabled:opacity-50",
                   customLength === "" && length === value
                     ? "bg-foreground text-background"
                     : "bg-muted text-muted-foreground hover:text-foreground",
@@ -489,7 +552,11 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold">4 · Voice, media and extras</h2>
           <div className="mt-4">
-            <ModelPicker value={model} onChange={setModel} disabled={busy} />
+            {videoMode ? (
+              <TierPicker mode={videoMode} value={tier} onChange={setTier} disabled={busy} />
+            ) : (
+              <ModelPicker value={model} onChange={setModel} disabled={busy} />
+            )}
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground">Voice</span>
@@ -529,10 +596,10 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             {demo ? "Uses sample data · " : ""}
-            You can close this tab. The video keeps generating.
+            You&apos;ll go to My videos while it generates. Come back here to start another.
           </p>
-          <Button type="submit" size="lg" disabled={!prompt.trim() || busy || !lengthValid} className="h-11 rounded-xl px-5">
-            {running || submitting ? (
+          <Button type="submit" size="lg" disabled={!promptReady || busy || !lengthValid || (needsUpload && !mediaKey)} className="h-11 rounded-xl px-5">
+            {submitting ? (
               <>
                 <LoaderCircle className="animate-spin" data-icon="inline-start" />
                 Generating…
@@ -566,65 +633,6 @@ export function Generator({ demo, defaultModel }: { demo: boolean; defaultModel:
         <p className="text-xs text-muted-foreground">
           The frame on the right is a style sample. Generate films the prompt with the model you picked.
         </p>
-
-        {status.state === "running" && (
-          <div className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-medium">Progress{status.state === "running" ? ` · ${status.progress}%` : ""}</h2>
-            {status.step === "videos" && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Waiting on the video model. This often takes 20–30 minutes, and sometimes longer. The percentage stays here until the file comes back.
-              </p>
-            )}
-            <ol className="mt-3 flex flex-col gap-3">
-              {JOB_STEPS.map((step, index) => {
-                const current =
-                  status.state === "running" && status.step ? JOB_STEPS.indexOf(status.step) : -1;
-                const done =
-                  status.state === "running" && status.step ? stepIsComplete(step, status.step, status.progress) : false;
-                const active = status.state === "running" && index === current;
-                const waiting = status.state === "running" && current < 0 && index === 0;
-                return (
-                  <li key={step} className="flex items-center gap-3 text-sm">
-                    {done ? (
-                      <CircleCheck className="size-4 text-primary" aria-hidden />
-                    ) : active || waiting ? (
-                      <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />
-                    ) : (
-                      <Circle className="size-4 text-muted-foreground/50" aria-hidden />
-                    )}
-                    <span className={cn(done || active || waiting ? "text-foreground" : "text-muted-foreground")}>
-                      {waiting ? "Queued" : STEP_LABEL[step]}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {status.step === null && (
-                <StartWorkerButton hint="For testing. Films the videos that are queued." />
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={canceling}
-                aria-label="Cancel this video"
-                aria-busy={canceling}
-                onClick={() => {
-                  void handleCancel();
-                }}
-              >
-                {canceling ? "Canceling…" : "Cancel"}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {status.state === "canceled" && (
-          <p className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-muted-foreground">
-            Canceled. Nothing else will run for that video.
-          </p>
-        )}
 
         {status.state === "failed" && (
           <div className="flex flex-col gap-2 rounded-xl border border-destructive/30 bg-red-50 p-3 text-sm" role="alert">

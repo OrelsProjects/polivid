@@ -9,10 +9,12 @@ export function ModelPicker({
   value,
   onChange,
   disabled,
+  requireReferenceImages,
 }: {
   value: GenerationModelId;
   onChange: (id: GenerationModelId) => void;
   disabled?: boolean;
+  requireReferenceImages?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -36,14 +38,18 @@ export function ModelPicker({
     };
   }, [open]);
 
+  const allowed = GENERATION_MODELS.filter((model) => !requireReferenceImages || model.referenceImages);
+
   const handleGroupKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const index = GENERATION_MODELS.findIndex((model) => model.id === value);
+    const index = allowed.findIndex((model) => model.id === value);
     if (event.key === "ArrowRight" || event.key === "ArrowDown") {
       event.preventDefault();
-      onChange(GENERATION_MODELS[(index + 1) % GENERATION_MODELS.length].id);
+      if (allowed.length === 0) return;
+      onChange(allowed[(Math.max(index, 0) + 1) % allowed.length].id);
     } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
       event.preventDefault();
-      onChange(GENERATION_MODELS[(index - 1 + GENERATION_MODELS.length) % GENERATION_MODELS.length].id);
+      if (allowed.length === 0) return;
+      onChange(allowed[(index - 1 + allowed.length) % allowed.length].id);
     } else if (event.key === "Escape") {
       setOpen(false);
     }
@@ -62,7 +68,7 @@ export function ModelPicker({
           aria-controls={panelId}
           aria-label="About generation models"
           onClick={() => setOpen((current) => !current)}
-          className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
         >
           <CircleHelp className="size-3.5" />
         </button>
@@ -76,20 +82,21 @@ export function ModelPicker({
       >
         {GENERATION_MODELS.map((model) => {
           const active = model.id === value;
+          const blocked = Boolean(requireReferenceImages && !model.referenceImages);
           return (
             <button
               key={model.id}
               type="button"
               role="radio"
               aria-checked={active}
+              aria-label={blocked ? `${model.name}. This model can't use a reference picture.` : model.name}
               tabIndex={active ? 0 : -1}
-              disabled={disabled}
+              disabled={disabled || blocked}
               onClick={() => {
                 onChange(model.id);
-                setOpen(true);
               }}
               className={cn(
-                "min-h-11 rounded-lg px-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:text-sm",
+                "min-h-11 cursor-pointer rounded-lg px-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:text-sm",
                 active
                   ? "bg-card text-foreground shadow-sm ring-1 ring-primary/50"
                   : "text-muted-foreground hover:text-foreground",
@@ -101,7 +108,11 @@ export function ModelPicker({
         })}
       </div>
 
-      <p className="text-xs text-muted-foreground">{selected.summary}</p>
+      <p className="text-xs text-muted-foreground">
+        {requireReferenceImages
+          ? "Reference pictures need a model that accepts them."
+          : selected.summary}
+      </p>
 
       {open && (
         <div
@@ -117,18 +128,20 @@ export function ModelPicker({
           <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
             {GENERATION_MODELS.map((model) => {
               const active = model.id === value;
+              const blocked = Boolean(requireReferenceImages && !model.referenceImages);
               return (
                 <button
                   key={model.id}
                   type="button"
                   aria-pressed={active}
-                  disabled={disabled}
+                  aria-label={blocked ? `${model.name}. This model can't use a reference picture.` : undefined}
+                  disabled={disabled || blocked}
                   onClick={() => {
                     onChange(model.id);
                     setOpen(false);
                   }}
                   className={cn(
-                    "flex w-44 shrink-0 flex-col gap-2 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                    "flex w-44 shrink-0 cursor-pointer flex-col gap-2 rounded-xl p-2 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
                     active ? "bg-primary/10 ring-1 ring-primary/60" : "hover:bg-muted/70",
                   )}
                 >

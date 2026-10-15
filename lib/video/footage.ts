@@ -34,6 +34,12 @@ export interface FootageRequest {
   length: number;
   /** OpenRouter video-model slug. */
   model: string;
+  /** Preferred resolution. Falls back to the model's default when unsupported. */
+  resolution?: string;
+  /** Start-frame data URL for image-to-video. */
+  imageDataUrl?: string;
+  /** Audio or video references for models that accept them. */
+  inputReferences?: Record<string, unknown>[];
 }
 
 export interface FootageClip {
@@ -51,7 +57,8 @@ export class FootageStopped extends Error {
 /**
  * Sends the prompt to an OpenRouter video model and returns the mp4 bytes.
  * Duration is snapped to a length the model accepts.
- * There is no time limit. OpenRouter decides when the clip is done.
+ * There is no time limit. A missing reply does not end the job.
+ * OpenRouter decides when the clip is done.
  * `onSubmitted` runs after OpenRouter accepts the clip and before the wait,
  * so the id can be saved even if this process stops.
  * `shouldContinue` is checked between polls so a canceled job can stop waiting.
@@ -71,7 +78,10 @@ export const renderFootage = async (
   }
 
   const duration = clipDuration(input.length, model.durations);
-  const resolution = clipResolution(model.resolutions);
+  const resolution =
+    input.resolution && model.resolutions.includes(input.resolution)
+      ? input.resolution
+      : clipResolution(model.resolutions);
   const providerJobId = await submitJob({
     model: model.slug,
     prompt: input.prompt,
@@ -79,6 +89,18 @@ export const renderFootage = async (
     resolution,
     aspect_ratio: input.format,
     generate_audio: model.audio,
+    ...(input.imageDataUrl
+      ? {
+          frame_images: [
+            {
+              type: "image_url",
+              image_url: { url: input.imageDataUrl },
+              frame_type: "first_frame",
+            },
+          ],
+        }
+      : {}),
+    ...(input.inputReferences?.length ? { input_references: input.inputReferences } : {}),
   });
   if (onSubmitted) {
     try {
@@ -103,51 +125,112 @@ const apiKey = () => {
   return key;
 };
 
+/** The model answered that this clip will not be made. Silence is not this. */
+class ModelDeclined extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelDeclined";
+  }
+}
+
+const sleep = () => new Promise((resolve) => setTimeout(resolve, POLL_MS));
+
 const submitJob = async (body: Record<string, unknown>) => {
-  const response = await fetch(`${API}/videos`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey()}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) throw new Error(await errorMessage(response));
-  const job = (await response.json()) as { id?: string };
-  if (!job.id) throw new Error("The video model did not start a job.");
-  return job.id;
+  let misses = 0;
+  while (true) {
+    try {
+      const response = await fetch(`${API}/videos`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (response.status === 408 || response.status === 429 || response.status >= 500) {
+        throw new Error(`Video request failed (${response.status}).`);
+      }
+      if (!response.ok) throw new ModelDeclined(await errorMessage(response));
+      const job = (await response.json()) as { id?: string };
+      if (!job.id) throw new Error("The video model did not start a job.");
+      return job.id;
+    } catch (error) {
+      if (error instanceof ModelDeclined) throw error;
+      misses += 1;
+      if (misses === 1 || misses % 10 === 0) {
+        console.error("The video model has not accepted the clip yet. Still trying.", causeText(error));
+      }
+      await sleep();
+    }
+  }
 };
 
 const waitForJob = async (jobId: string, shouldContinue: () => Promise<boolean>) => {
+  let misses = 0;
   while (true) {
     try {
       if (!(await shouldContinue())) throw new FootageStopped();
     } catch (error) {
       if (error instanceof FootageStopped) throw error;
     }
-    const response = await fetch(`${API}/videos/${jobId}`, {
-      headers: { Authorization: `Bearer ${apiKey()}` },
-    });
-    if (!response.ok) throw new Error(await errorMessage(response));
-    const job = (await response.json()) as { status?: string; error?: unknown };
-    if (job.status === "completed") return;
-    if (job.status === "failed" || job.status === "cancelled" || job.status === "expired") {
-      throw new Error(messageFrom(job.error) || `Video generation ${job.status}.`);
+    try {
+      const response = await fetch(`${API}/videos/${jobId}`, {
+        headers: { Authorization: `Bearer ${apiKey()}` },
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const job = (await response.json()) as { status?: string; error?: unknown };
+      if (job.status === "completed") return;
+      if (job.status === "failed" || job.status === "cancelled" || job.status === "expired") {
+        throw new ModelDeclined(messageFrom(job.error) || `Video generation ${job.status}.`);
+      }
+      misses = 0;
+    } catch (error) {
+      if (error instanceof ModelDeclined || error instanceof FootageStopped) throw error;
+      misses += 1;
+      if (misses === 1 || misses % 10 === 0) {
+        console.error("The video model has not replied. Still waiting.", causeText(error));
+      }
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    await sleep();
   }
 };
 
 const downloadJob = async (jobId: string) => {
-  const response = await fetch(`${API}/videos/${jobId}/content`, {
-    headers: { Authorization: `Bearer ${apiKey()}` },
-  });
-  if (!response.ok) throw new Error(await errorMessage(response));
-  const type = response.headers.get("content-type") ?? "";
-  if (type.includes("application/json")) throw new Error(await errorMessage(response));
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength < 1000) throw new Error("The video model returned an empty file.");
-  return bytes;
+  let misses = 0;
+  while (true) {
+    try {
+      const response = await fetch(`${API}/videos/${jobId}/content`, {
+        headers: { Authorization: `Bearer ${apiKey()}` },
+      });
+      if (!response.ok) throw new Error(await errorMessage(response));
+      const type = response.headers.get("content-type") ?? "";
+      if (type.includes("application/json")) throw new Error(await errorMessage(response));
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (bytes.byteLength < 1000) throw new Error("The video model returned an empty file.");
+      return bytes;
+    } catch (error) {
+      if (error instanceof FootageStopped) throw error;
+      misses += 1;
+      if (misses === 1 || misses % 10 === 0) {
+        console.error("The video file is not back yet. Still waiting.", causeText(error));
+      }
+      await sleep();
+    }
+  }
+};
+
+/** A dropped connection, written for the video page. Model errors keep their own text. */
+export const footageErrorMessage = (error: unknown) => {
+  if (error instanceof TypeError && (error.message === "fetch failed" || error.message === "terminated")) {
+    return "Couldn't reach the video model. Try again.";
+  }
+  return error instanceof Error ? error.message : "The video didn't finish.";
+};
+
+const causeText = (error: unknown) => {
+  if (!(error instanceof Error)) return "No reply";
+  const cause = error.cause;
+  return cause instanceof Error && cause.message ? cause.message : error.message;
 };
 
 const errorMessage = async (response: Response) => {

@@ -34,10 +34,14 @@ export async function listMyVideos(): Promise<VideoRecord[]> {
   return rows.map(toRecord);
 }
 
+export async function getVideoForUser(userId: string, id: string): Promise<VideoRecord | null> {
+  const row = await db.video.findFirst({ where: { id, userId } });
+  return row ? toRecord(row) : null;
+}
+
 export async function getMyVideo(id: string): Promise<VideoRecord | null> {
   const user = await getCurrentUser();
-  const row = await db.video.findFirst({ where: { id, userId: user.id } });
-  return row ? toRecord(row) : null;
+  return getVideoForUser(user.id, id);
 }
 
 /** Called from the generation pipeline, which already authenticated the user. */
@@ -59,6 +63,8 @@ export async function createVideo(userId: string, video: VideoRecord) {
       model: video.model,
       demo: video.demo,
       error: video.error,
+      parentVideoId: video.parentVideoId ?? null,
+      editProjectId: video.editProjectId ?? null,
       createdAt: new Date(video.createdAt),
     },
   });
@@ -82,5 +88,7 @@ function toRecord(row: Video): VideoRecord {
     model: row.model,
     demo: row.demo,
     error: row.error,
+    parentVideoId: row.parentVideoId,
+    editProjectId: row.editProjectId,
   };
 }

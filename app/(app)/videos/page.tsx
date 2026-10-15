@@ -4,11 +4,19 @@ import { ActiveJobCards } from "@/components/active-job-cards";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoCard } from "@/components/video-card";
+import { parseVideoFilter, VideoFilters, type VideoFilter } from "@/components/video-filters";
+import type { VideoRecord } from "@/lib/video/schema";
 import { listMyActiveJobs, listMyVideos } from "@/lib/videos";
 
 export const metadata: Metadata = { title: "My videos" };
 
-export default function VideosPage() {
+const EMPTY_FILTER: Record<Exclude<VideoFilter, "all">, string> = {
+  done: "No finished videos yet.",
+  progress: "Nothing is in progress.",
+  failed: "No failed videos.",
+};
+
+export default function VideosPage({ searchParams }: PageProps<"/videos">) {
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
       <div>
@@ -24,19 +32,49 @@ export default function VideosPage() {
           </div>
         }
       >
-        <VideoGrid />
+        <FilteredLibrary searchParams={searchParams} />
       </Suspense>
     </div>
   );
 }
 
-async function VideoGrid() {
+async function FilteredLibrary({ searchParams }: { searchParams: PageProps<"/videos">["searchParams"] }) {
+  const params = await searchParams;
+  const filter = parseVideoFilter(params.filter);
+  return (
+    <>
+      <VideoFilters current={filter} />
+      <VideoGrid filter={filter} />
+    </>
+  );
+}
+
+const isFailedVideo = (video: VideoRecord) => video.status === "failed" || !video.plan;
+
+async function VideoGrid({ filter }: { filter: VideoFilter }) {
   const [videos, jobs] = await Promise.all([listMyVideos(), listMyActiveJobs()]);
-  if (videos.length === 0 && jobs.length === 0) return <EmptyState />;
+  const showJobs = filter === "all" || filter === "progress";
+  const visibleVideos = videos.filter((video) => {
+    if (filter === "progress") return false;
+    if (filter === "done") return !isFailedVideo(video);
+    if (filter === "failed") return isFailedVideo(video);
+    return true;
+  });
+  const visibleJobs = showJobs ? jobs : [];
+
+  if (visibleVideos.length === 0 && visibleJobs.length === 0) {
+    if (filter === "all") return <EmptyState />;
+    return (
+      <p className="rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm text-muted-foreground">
+        {EMPTY_FILTER[filter]}
+      </p>
+    );
+  }
+
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-      <ActiveJobCards initialJobs={jobs} />
-      {videos.map((video) => (
+      {showJobs ? <ActiveJobCards initialJobs={visibleJobs} /> : null}
+      {visibleVideos.map((video) => (
         <VideoCard key={video.id} video={video} />
       ))}
     </div>

@@ -3,7 +3,6 @@
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { StartWorkerButton } from "@/components/start-worker-button";
 import { Button } from "@/components/ui/button";
 import { isJobStep, type JobStep, type VideoJobView } from "@/lib/video/job-status";
 
@@ -20,12 +19,32 @@ const formatDate = (iso: string) =>
 
 const jobTitle = (prompt: string) => prompt.replace(/\s+/g, " ").trim() || "Untitled video";
 
+const formatElapsed = (startedAt: string, now: number) => {
+  const start = new Date(startedAt).getTime();
+  if (Number.isNaN(start)) return null;
+  const total = Math.max(0, Math.floor((now - start) / 1000));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  if (hours > 0) return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+  return `${minutes}:${pad(seconds)}`;
+};
+
 export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] }) {
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<{ id: string; message: string } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const idsRef = useRef(initialJobs.map((job) => job.id).join());
+  const hasRunning = jobs.some((job) => job.status === "running" && job.startedAt);
+
+  useEffect(() => {
+    if (!hasRunning) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [hasRunning]);
 
   useEffect(() => {
     let stopped = false;
@@ -87,17 +106,18 @@ export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] })
     <>
       {jobs.map((job) => {
         const title = jobTitle(job.prompt);
-        const stepLabel = isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Queued";
+        const stepLabel = isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Starting";
         const meta = [job.format, job.length > 0 ? `${job.length}s` : null, formatDate(job.createdAt)]
           .filter((part) => part)
           .join(" · ");
         const canceling = cancelingId === job.id;
+        const elapsed = job.status === "running" && job.startedAt ? formatElapsed(job.startedAt, now) : null;
 
         return (
           <article key={job.id} className="flex flex-col gap-2.5" aria-label={`${stepLabel}: ${title}`}>
             <div className="relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border border-border bg-white px-4 shadow-sm">
               <span className="absolute top-3 left-3 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
-                {job.status === "queued" ? "QUEUED" : "IN PROGRESS"}
+                {job.status === "queued" ? "STARTING" : "IN PROGRESS"}
               </span>
               <div className="flex w-full flex-col items-center gap-3 text-center">
                 <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
@@ -115,12 +135,16 @@ export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] })
                   <div className="h-full rounded-full bg-primary" style={{ width: `${job.progressPct}%` }} />
                 </div>
                 <span className="text-xs text-muted-foreground tabular-nums">{job.progressPct}%</span>
+                {elapsed && (
+                  <span className="text-xs text-muted-foreground tabular-nums" aria-label={`Elapsed ${elapsed}`}>
+                    Elapsed {elapsed}
+                  </span>
+                )}
                 {job.currentStep === "videos" && (
                   <p className="text-xs text-muted-foreground">
                     Waiting on the video model. This often takes 20–30 minutes, and sometimes longer.
                   </p>
                 )}
-                {job.status === "queued" && <StartWorkerButton />}
                 <Button
                   type="button"
                   variant="outline"

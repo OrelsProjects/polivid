@@ -1,13 +1,18 @@
 import "server-only";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { db } from "@/lib/db";
+import { getProjectForUser } from "@/lib/editor/projects";
+import { renderEditProject } from "@/lib/editor/render";
+import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { createVideo } from "@/lib/videos";
 import { DEMO_FACTS, DEMO_PLAN, DEMO_QUOTES } from "./demo";
-import { finishFootage, FootageStopped, renderFootage, saveFootage } from "./footage";
+import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, saveFootage } from "./footage";
 import { progressFor, readJobInput } from "./job-status";
 import { markVideoJobProgress, transitionVideoJob } from "./jobs";
+import { footageFromPrepared, prepareModeJob } from "./mode-prepare";
 import { clipDuration, generationModelBySlug } from "./models";
-import { normalizePlan } from "./pipeline";
+import { modeNeedsUpload, videoModeById } from "./modes";
+import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
 import { VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
@@ -18,53 +23,56 @@ interface JobInput {
   format: VideoFormat;
   length: number;
   model: string;
+  mode?: string;
+  tier?: string;
+  resolution?: string;
+  mediaKey?: string;
+  referenceKeys?: string[];
+  showText?: boolean;
+  projectId?: string;
 }
 
+/** One promise per video, so several can film at once. Kept here so a finished request does not drop a long render. */
 const runs = new Map<string, Promise<void>>();
 
-export const queuedVideoJobCount = async (userId: string) =>
-  db.videoJob.count({ where: { userId, status: "queued" } });
+const track = (jobId: string, run: Promise<void>) => {
+  const existing = runs.get(jobId);
+  if (existing) return existing;
+  const wrapped = run.finally(() => {
+    if (runs.get(jobId) === wrapped) runs.delete(jobId);
+  });
+  runs.set(jobId, wrapped);
+  return wrapped;
+};
+
+/** Starts this video now. A video this process is already filming is left alone. */
+export const startVideoJob = (userId: string, jobId: string) => {
+  const existing = runs.get(jobId);
+  if (existing) return existing;
+  return track(jobId, filmQueuedJob(userId, jobId));
+};
 
 /**
- * Films queued videos and keeps waiting on ones already sent to OpenRouter.
- * One run per user. The promise stays in this Node process, so a finished
- * HTTP request does not abandon a 20–30 minute render.
+ * Starts every open video this process is not already filming.
+ * A video OpenRouter already accepted is polled. One that never left is submitted.
  */
-export const startVideoWorker = (userId: string) => {
-  const existing = runs.get(userId);
-  if (existing) return existing;
-  const run = runVideoWorker(userId).finally(() => {
-    if (runs.get(userId) === run) runs.delete(userId);
-  });
-  runs.set(userId, run);
-  return run;
-};
-
-const runVideoWorker = async (userId: string) => {
-  await resumeFilming(userId);
-  const queued = await db.videoJob.findMany({
-    where: { userId, status: "queued" },
-    orderBy: { createdAt: "asc" },
-    select: { id: true },
-  });
-  for (const job of queued) {
-    await filmQueuedJob(userId, job.id);
-  }
-};
-
-/** A running job whose wait died. If OpenRouter already has an id, keep polling that. Otherwise submit again. */
-const resumeFilming = async (userId: string) => {
+export const resumeOpenVideos = async (userId: string) => {
   const jobs = await db.videoJob.findMany({
-    where: { userId, status: "running" },
+    where: { userId, status: { in: ["queued", "running"] } },
     include: { providerJobs: { orderBy: { createdAt: "desc" } } },
   });
   for (const job of jobs) {
+    if (runs.has(job.id)) continue;
     const provider = job.providerJobs.find((row) => row.status === "in_progress" || row.status === "pending");
-    if (provider) {
-      await finishKnownFootage(userId, job.id, provider.providerJobId);
+    if (job.status === "running" && provider) {
+      track(job.id, finishKnownFootage(userId, job.id, provider.providerJobId));
       continue;
     }
-    await filmRunningJob(userId, job.id);
+    if (job.status === "running") {
+      track(job.id, filmRunningJob(userId, job.id));
+      continue;
+    }
+    track(job.id, filmQueuedJob(userId, job.id));
   }
 };
 
@@ -83,18 +91,25 @@ const filmQueuedJob = async (userId: string, jobId: string) => {
     if (!isFormat(input.format) || !input.model || input.length < 2) {
       throw new Error("This queued video is missing a model, format, or length.");
     }
-    const filming = await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS);
-    if (!filming) return;
+    const mode = input.mode ? videoModeById(input.mode) : null;
+    if (mode && modeNeedsUpload(mode) && !input.mediaKey) {
+      throw new Error("Upload a file for this mode.");
+    }
 
-    if (hasOpenRouterKey()) {
-      await filmWithModel(userId, jobId, { ...input, format: input.format });
+    if (input.mode === "editor-export") {
+      await filmEditorExport(userId, jobId, toJobInput(input));
+    } else if (!hasOpenRouterKey()) {
+      await filmDemo(userId, jobId, toJobInput(input));
+    } else if (input.mode === "motion-graphics") {
+      await filmMotion(userId, jobId, toJobInput(input));
     } else {
-      await filmDemo(userId, jobId, { ...input, format: input.format });
+      await filmWithModel(userId, jobId, toJobInput(input));
     }
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
-    const message = error instanceof Error ? error.message : "The video didn't finish.";
+    const message = footageErrorMessage(error);
     await saveFailedVideo(userId, jobId, input, message);
     await transitionVideoJob(jobId, "failed", { error: message });
   }
@@ -106,25 +121,95 @@ const filmRunningJob = async (userId: string, jobId: string) => {
   const input = readJobInput(job.input);
   if (!isFormat(input.format) || !input.model || input.length < 2) return;
   try {
-    if (!hasOpenRouterKey()) {
-      await filmDemo(userId, jobId, { ...input, format: input.format });
+    if (input.mode === "editor-export") {
+      await filmEditorExport(userId, jobId, toJobInput(input));
       return;
     }
-    await filmWithModel(userId, jobId, { ...input, format: input.format });
+    if (!hasOpenRouterKey()) {
+      await filmDemo(userId, jobId, toJobInput(input));
+      return;
+    }
+    if (input.mode === "motion-graphics") {
+      await filmMotion(userId, jobId, toJobInput(input));
+      return;
+    }
+    await filmWithModel(userId, jobId, toJobInput(input));
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
-    const message = error instanceof Error ? error.message : "The video didn't finish.";
+    const message = footageErrorMessage(error);
     await saveFailedVideo(userId, jobId, input, message);
     await transitionVideoJob(jobId, "failed", { error: message });
   }
 };
 
+const filmEditorExport = async (userId: string, jobId: string, input: JobInput) => {
+  if (!input.projectId) throw new Error("This export is missing its edit.");
+  const project = await getProjectForUser(userId, input.projectId);
+  if (!project) throw new Error("That edit was not found.");
+  if (!(await markVideoJobProgress(jobId, "render", 10))) return;
+  await renderEditProject(userId, jobId, project.timeline);
+  if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
+  const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / 30));
+  const plan = footagePlan(project.title, length, project.title);
+  await createVideo(userId, {
+    ...readyRecord(jobId, { ...input, length }, plan, length, false),
+    title: project.title,
+    parentVideoId: project.sourceVideoId,
+    editProjectId: project.id,
+  });
+  if (!(await isStillRunning(userId, jobId))) return;
+  await markVideoJobProgress(jobId, "finalize", 100);
+  await transitionVideoJob(jobId, "succeeded", {
+    outputUrl: `/api/videos/${jobId}/file`,
+    error: null,
+  });
+};
+
 const filmWithModel = async (userId: string, jobId: string, input: JobInput) => {
-  const clip = await renderFootage(input, () => isStillRunning(userId, jobId), (providerJobId) =>
-    rememberProviderJob(jobId, providerJobId),
+  if (!(await markVideoJobProgress(jobId, "script", 10))) return;
+  const prepared = await prepareModeJob(userId, input);
+  if (prepared.reuseUploadAsFootage && prepared.mediaBytes) {
+    await storeClip(userId, jobId, input, input.length, prepared.mediaBytes, prepared.transcript ?? prepared.prompt);
+    return;
+  }
+  if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
+  const clip = await renderFootage(
+    footageFromPrepared(prepared),
+    () => isStillRunning(userId, jobId),
+    (providerJobId) => rememberProviderJob(jobId, providerJobId),
   );
-  await storeClip(userId, jobId, input, clip.durationSec, clip.bytes);
+  await storeClip(userId, jobId, input, clip.durationSec, clip.bytes, prepared.prompt);
+};
+
+const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
+  if (!(await markVideoJobProgress(jobId, "script", 10))) return;
+  const generateInput = {
+    prompt: input.prompt,
+    format: input.format,
+    length: input.length,
+    model: input.model,
+  };
+  if (input.tier === "ultra") {
+    const { research, searchSources } = await runResearch(input.prompt, input.model);
+    if (!(await markVideoJobProgress(jobId, "images", 40))) return;
+    const { plan, lint } = await buildScenePlan(generateInput, research, searchSources);
+    if (lint.errors[0]) throw new Error(lint.errors[0]);
+    await createVideo(userId, {
+      ...readyRecord(jobId, input, normalizePlan(plan, input.length), input.length, false),
+      facts: research.facts,
+      quotes: research.quotes,
+      searchSources,
+      unverifiedFactIds: lint.unverifiedFactIds,
+    });
+  } else {
+    const plan = normalizePlan(await writeScript(generateInput), input.length);
+    await createVideo(userId, readyRecord(jobId, input, plan, input.length, false));
+  }
+  if (!(await isStillRunning(userId, jobId))) return;
+  await markVideoJobProgress(jobId, "finalize", 100);
+  await transitionVideoJob(jobId, "succeeded", { outputUrl: null, error: null });
 };
 
 const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string) => {
@@ -140,11 +225,12 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
       where: { providerJobId },
       data: { status: "completed", lastPolledAt: new Date() },
     });
-    await storeClip(userId, jobId, { ...input, format: input.format }, clipDuration(input.length, model.durations), bytes);
+    await storeClip(userId, jobId, toJobInput(input), clipDuration(input.length, model.durations), bytes);
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
-    const message = error instanceof Error ? error.message : "The video didn't finish.";
+    const message = footageErrorMessage(error);
     await db.providerJob
       .update({
         where: { providerJobId },
@@ -156,10 +242,17 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
   }
 };
 
-const storeClip = async (userId: string, jobId: string, input: JobInput, durationSec: number, bytes: Uint8Array) => {
+const storeClip = async (
+  userId: string,
+  jobId: string,
+  input: JobInput,
+  durationSec: number,
+  bytes: Uint8Array,
+  narration = input.prompt,
+) => {
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
   await saveFootage(jobId, bytes);
-  const plan = footagePlan(input.prompt, durationSec);
+  const plan = footagePlan(input.prompt, durationSec, input.showText === false ? "" : narration);
   await createVideo(userId, readyRecord(jobId, input, plan, durationSec, false));
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
@@ -215,6 +308,14 @@ const saveFailedVideo = async (userId: string, jobId: string, input: ReturnType<
   }
 };
 
+/** A dropped connection is not a result. The row stays running so the wait can continue. */
+const leaveRunningOnSilence = (jobId: string, error: unknown) => {
+  if (!(error instanceof TypeError)) return false;
+  if (error.message !== "fetch failed" && error.message !== "terminated") return false;
+  console.error("The video model has not replied. Leaving the job running.", { jobId, cause: error.cause });
+  return true;
+};
+
 const isStillRunning = async (userId: string, jobId: string) => {
   const updated = await db.videoJob.updateMany({
     where: { id: jobId, userId, status: "running" },
@@ -247,7 +348,7 @@ const readyRecord = (
   error: null,
 });
 
-const footagePlan = (prompt: string, durationSec: number): ScenePlan => {
+const footagePlan = (prompt: string, durationSec: number, narration = prompt): ScenePlan => {
   const title = titleFromPrompt(prompt);
   return {
     title,
@@ -255,7 +356,7 @@ const footagePlan = (prompt: string, durationSec: number): ScenePlan => {
       {
         type: "footage",
         headline: title,
-        narration: prompt.trim(),
+        narration: narration.trim(),
         factIds: [],
         quote: null,
         durationSec,
@@ -271,3 +372,17 @@ const titleFromPrompt = (prompt: string) => {
 };
 
 const isFormat = (value: string): value is VideoFormat => (VIDEO_FORMATS as readonly string[]).includes(value);
+
+const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
+  prompt: input.prompt,
+  format: input.format as VideoFormat,
+  length: input.length,
+  model: input.model,
+  mode: input.mode || undefined,
+  tier: input.tier || undefined,
+  resolution: input.resolution || undefined,
+  mediaKey: input.mediaKey || input.imageKey || undefined,
+  referenceKeys: input.referenceKeys.length > 0 ? input.referenceKeys : undefined,
+  showText: input.showText,
+  projectId: input.projectId || undefined,
+});

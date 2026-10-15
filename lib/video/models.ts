@@ -20,7 +20,11 @@ export interface GenerationModel {
   durations: readonly number[];
   resolutions: readonly string[];
   aspectRatios: readonly string[];
+  /** USD per generated second, keyed by resolution. Missing keys stay unpublished. */
+  pricePerSecond: Record<string, number>;
   audio: boolean;
+  /** Accepts OpenRouter input_references images for subject or style. */
+  referenceImages: boolean;
 }
 
 export const GENERATION_MODELS: readonly GenerationModel[] = [
@@ -33,7 +37,9 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     durations: seconds(2, 30),
     resolutions: ["480p", "720p", "1080p"],
     aspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    pricePerSecond: { "480p": 0.0425, "720p": 0.1, "1080p": 0.17 },
     audio: true,
+    referenceImages: true,
   },
   {
     id: "hailuo",
@@ -44,7 +50,9 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     durations: seconds(5, 15),
     resolutions: ["2K"],
     aspectRatios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    pricePerSecond: { "2K": 0.13 },
     audio: true,
+    referenceImages: true,
   },
   {
     id: "seedance",
@@ -55,7 +63,9 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     durations: seconds(4, 30),
     resolutions: ["480p", "720p"],
     aspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+    pricePerSecond: { "480p": 0.1028, "720p": 0.23112 },
     audio: true,
+    referenceImages: true,
   },
   {
     id: "flux",
@@ -66,7 +76,9 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     durations: seconds(5, 20),
     resolutions: ["720p", "1080p"],
     aspectRatios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    pricePerSecond: { "720p": 0.17 },
     audio: true,
+    referenceImages: true,
   },
 ];
 
@@ -93,9 +105,32 @@ export const generationModelById = (id: string) =>
 export const generationModelBySlug = (slug: string) =>
   GENERATION_MODELS.find((model) => model.slug === slug) ?? null;
 
+export const supportsReferenceImages = (model: GenerationModel) => model.referenceImages;
+
+const CHAT_MODEL_LABELS: Record<string, string> = {
+  "anthropic/claude-sonnet-5.5": "Sonnet 5.5",
+  "anthropic/claude-opus-5.5": "Opus 5.5",
+};
+
 /** Label for a stored slug. Older text-model rows fall back to the slug. */
-export const generationModelLabel = (slug: string) => generationModelBySlug(slug)?.name ?? slug;
+export const generationModelLabel = (slug: string) =>
+  generationModelBySlug(slug)?.name ?? CHAT_MODEL_LABELS[slug] ?? slug;
 
 /** The Create page opens on Wan 3.0 unless POLIVID_MODEL is one of these video slugs. */
 export const generationModelIdForSlug = (slug: string): GenerationModelId =>
   generationModelBySlug(slug)?.id ?? DEFAULT_GENERATION_MODEL.id;
+
+export const priceForResolution = (model: GenerationModel, resolution: string) =>
+  model.pricePerSecond[resolution];
+
+export const formatPricePerSecond = (price: number | undefined) => {
+  if (typeof price !== "number") return "Price varies";
+  return `${new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(price)}/s`;
+};
+
+export const maxClipSeconds = (model: GenerationModel) => model.durations.at(-1) ?? 0;

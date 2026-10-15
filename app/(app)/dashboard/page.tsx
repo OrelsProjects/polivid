@@ -50,7 +50,14 @@ export default function DashboardPage() {
       </Suspense>
       <PromptBox />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="flex flex-col gap-3">
+        <div className="flex items-end justify-between gap-4">
+          <h2 className="font-semibold">Tools</h2>
+          <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground">
+            See all tools
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {TOOLS.map(({ href, title, body, icon: Icon, tint }) => (
           <Link
             key={href}
@@ -66,21 +73,20 @@ export default function DashboardPage() {
             </span>
           </Link>
         ))}
-        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-border bg-white/70 px-4 py-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+        <Link
+          href="/create/voiceover"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm transition hover:border-primary/30"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-violet-50 text-violet-700">
             <Mic className="size-4" aria-hidden />
           </span>
           <span className="min-w-0">
-            <span className="flex items-center gap-2 text-sm font-medium">
-              Script to video
-              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
-                SOON
-              </span>
-            </span>
-            <span className="block text-xs text-muted-foreground">Coming soon</span>
+            <span className="block text-sm font-medium">Voiceover video</span>
+            <span className="block text-xs text-muted-foreground">Script or a link</span>
           </span>
-        </div>
+        </Link>
       </div>
+      </section>
 
       <Suspense fallback={<DashboardSkeleton />}>
         <DashboardContent />
