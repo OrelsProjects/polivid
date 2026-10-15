@@ -134,6 +134,8 @@ export const createMockAdapter = (id: string): MediaAdapter => ({
                   props: ["letter"],
                   incompleteAction: null,
                 },
+                lastFrameDescription:
+                  "Medium over-the-shoulder shot from behind at eye level. Maya fills the left two thirds of the frame, back to camera, hair in a loose dark bun, wearing an olive ribbed knit sweater and black trousers, socked feet on a worn red rug. Her right hand rests on the brass knob of a grey front door that stands ajar on the right; her left hand holds a white envelope at her hip. A warm table lamp on a wooden side table lights the right wall amber; the rest of the hallway falls into cool shadow. She is still, head turned slightly toward the gap in the door.",
               },
             },
           },

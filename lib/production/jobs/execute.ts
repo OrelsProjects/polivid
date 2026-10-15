@@ -1,17 +1,23 @@
 import "server-only";
 import { FPS } from "@/lib/video/schema";
-import { getAdapters, type AdapterJob, type AdapterRequest } from "../adapters";
-import { saveProductionBytes } from "../assets";
+import { getAdapters, type AdapterJob, type AdapterRequest, type AdapterRef } from "../adapters";
+import { readProductionBytes, saveProductionBytes } from "../assets";
+import { saveFilmstrip } from "../filmstrip";
 import { compileImagePrompt, compileShotPrompt } from "../compile";
 import { defaultImageCapability, defaultVideoCapability } from "../capabilities";
+import { captureBoundaryFrames, type BoundaryFrames } from "../review/frames";
+import { assembleClips, assetsByStep, videoForShot } from "./assemble";
 import { applyExtension, decideSubmit } from "./idempotency";
-import type { CreativeBrief, Observation } from "../schema";
+import { MAX_STILL_REFERENCES, referencePictures, referencePrompt } from "../references";
+import type { CreativeBrief, InputRecord, Observation, Shot } from "../schema";
+import { getUpload, hasS3Config } from "@/lib/storage/s3";
 import {
   addUsage,
   currentEntityData,
   finishStep,
   latestJobForStep,
   listAssets,
+  listSteps,
   putEntity,
   saveAsset,
   saveGenerationJob,
@@ -22,7 +28,7 @@ import { openEditorProjectForProduction } from "../editor";
 import { loadBrief, loadStructure } from "./coordinator";
 import { db } from "@/lib/db";
 
-const assetKindFor = (mime: string) => {
+const assetKindFor = (mime: string): "image" | "audio" | "video" => {
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("audio/")) return "audio";
   return "video";
@@ -37,6 +43,13 @@ const persistOutput = async (
   if (!output.bytes) return null;
   const assetId = crypto.randomUUID();
   const saved = await saveProductionBytes(userId, productionId, assetId, output.bytes, output.mime);
+  if (assetKindFor(output.mime) === "video") {
+    try {
+      await saveFilmstrip(saved.key, output.bytes);
+    } catch (error) {
+      console.error("Could not build a filmstrip. The timeline will build it on first view.", error);
+    }
+  }
   return saveAsset({
     productionId,
     storageKey: saved.key,
@@ -50,14 +63,60 @@ const persistOutput = async (
   });
 };
 
+/** Stores a clip's exact final frame as a helper asset the next clip can start from. */
+const persistLastFrame = async (
+  userId: string,
+  productionId: string,
+  frame: BoundaryFrames["last"],
+  source: { shotId: string; videoAssetId: string },
+) => {
+  const assetId = crypto.randomUUID();
+  const saved = await saveProductionBytes(userId, productionId, assetId, frame.bytes, frame.mime);
+  return saveAsset({
+    productionId,
+    storageKey: saved.key,
+    kind: "image",
+    mime: frame.mime,
+    sha256: saved.sha256,
+    probe: { bytes: frame.bytes.byteLength, role: "last_frame", timeSec: frame.timeSec, ...source },
+    inputVersionIds: [],
+    status: "derived",
+  });
+};
+
+const toRef = (role: AdapterRef["role"], bytes: Uint8Array, mime: string): AdapterRef => ({
+  role,
+  mime,
+  bytes,
+  url: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}`,
+});
+
+/** The job record keeps sizes instead of binary payloads, so it stays small and readable. */
+const requestForRecord = (request: AdapterRequest) => ({
+  ...request,
+  refs: request.refs?.map((ref) => ({ role: ref.role, mime: ref.mime, bytes: ref.bytes?.byteLength ?? 0 })),
+  frames: request.frames?.map((frame) => ({ timeSec: frame.timeSec, mime: frame.mime, bytes: frame.bytes.byteLength })),
+  audioBytes: request.audioBytes?.byteLength,
+  videoBytes: request.videoBytes?.byteLength,
+});
+
 const runAdapter = async (args: {
   productionId: string;
   stepId: string;
   adapter: ReturnType<typeof getAdapters>[keyof ReturnType<typeof getAdapters>];
   request: AdapterRequest;
   idempotencyKey: string;
-}) => {
+}): Promise<AdapterJob & { localJobId?: string }> => {
   const existing = await latestJobForStep(args.stepId);
+  if (existing?.status === "completed") {
+    return {
+      providerJobId: existing.providerJobId ?? existing.id,
+      status: "completed" as const,
+      outputs: [],
+      usage: { usd: 0, units: {} },
+      localJobId: existing.id,
+    };
+  }
   const decision = existing
     ? decideSubmit({ status: existing.status, providerJobId: existing.providerJobId })
     : "submit";
@@ -69,7 +128,15 @@ const runAdapter = async (args: {
   }
   if (decision === "poll" && existing?.providerJobId) {
     const polled = await args.adapter.poll(existing.providerJobId);
-    if (polled.status === "completed") return args.adapter.collect(existing.providerJobId);
+    if (polled.status === "completed") {
+      const collected = await args.adapter.collect(existing.providerJobId);
+      await updateGenerationJob(existing.id, {
+        status: "completed",
+        outputs: collected.outputs.map((output) => ({ mime: output.mime, hasBytes: Boolean(output.bytes) })),
+        completedAt: new Date(),
+      });
+      return { ...collected, localJobId: existing.id };
+    }
     if (polled.status === "failed") throw new Error(polled.error ?? "The provider job failed.");
     await finishStep(args.stepId, "waiting_provider");
     return polled;
@@ -81,7 +148,7 @@ const runAdapter = async (args: {
     provider: args.adapter.id,
     route: args.adapter.id,
     modelId: args.request.modelId,
-    request: args.request,
+    request: requestForRecord(args.request),
     status: "submitting",
     estimatedUsd: args.adapter.estimate(args.request),
   });
@@ -104,18 +171,33 @@ export const executeStep = async (userId: string, productionId: string, step: { 
   const adapters = getAdapters();
   const structure = await loadStructure(productionId);
   const brief = (await loadBrief(productionId)) ?? fallbackBrief();
+  const finishIfCurrent = async (status: Parameters<typeof finishStep>[1], error?: string | null) => {
+    const current = await db.productionStep.findUnique({
+      where: { id: step.id },
+      select: { idempotencyKey: true },
+    });
+    if (current?.idempotencyKey !== step.idempotencyKey) return;
+    await finishStep(step.id, status, error);
+  };
 
   if (step.kind === "reference_image") {
     const subject = await subjectFor(productionId, step.targetKey, structure, brief);
+    const production = await db.production.findUnique({ where: { id: productionId } });
+    const userRefs = await userReferenceRefs(productionId);
     const result = await runAdapter({
       productionId,
       stepId: step.id,
       adapter: adapters.image,
-      request: { modelId: defaultImageCapability(true).modelId, prompt: subject },
+      request: {
+        modelId: defaultImageCapability(true).modelId,
+        prompt: referencePrompt(subject, userRefs.length),
+        format: production?.format,
+        refs: userRefs.length > 0 ? userRefs : undefined,
+      },
       idempotencyKey: step.idempotencyKey,
     });
     await saveFirstOutput(userId, productionId, result);
-    await finishStep(step.id, result.status === "completed" ? "succeeded" : "waiting_provider");
+    await finishIfCurrent(result.status === "completed" ? "succeeded" : "waiting_provider");
     return;
   }
 
@@ -127,7 +209,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       stepId: step.id,
       adapter: adapters.speech,
       request: {
-        modelId: "eleven_v4",
+        modelId: "eleven_multilingual_v2",
         prompt: segment?.text ?? "",
         text: segment?.text ?? "",
         voiceId: segment?.voiceId ?? "maya-en",
@@ -145,7 +227,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       }
     }
     void asset;
-    await finishStep(step.id, result.status === "completed" ? "succeeded" : "waiting_provider");
+    await finishIfCurrent(result.status === "completed" ? "succeeded" : "waiting_provider");
     return;
   }
 
@@ -188,11 +270,14 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         prompt,
         durationSec: shot.generationDurationSec,
         format: (await db.production.findUnique({ where: { id: productionId } }))?.format,
+        refs: await shotStartRefs(productionId, shot, observation),
         interactionContext: shot.continuity === "continue_shot" ? observation : undefined,
       },
       idempotencyKey: step.idempotencyKey,
     });
-    const previous = (await listAssets(productionId)).filter((asset) => asset.kind === "video").map((asset) => asset.id);
+    const previous = (await listAssets(productionId))
+      .filter((asset) => asset.kind === "video" && asset.status === "accepted")
+      .map((asset) => asset.id);
     const saved = await saveFirstOutput(userId, productionId, result);
     if (saved && result.extensionSpan === "full") {
       const applied = applyExtension(previous, saved.id, "full");
@@ -203,7 +288,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         });
       }
     }
-    await finishStep(step.id, result.status === "completed" ? "succeeded" : "waiting_provider");
+    await finishIfCurrent(result.status === "completed" ? "succeeded" : "waiting_provider");
     return;
   }
 
@@ -220,25 +305,34 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       idempotencyKey: step.idempotencyKey,
     });
     await saveFirstOutput(userId, productionId, result);
-    await finishStep(step.id, result.status === "completed" ? "succeeded" : "waiting_provider");
+    await finishIfCurrent(result.status === "completed" ? "succeeded" : "waiting_provider");
     return;
   }
 
   if (step.kind === "review_shot") {
     const shotId = step.targetKey.replace(/^shot:/, "");
     const shot = structure?.shots.find((entry) => entry.id === shotId);
+    const footage = shot ? await shotFootage(productionId, shot.id) : null;
+    const frames = footage ? await boundaryFramesFor(footage.bytes) : null;
+    const lastFrameAsset =
+      frames && footage && shot ? await persistLastFrame(userId, productionId, frames.last, { shotId: shot.id, videoAssetId: footage.assetId }) : null;
     const result = await runAdapter({
       productionId,
       stepId: step.id,
       adapter: adapters.review,
-      request: { modelId: "gemini-3.8-flash", prompt: JSON.stringify({ shot, brief }) },
+      request: {
+        modelId: "gemini-3.8-flash",
+        prompt: `Shot plan and creative brief:\n${JSON.stringify({ shot, brief })}`,
+        frames: frames?.sampled,
+        refs: frames ? [toRef("last_frame", frames.last.bytes, frames.last.mime)] : undefined,
+      },
       idempotencyKey: step.idempotencyKey,
     });
     const json = result.outputs[0]?.json as
       | {
           passed?: boolean;
           findings?: unknown;
-          observation?: Observation;
+          observation?: Partial<Observation>;
         }
       | undefined;
     if (json?.observation && shot) {
@@ -248,18 +342,20 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         shot.id,
         {
           shotId: shot.id,
-          assetId: "",
+          assetId: footage?.assetId ?? "",
           outgoingEditSec: shot.editDurationSec,
           completedActions: json.observation.completedActions ?? [],
           incompleteActions: json.observation.incompleteActions ?? [],
           deviations: json.observation.deviations ?? [],
           boundaryOut: json.observation.boundaryOut ?? shot.boundaryOut,
-        },
+          lastFrameAssetId: lastFrameAsset?.id ?? null,
+          lastFrameDescription: lastFrameAsset ? (json.observation.lastFrameDescription ?? "") : "",
+        } satisfies Observation,
         "observed",
         step.id,
       );
     }
-    await finishStep(step.id, result.status === "failed" || json?.passed === false ? "failed" : "succeeded", json?.passed === false ? "Review rejected the shot." : null);
+    await finishIfCurrent(result.status === "failed" || json?.passed === false ? "failed" : "succeeded", json?.passed === false ? "Review rejected the shot." : null);
     return;
   }
 
@@ -275,20 +371,21 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         modelId: step.kind === "music" ? "music_v2_5" : "eleven_text_to_sound_v2",
         prompt: segment?.prompt ?? step.kind,
         durationSec: segment?.durationSec,
-        compositionPlan: step.kind === "music" ? { sections: [{ prompt: segment?.prompt }] } : undefined,
       },
       idempotencyKey: step.idempotencyKey,
     });
     await saveFirstOutput(userId, productionId, result);
-    await finishStep(step.id, result.status === "completed" ? "succeeded" : "waiting_provider");
+    await finishIfCurrent(result.status === "completed" ? "succeeded" : "waiting_provider");
     return;
   }
 
   if (step.kind === "assemble") {
     const production = await db.production.findUnique({ where: { id: productionId } });
     if (!production) throw new Error("Missing production.");
-    const assets = await listAssets(productionId);
-    const clips = assembleClips(structure, assets);
+    const assets = (await listAssets(productionId)).filter((asset) => asset.status === "accepted");
+    const jobs = await db.generationJob.findMany({ where: { productionId }, select: { id: true, stepId: true, providerJobId: true } });
+    const steps = await listSteps(productionId);
+    const clips = assembleClips(structure, assetsByStep(assets, jobs, steps));
     const durationSec = clips.reduce((end, clip) => Math.max(end, clip.startSec + clip.durationSec), 0);
     const dims = production.format === "16:9" ? { width: 1920, height: 1080 } : production.format === "1:1" ? { width: 1080, height: 1080 } : { width: 1080, height: 1920 };
     await putEntity(
@@ -300,23 +397,99 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       step.id,
     );
     await openEditorProjectForProduction(userId, productionId);
-    await finishStep(step.id, "succeeded");
+    await finishIfCurrent("succeeded");
     return;
   }
 
   if (step.kind === "final_review") {
-    await finishStep(step.id, "succeeded");
+    await finishIfCurrent("succeeded");
     return;
   }
 
   if (step.kind === "export") {
     await openEditorProjectForProduction(userId, productionId);
     await updateProduction(productionId, { status: "ready", stage: "done" });
-    await finishStep(step.id, "succeeded");
+    await finishIfCurrent("succeeded");
     return;
   }
 
-  await finishStep(step.id, "succeeded");
+  await finishIfCurrent("succeeded");
+};
+
+/**
+ * The image a clip starts from. A continuation starts on the predecessor's exact final frame;
+ * anything else (or a missing frame) falls back to the shot's storyboard still.
+ */
+/** Pictures the user attached when starting the production, read back for the still-image model. */
+const userReferenceRefs = async (productionId: string): Promise<AdapterRef[]> => {
+  const input = await currentEntityData<InputRecord>(productionId, "input", "input");
+  const pictures = referencePictures(input).slice(0, MAX_STILL_REFERENCES);
+  if (pictures.length === 0 || !hasS3Config()) return [];
+  const refs: AdapterRef[] = [];
+  for (const picture of pictures) {
+    try {
+      const { bytes, contentType } = await getUpload(picture.key);
+      if (bytes.byteLength > 0) refs.push(toRef("subject_ref", bytes, contentType));
+    } catch (error) {
+      console.warn(`Reference picture ${picture.key} could not be read.`, error);
+    }
+  }
+  return refs;
+};
+
+const shotStartRefs = async (productionId: string, shot: Shot, observation: Observation | null): Promise<AdapterRef[]> => {
+  if (shot.continuity === "continue_shot" && observation?.lastFrameAssetId) {
+    const lastFrame = await previousLastFrameRef(productionId, observation.lastFrameAssetId);
+    if (lastFrame) return [lastFrame];
+    console.warn(`Shot ${shot.id}: the predecessor's last frame is missing. Falling back to the storyboard still.`);
+  }
+  return shotStillRef(productionId, shot.id);
+};
+
+const previousLastFrameRef = async (productionId: string, assetId: string): Promise<AdapterRef | null> => {
+  const asset = (await listAssets(productionId)).find((entry) => entry.id === assetId && entry.kind === "image");
+  if (!asset) return null;
+  const { bytes, contentType } = await readProductionBytes(asset.storageKey);
+  if (bytes.byteLength < 1000) return null;
+  return toRef("first_frame", bytes, contentType);
+};
+
+const shotStillRef = async (productionId: string, shotId: string): Promise<AdapterRef[]> => {
+  const stillStep = (await listSteps(productionId)).find(
+    (entry) => entry.kind === "reference_image" && entry.targetKey === `shot:${shotId}`,
+  );
+  if (!stillStep) return [];
+  const job = await latestJobForStep(stillStep.id);
+  if (!job) return [];
+  const asset = (await listAssets(productionId)).find(
+    (entry) => entry.producedByJobId === job.id && entry.kind === "image" && entry.status === "accepted",
+  );
+  if (!asset) return [];
+  const { bytes, contentType } = await readProductionBytes(asset.storageKey);
+  if (bytes.byteLength < 1000) return [];
+  return [toRef("first_frame", bytes, contentType)];
+};
+
+/** The footage currently standing in for a shot, read from storage. */
+const shotFootage = async (productionId: string, shotId: string) => {
+  const assets = (await listAssets(productionId)).filter((asset) => asset.status === "accepted");
+  const jobs = await db.generationJob.findMany({ where: { productionId }, select: { id: true, stepId: true, providerJobId: true } });
+  const steps = await listSteps(productionId);
+  const video = videoForShot(shotId, assetsByStep(assets, jobs, steps));
+  const asset = video ? assets.find((entry) => entry.id === video.id) : undefined;
+  if (!asset) return null;
+  const { bytes } = await readProductionBytes(asset.storageKey);
+  return { assetId: asset.id, bytes };
+};
+
+/** Frame capture must never sink a review; without frames the reviewer works from the plan and says so. */
+const boundaryFramesFor = async (video: Uint8Array): Promise<BoundaryFrames | null> => {
+  try {
+    return await captureBoundaryFrames(video);
+  } catch (error) {
+    console.error("Could not capture the clip's boundary frames. The review will run without them.", error);
+    return null;
+  }
 };
 
 const saveFirstOutput = async (userId: string, productionId: string, result: AdapterJob & { localJobId?: string }) => {
@@ -342,61 +515,6 @@ const subjectFor = async (
   }
   const shot = structure?.shots.find((entry) => entry.id === targetKey.slice(5));
   return compileImagePrompt(shot?.intendedBeginning ?? "storyboard frame", brief);
-};
-
-const assembleClips = (
-  structure: Awaited<ReturnType<typeof loadStructure>>,
-  assets: { id: string; kind: string }[],
-) => {
-  const videos = assets.filter((asset) => asset.kind === "video");
-  const audios = assets.filter((asset) => asset.kind === "audio");
-  const clips = [];
-  let cursor = 0;
-  for (const [index, shot] of (structure?.shots ?? []).entries()) {
-    const video = videos[index];
-    if (video) {
-      clips.push({
-        id: `clip_${shot.id}`,
-        shotId: shot.id,
-        assetId: video.id,
-        kind: "video" as const,
-        startSec: cursor,
-        durationSec: shot.editDurationSec,
-        trimInSec: 0,
-        trimOutSec: shot.editDurationSec,
-        volume: 0,
-        fadeInSec: 0,
-        fadeOutSec: 0,
-        transition: "cut" as const,
-      });
-    }
-    cursor += shot.editDurationSec;
-  }
-  let audioIndex = 0;
-  for (const segment of structure?.audioSegments ?? []) {
-    const audio = audios[audioIndex];
-    audioIndex += 1;
-    if (!audio) continue;
-    const firstShot = structure?.shots.find((shot) => shot.id === segment.shotIds[0]);
-    const start = (structure?.shots ?? [])
-      .filter((shot) => shot.order < (firstShot?.order ?? 0))
-      .reduce((sum, shot) => sum + shot.editDurationSec, 0);
-    clips.push({
-      id: `clip_${segment.id}`,
-      shotId: firstShot?.id ?? null,
-      assetId: audio.id,
-      kind: "audio" as const,
-      startSec: start + segment.startOffsetSec,
-      durationSec: segment.measuredDurationSec ?? segment.durationSec,
-      trimInSec: 0,
-      trimOutSec: segment.durationSec,
-      volume: segment.track === "music" ? 0.35 : 1,
-      fadeInSec: segment.fadeInSec,
-      fadeOutSec: segment.fadeOutSec,
-      transition: null,
-    });
-  }
-  return clips;
 };
 
 const fallbackBrief = (): CreativeBrief => ({

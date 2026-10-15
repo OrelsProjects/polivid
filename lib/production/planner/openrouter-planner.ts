@@ -31,15 +31,23 @@ const wrapAttachments = (attachments: PlannerAttachment[] = []) => {
     .join("");
 };
 
+/**
+ * Keeps OpenRouter on the model vendor's own API. Other hosts (e.g. Google Vertex for Claude)
+ * reject our structured-output schemas as "compiled grammar is too large".
+ */
+const firstPartyRouting = (vendor: string) => ({
+  openrouter: { provider: { order: [vendor], allow_fallbacks: false } },
+});
+
 const providerOptionsFor = (model: string, task: PlannerTask) => {
   if (isClaudeSlug(model)) {
     const effort = task === "extract" ? "low" : task === "escalate" || task === "frontier" ? "high" : "medium";
-    return { anthropic: { effort } } as Record<string, Record<string, string>>;
+    return { anthropic: { effort }, ...firstPartyRouting("anthropic") };
   }
   if (isOpenAiSlug(model)) {
     const reasoningEffort =
       task === "extract" ? "low" : task === "escalate" || task === "frontier" ? "high" : "medium";
-    return { openai: { reasoningEffort } } as Record<string, Record<string, string>>;
+    return { openai: { reasoningEffort }, ...firstPartyRouting("openai") };
   }
   return undefined;
 };
@@ -50,14 +58,13 @@ const callOnce = async <T extends z.ZodType>(
   extra: string,
 ) => {
   const started = Date.now();
+  const providerOptions = providerOptionsFor(model, request.task);
   const result = await generateText({
     model: openrouter().chat(model),
     instructions: request.system,
     prompt: `${request.input}${wrapAttachments(request.attachments)}${extra}`,
     output: Output.object({ schema: request.schema, name: request.task }),
-    ...(providerOptionsFor(model, request.task)
-      ? { providerOptions: providerOptionsFor(model, request.task) }
-      : {}),
+    ...(providerOptions ? { providerOptions } : {}),
   });
   const inputTokens = result.usage?.inputTokens ?? 0;
   const outputTokens = result.usage?.outputTokens ?? 0;

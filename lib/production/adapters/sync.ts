@@ -9,6 +9,29 @@ const key = () => {
   return value;
 };
 
+export const createPassthroughLipsyncAdapter = (): MediaAdapter => ({
+  id: "lipsync-skip",
+  estimate: () => 0,
+  submit: async (_request, idempotencyKey) => ({
+    providerJobId: idempotencyKey,
+    status: "completed",
+    outputs: [],
+    usage: { usd: 0, units: {} },
+  }),
+  poll: async (providerJobId) => ({
+    providerJobId,
+    status: "completed",
+    outputs: [],
+    usage: { usd: 0, units: {} },
+  }),
+  collect: async (providerJobId) => ({
+    providerJobId,
+    status: "completed",
+    outputs: [],
+    usage: { usd: 0, units: {} },
+  }),
+});
+
 export const createSyncAdapter = (): MediaAdapter => ({
   id: "sync",
   estimate: (request) => (request.durationSec ?? 8) * (capabilityById("lipsync-sync-3")?.pricing.usd ?? 0.08),

@@ -3,9 +3,9 @@ import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { db } from "@/lib/db";
 import { estimatePlanCost } from "@/lib/production/cost";
 import { currentEntityData } from "@/lib/production/store";
-import { approveGeneration, loadStructure } from "@/lib/production/jobs/coordinator";
+import { approveGeneration, cloneProductionPlan, loadStructure } from "@/lib/production/jobs/coordinator";
 import type { DevelopOutput } from "@/lib/production/schema";
-import { refundCredits, reserveCredits } from "./credits";
+import { refundCredits, requireCredits, reserveCredits } from "./credits";
 import { productionCredits, spentCredits } from "./estimate";
 import { InsufficientCreditsError } from "./errors";
 
@@ -47,17 +47,42 @@ export const approveGenerationCharged = async (productionId: string, userId: str
   }
 };
 
+export const regenerateGenerationCharged = async (sourceId: string, userId: string) => {
+  const credits = await estimateProductionCredits(sourceId);
+  if (credits > 0) await requireCredits(userId, credits);
+  const id = await cloneProductionPlan(sourceId, userId);
+  try {
+    await approveGenerationCharged(id, userId);
+    return { id };
+  } catch (error) {
+    if (!(error instanceof InsufficientCreditsError)) {
+      const { updateProduction } = await import("@/lib/production/store");
+      await updateProduction(id, { status: "failed", error: "Couldn't start generation." }).catch(() => undefined);
+    }
+    throw error;
+  }
+};
+
+const latestHoldKey = async (productionId: string, userId: string) => {
+  const hold = await db.creditLedger.findFirst({
+    where: { userId, refType: "production", refId: productionId, reason: "production_hold" },
+    orderBy: { createdAt: "desc" },
+  });
+  return hold?.idempotencyKey.replace(/:(plan|bonus)$/, "") ?? `production_hold:${productionId}`;
+};
+
 export const settleProductionCredits = async (productionId: string) => {
   const production = await db.production.findUnique({ where: { id: productionId } });
   if (!production || production.creditsHeld <= 0) return;
   const unused = Math.max(0, production.creditsHeld - spentCredits(Number(production.spentUsd)));
   if (unused > 0) {
+    const holdKey = await latestHoldKey(productionId, production.userId);
     await refundCredits(production.userId, unused, {
       reason: "production_refund",
       refType: "production",
       refId: productionId,
-      idempotencyKey: `production_refund:${productionId}`,
-      holdKey: `production_hold:${productionId}`,
+      idempotencyKey: `production_refund:${holdKey}`,
+      holdKey,
     });
   }
   await db.production.update({ where: { id: productionId }, data: { creditsHeld: 0 } });

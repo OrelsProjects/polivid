@@ -1,7 +1,6 @@
 import { auth } from "@/auth";
 import { rangedBytesResponse } from "@/lib/http/range";
-import { overwriteProductionBytes, readProductionBytes } from "@/lib/production/assets";
-import { healProductionMedia } from "@/lib/production/placeholder-media";
+import { loadProductionAsset } from "@/lib/production/asset-cache";
 import { getAssetForUser } from "@/lib/production/store";
 
 export async function GET(request: Request, context: { params: Promise<{ assetId: string }> }) {
@@ -11,12 +10,12 @@ export async function GET(request: Request, context: { params: Promise<{ assetId
   const { assetId } = await context.params;
   const asset = await getAssetForUser(userId, assetId);
   if (!asset) return new Response("Not found.", { status: 404 });
-  let { bytes, contentType } = await readProductionBytes(asset.storageKey);
-  const healed = await healProductionMedia(asset.kind, bytes, contentType, asset.id);
-  if (healed) {
-    await overwriteProductionBytes(asset.storageKey, healed.bytes, healed.contentType);
-    bytes = healed.bytes;
-    contentType = healed.contentType;
+  const etag = `"${asset.sha256.slice(0, 32)}"`;
+  if (request.headers.get("if-none-match") === etag) {
+    return new Response(null, { status: 304, headers: { ETag: etag, "Cache-Control": "private, max-age=3600" } });
   }
-  return rangedBytesResponse(bytes, contentType, request.headers.get("range"), "private, no-store");
+  const { bytes, contentType } = await loadProductionAsset(asset);
+  const response = rangedBytesResponse(bytes, contentType, request.headers.get("range"), "private, max-age=3600");
+  response.headers.set("ETag", etag);
+  return response;
 }

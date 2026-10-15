@@ -28,6 +28,8 @@ export const AttachmentSchema = z.object({
   mime: z.string(),
   kind: z.enum(["document", "image", "audio", "video", "other"]),
   text: z.string().nullable(),
+  /** Storage key of the uploaded file, for pictures and media the pipeline reads back. */
+  key: z.string().nullable().optional(),
 });
 export type Attachment = z.infer<typeof AttachmentSchema>;
 
@@ -271,6 +273,10 @@ export const ObservationSchema = z.object({
   incompleteActions: z.array(z.string()),
   deviations: z.array(z.string()),
   boundaryOut: BoundaryStateSchema,
+  /** Image asset holding the exact final frame of the reviewed clip. */
+  lastFrameAssetId: z.string().nullable().default(null),
+  /** Literal, exhaustive description of that frame, written from the pixels rather than the plan. */
+  lastFrameDescription: z.string().default(""),
 });
 export type Observation = z.infer<typeof ObservationSchema>;
 

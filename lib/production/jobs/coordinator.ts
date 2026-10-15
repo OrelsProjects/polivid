@@ -16,6 +16,7 @@ import {
 import { plannedStepsAfterApprove, stepIdentity } from "./graph";
 import { labelForPlanningStep, type PlanningProgress, type PlanningStepKey } from "../progress";
 import { persistDevelop, persistStructure } from "./persist";
+import { cloneProductionSettings } from "./clone";
 
 const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24);
 
@@ -53,11 +54,24 @@ const markPreview = async (productionId: string, userId: string, cost: { total: 
   return { status: "preview" as const, cost };
 };
 
-export const startPlanning = async (
-  productionId: string,
-  userId: string,
-  options: { answers?: Record<string, string>; onProgress?: (event: PlanningProgress) => void } = {},
-) => {
+/** Planning sets the production to `drafting` first, so a thrown planner error must not leave it there. */
+const failOnError = async <T>(productionId: string, run: () => Promise<T>) => {
+  try {
+    return await run();
+  } catch (error) {
+    await updateProduction(productionId, { status: "failed", error: "Couldn't finish the plan. Try again." }).catch(
+      () => undefined,
+    );
+    throw error;
+  }
+};
+
+type PlanningOptions = { answers?: Record<string, string>; onProgress?: (event: PlanningProgress) => void };
+
+export const startPlanning = (productionId: string, userId: string, options: PlanningOptions = {}) =>
+  failOnError(productionId, () => planFromInput(productionId, userId, options));
+
+const planFromInput = async (productionId: string, userId: string, options: PlanningOptions) => {
   const report = (key: PlanningStepKey, state: "active" | "done" = "active", label?: string) => {
     options.onProgress?.({ key, label: labelForPlanningStep(key, label), state });
   };
@@ -167,9 +181,14 @@ export const loadDevelop = async (productionId: string): Promise<DevelopOutput |
   };
 };
 
-export const resumeFromLastStep = async (productionId: string, userId: string) => {
+export const resumeFromLastStep = (productionId: string, userId: string) =>
+  failOnError(productionId, () => resumeProduction(productionId, userId));
+
+const resumeProduction = async (productionId: string, userId: string) => {
   const steps = await listSteps(productionId);
-  const failed = steps.filter((step) => step.status === "failed" || step.status === "canceled");
+  const failed = steps.filter(
+    (step) => step.status === "failed" || step.status === "canceled" || step.status === "blocked",
+  );
   const develop = await loadDevelop(productionId);
   const target = resumeTarget({ failedJobCount: failed.length, hasDevelop: Boolean(develop) });
   if (target === "jobs") {
@@ -193,7 +212,7 @@ export const resumeFromLastStep = async (productionId: string, userId: string) =
     }
     return finishFromDevelop(productionId, userId, develop, { retryNotes: production.error });
   }
-  return startPlanning(productionId, userId);
+  return planFromInput(productionId, userId, {});
 };
 
 export const approveGeneration = async (productionId: string) => {
@@ -212,6 +231,34 @@ export const approveGeneration = async (productionId: string) => {
   }
   await updateProduction(productionId, { status: "generating", stage: "references" });
   return listSteps(productionId);
+};
+
+export const cloneProductionPlan = async (sourceId: string, userId: string) => {
+  const { db } = await import("@/lib/db");
+  const source = await db.production.findFirst({ where: { id: sourceId, userId } });
+  if (!source) throw new Error("Not found.");
+  const develop = await loadDevelop(sourceId);
+  const structure = await loadStructure(sourceId);
+  const input = await currentEntityData<InputRecord>(sourceId, "input", "input");
+  if (!develop || !structure || !input) throw new Error("The plan is not ready.");
+  const clone = await db.production.create({
+    data: {
+      userId,
+      ...cloneProductionSettings({
+        title: source.title,
+        mode: source.mode,
+        creativeDelegation: source.creativeDelegation,
+        plannerProvider: source.plannerProvider,
+        budgetUsd: Number(source.budgetUsd),
+        format: source.format,
+        targetDurationSec: source.targetDurationSec,
+      }),
+    },
+  });
+  await putEntity(clone.id, "input", "input", input, "user");
+  await persistDevelop(clone.id, develop);
+  await persistStructure(clone.id, structure);
+  return clone.id;
 };
 
 export const loadStructure = async (productionId: string): Promise<StructureOutput | null> => {

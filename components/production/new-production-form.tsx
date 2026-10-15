@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { MediaUpload } from "@/components/media-upload";
 import { StatusTimeline } from "@/components/production/status-timeline";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,7 @@ export function NewProductionForm() {
   const [delegated, setDelegated] = useState(false);
   const [format, setFormat] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [durationSec, setDurationSec] = useState(30);
+  const [referenceKeys, setReferenceKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [items, setItems] = useState<StatusItem[]>([]);
@@ -56,6 +58,7 @@ export function NewProductionForm() {
           creativeDelegation: delegated,
           format,
           durationSec,
+          referenceKeys,
         }),
       });
       if (!isNdjson(response)) {
@@ -127,6 +130,15 @@ export function NewProductionForm() {
           disabled={pending}
         />
       </div>
+      <MediaUpload
+        kind="image"
+        multiple
+        mediaKeys={referenceKeys}
+        onChangeKeys={setReferenceKeys}
+        disabled={pending}
+        label="Reference pictures"
+        hint="Optional. Faces, places, or the look you want · JPEG, PNG, or WebP under 4 MB"
+      />
       <div className="flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-2">
           <span className="text-muted-foreground">Format</span>

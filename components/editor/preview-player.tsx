@@ -82,6 +82,12 @@ const usePreviewSync = (playerRef: RefObject<PlayerRef | null>) => {
 
   useEffect(() => {
     const player = playerRef.current;
+    if (!player || isPlaying) return;
+    player.seekTo(playheadFrame);
+  }, [isPlaying, playheadFrame, playerRef]);
+
+  useEffect(() => {
+    const player = playerRef.current;
     if (!player) return;
     const handleFrame = ({ detail }: { detail: { frame: number } }) => {
       if (!playingRef.current) return;

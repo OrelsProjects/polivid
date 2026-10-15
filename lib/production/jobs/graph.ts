@@ -33,12 +33,10 @@ export const plannedStepsAfterApprove = (structure: StructureOutput): PlannedSte
   const ordered = [...structure.shots].sort((a, b) => a.order - b.order);
   for (const shot of ordered) {
     const videoKey = `shot:${shot.id}`;
+    // A shot with a predecessor waits for that review: it supplies the exact last frame and its description.
     const depends = [
-      ...speechKeys,
       ...referenceKeysForShot(shot, structure),
-      ...(shot.dependsOn && shot.continuity === "continue_shot"
-        ? [keyFor("review_shot", `shot:${shot.dependsOn}`)]
-        : []),
+      ...(shot.dependsOn && shot.continuity !== "new_scene" ? [keyFor("review_shot", `shot:${shot.dependsOn}`)] : []),
     ];
     steps.push({ kind: "shot_video", targetKey: videoKey, dependsOnKeys: depends });
     const reviewKey = keyFor("review_shot", videoKey);

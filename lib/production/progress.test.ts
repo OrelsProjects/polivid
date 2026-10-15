@@ -37,8 +37,14 @@ test("generation items group jobs and count completed ones", () => {
     { kind: "reference_image", status: "succeeded" },
     { kind: "reference_image", status: "leased" },
     { kind: "speech", status: "pending" },
+    { kind: "shot_video", status: "leased" },
+    { kind: "shot_video", status: "waiting_provider" },
+    { kind: "shot_video", status: "pending" },
   ]);
-  assert.equal(items[0]?.detail, "1/2");
+  assert.equal(items[0]?.detail, "1/2 · 1 running");
   assert.equal(items[0]?.state, "active");
   assert.equal(items[1]?.state, "pending");
+  assert.equal(items[2]?.label, "Generating video");
+  assert.equal(items[2]?.detail, "0/3 · 2 generating");
+  assert.equal(items[2]?.state, "active");
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { createProjectFromTimelineForUser, getProjectForUser } from "@/lib/editor/projects";
 import { VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
 import { db } from "@/lib/db";
@@ -24,14 +25,10 @@ const nameForAsset = (asset: { id: string; kind: string }, clips: ProductionTime
 export const openEditorProjectForProduction = async (userId: string, productionId: string) => {
   const production = await db.production.findFirst({ where: { id: productionId, userId } });
   if (!production) return null;
-  if (production.editProjectId) {
-    const existing = await getProjectForUser(userId, production.editProjectId);
-    if (existing) return existing;
-  }
 
   const timeline = await currentEntityData<ProductionTimeline>(productionId, "timeline", "timeline");
   if (!timeline) return null;
-  const assets = await listAssets(productionId);
+  const assets = (await listAssets(productionId)).filter((asset) => asset.status === "accepted");
   const format = isVideoFormat(production.format) ? production.format : "9:16";
   const editorTimeline = compileToEditorTimeline(
     timeline,
@@ -42,6 +39,23 @@ export const openEditorProjectForProduction = async (userId: string, productionI
       name: nameForAsset(asset, timeline.clips),
     })),
   );
+
+  if (production.editProjectId) {
+    const existing = await getProjectForUser(userId, production.editProjectId);
+    if (existing) {
+      await db.editProject.update({
+        where: { id: existing.id },
+        data: {
+          title: production.title,
+          format,
+          timeline: editorTimeline as unknown as Prisma.InputJsonValue,
+          version: existing.version + 1,
+        },
+      });
+      return getProjectForUser(userId, existing.id);
+    }
+  }
+
   const project = await createProjectFromTimelineForUser(userId, {
     title: production.title,
     format,

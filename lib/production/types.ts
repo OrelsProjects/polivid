@@ -42,6 +42,8 @@ export interface ProductionView {
   spentUsd: number;
   error: string | null;
   editProjectId: string | null;
+  /** ISO timestamp of when the current live run began; null while the production is idle. */
+  runStartedAt: string | null;
   entities: EntityView[];
   steps: StepView[];
   createdAt: string;

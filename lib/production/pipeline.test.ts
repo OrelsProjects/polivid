@@ -6,8 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import test from "node:test";
 import { mockAdapterSet, resetMockAdapters } from "./adapters/mock";
-import { checkCapabilityCombo, preflight, repairPreflightStructure } from "./capabilities";
-import { defaultVideoCapability } from "./capabilities/registry";
+import { capabilityById, checkCapabilityCombo, preflight, repairPreflightStructure } from "./capabilities";
 import { compileShotPrompt } from "./compile";
 import { applyExtension, decideSubmit, nextLipsyncStep } from "./jobs/idempotency";
 import { plannedStepsAfterApprove } from "./jobs/graph";
@@ -101,6 +100,8 @@ test("a continuation connects to the accepted outgoing edit point", () => {
     incompleteActions: ["opening the door"],
     deviations: [],
     boundaryOut: parent.boundaryOut,
+    lastFrameAssetId: "frame_1",
+    lastFrameDescription: "Over-shoulder medium shot; Maya in an olive ribbed sweater, right hand on the brass knob.",
   };
   const prompt = compileShotPrompt({
     brief: mockDevelop("x").brief,
@@ -112,7 +113,46 @@ test("a continuation connects to the accepted outgoing edit point", () => {
   });
   assert.match(prompt, /accepted outgoing moment/i);
   assert.match(prompt, /opening the door/);
+  assert.match(prompt, /exact final frame of the previous clip/i);
+  assert.match(prompt, /right hand on the brass knob/);
   assert.equal(observation.outgoingEditSec, parent.editDurationSec - 0.4);
+
+  // Without a captured frame the prompt must not claim one is attached.
+  const blind = compileShotPrompt({
+    brief: mockDevelop("x").brief,
+    scene: structure.scenes[1]!,
+    shot,
+    observation: { ...observation, lastFrameAssetId: null, lastFrameDescription: "" },
+    characterNotes: [],
+    locationNotes: "",
+  });
+  assert.doesNotMatch(blind, /attached first frame/i);
+});
+
+test("a new angle carries the previous clip's final frame forward in words", () => {
+  const structure = mockStructure();
+  const angle = structure.shots.find((entry) => entry.continuity === "new_angle")!;
+  const parent = structure.shots.find((entry) => entry.id === angle.dependsOn)!;
+  const prompt = compileShotPrompt({
+    brief: mockDevelop("x").brief,
+    scene: structure.scenes[0]!,
+    shot: angle,
+    observation: {
+      shotId: parent.id,
+      assetId: "asset_1",
+      outgoingEditSec: parent.editDurationSec,
+      completedActions: [],
+      incompleteActions: [],
+      deviations: [],
+      boundaryOut: parent.boundaryOut,
+      lastFrameAssetId: "frame_1",
+      lastFrameDescription: "Maya mid-rise from a green velvet sofa, cream envelope in both hands.",
+    },
+    characterNotes: [],
+    locationNotes: "apartment",
+  });
+  assert.match(prompt, /green velvet sofa/);
+  assert.match(prompt, /only the camera position changes/i);
 });
 
 test("music and ambience remain continuous across visual cuts", () => {
@@ -137,7 +177,7 @@ test("visible speech follows speech, then video, then sync with sync_mode", asyn
 });
 
 test("unsupported feature combinations fail before paid generation", () => {
-  const model = defaultVideoCapability();
+  const model = capabilityById("video-omni")!;
   const issues = checkCapabilityCombo(model, {
     firstFrame: true,
     lastFrame: false,
@@ -188,7 +228,10 @@ test("resumed jobs poll instead of resubmitting", async () => {
   const second = await adapters.video.submit({ modelId: "gemini-omni-1.1-flash", prompt: "walk" }, "same-key");
   assert.equal(first.providerJobId, second.providerJobId);
   assert.equal(decideSubmit({ status: "in_progress", providerJobId: first.providerJobId }), "poll");
-  assert.equal(decideSubmit({ status: "submitting", providerJobId: null }), "needs_reconcile");
+  assert.equal(decideSubmit({ status: "submitting", providerJobId: null }), "submit");
+  assert.equal(decideSubmit({ status: "needs_reconcile", providerJobId: null }), "submit");
+  assert.equal(decideSubmit({ status: "completed", providerJobId: first.providerJobId }), "submit");
+  assert.equal(decideSubmit({ status: "failed", providerJobId: first.providerJobId }), "submit");
 });
 
 test("revisions invalidate the affected dependencies", () => {
@@ -285,9 +328,16 @@ test("shot graph generates speech before continuations", () => {
   const steps = plannedStepsAfterApprove(mockStructure());
   const speech = steps.find((step) => step.kind === "speech");
   const continuation = steps.find((step) => step.kind === "shot_video" && step.targetKey === "shot:shot_3");
+  const lipsync = steps.find((step) => step.kind === "lipsync");
   assert.ok(speech);
   assert.ok(continuation?.dependsOnKeys.includes("review_shot:shot:shot_2"));
-  assert.ok(continuation?.dependsOnKeys.includes("speech:speech:aud_dialogue_1"));
+  assert.ok(!continuation?.dependsOnKeys.includes("speech:speech:aud_dialogue_1"));
+  assert.ok(lipsync?.dependsOnKeys.includes("speech:speech:aud_dialogue_1"));
+  // A new angle also waits for its predecessor's review, which supplies the last frame and its description.
+  const angle = steps.find((step) => step.kind === "shot_video" && step.targetKey === "shot:shot_2");
+  assert.ok(angle?.dependsOnKeys.includes("review_shot:shot:shot_1"));
+  const opening = steps.find((step) => step.kind === "shot_video" && step.targetKey === "shot:shot_1");
+  assert.ok(!opening?.dependsOnKeys.some((key) => key.startsWith("review_shot:")));
 });
 
 test("transcript comparison treats low confidence as uncertain", () => {

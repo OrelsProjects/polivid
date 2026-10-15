@@ -6,8 +6,7 @@ export const decideSubmit = (job: {
   status: GenerationJobStatus | string;
   providerJobId: string | null;
 }): SubmitDecision => {
-  if (job.providerJobId) return "poll";
-  if (job.status === "submitting") return "needs_reconcile";
+  if (job.providerJobId && (job.status === "in_progress" || job.status === "submitting")) return "poll";
   return "submit";
 };
 

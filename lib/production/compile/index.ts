@@ -15,9 +15,15 @@ export const compileShotPrompt = (context: CompileContext) => {
     `Camera: ${context.shot.framing}. ${context.shot.cameraMotion}.`,
     `Emotion: ${context.shot.emotionalArc}.`,
   ];
+  const lastFrame = context.observation?.lastFrameDescription?.trim();
   if (context.shot.continuity === "continue_shot") {
     parts.unshift("Uninterrupted continuation of the same camera view. Continuous action and camera behavior. Do not recap or reset.");
     if (context.observation) {
+      if (lastFrame) {
+        parts.push(
+          `The attached first frame is the exact final frame of the previous clip. It shows: ${lastFrame} Begin from precisely this frame with identical framing, wardrobe, lighting, props and positions, then continue the motion without a cut.`,
+        );
+      }
       parts.push(
         `Start from the accepted outgoing moment: ${context.observation.boundaryOut.position}, ${context.observation.boundaryOut.direction}, ${context.observation.boundaryOut.speed}, gaze ${context.observation.boundaryOut.gaze}.`,
       );
@@ -28,6 +34,11 @@ export const compileShotPrompt = (context: CompileContext) => {
   } else if (context.shot.continuity === "new_angle") {
     parts.unshift(`New angle in the same scene. ${context.locationNotes}`);
     parts.push(...context.characterNotes);
+    if (lastFrame) {
+      parts.push(
+        `The previous clip ended on this exact frame: ${lastFrame} Keep the same people, wardrobe, props, room and lighting; only the camera position changes.`,
+      );
+    }
   } else {
     parts.unshift(`New scene. ${context.locationNotes}`);
     parts.push(...context.characterNotes);

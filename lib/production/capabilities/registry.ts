@@ -42,7 +42,7 @@ export const CAPABILITIES: readonly ModelCapability[] = [
     provider: "openai",
     modelId: "openai/gpt-image-2.5-flare",
     route: "openrouter",
-    apiPath: "/api/v1/chat/completions",
+    apiPath: "/api/v1/images",
     task: "image",
     inputs: ["prompt", "style_ref"],
     referenceRoles: ["style_ref", "subject_ref"],
@@ -66,7 +66,7 @@ export const CAPABILITIES: readonly ModelCapability[] = [
     provider: "openai",
     modelId: "openai/gpt-image-2.5-sunburst",
     route: "openrouter",
-    apiPath: "/api/v1/chat/completions",
+    apiPath: "/api/v1/images",
     task: "image",
     inputs: ["prompt", "style_ref", "subject_ref"],
     referenceRoles: ["style_ref", "subject_ref", "first_frame"],
@@ -90,7 +90,7 @@ export const CAPABILITIES: readonly ModelCapability[] = [
     provider: "google",
     modelId: "google/gemini-nano-banana-2.1",
     route: "openrouter",
-    apiPath: "/api/v1/chat/completions",
+    apiPath: "/api/v1/images",
     task: "image",
     inputs: ["prompt", "style_ref"],
     referenceRoles: ["style_ref", "subject_ref"],
@@ -394,5 +394,8 @@ export const CAPABILITIES: readonly ModelCapability[] = [
 
 export const capabilityById = (id: string) => CAPABILITIES.find((item) => item.id === id) ?? null;
 
-export const defaultVideoCapability = () => capabilityById("video-omni")!;
+export const defaultVideoCapability = () => {
+  const liveWan = process.env.PRODUCTION_PROVIDERS === "live" && Boolean(process.env.OPENROUTER_API_KEY);
+  return capabilityById(liveWan ? "video-wan" : "video-omni")!;
+};
 export const defaultImageCapability = (final: boolean) => capabilityById(final ? "image-sunburst" : "image-flare")!;

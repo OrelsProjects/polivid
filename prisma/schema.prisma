@@ -220,6 +220,7 @@ model Production {
   editProjectId      String?
   editProject        EditProject? @relation("ProductionEdit", fields: [editProjectId], references: [id], onDelete: SetNull)
   error              String?
+  runStartedAt       DateTime? // when the current live run (drafting/generating/...) began; null while idle
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   entities           ProductionEntity[]

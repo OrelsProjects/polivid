@@ -46,7 +46,7 @@ export const STAGE_LABEL: Record<ProductionStage, string> = {
   preview: "Ready to review",
   references: "Making stills",
   speech: "Recording speech",
-  shots: "Filming shots",
+  shots: "Generating video",
   review: "Reviewing footage",
   music: "Scoring music and sound",
   assemble: "Assembling the timeline",
@@ -59,7 +59,7 @@ export const STEP_KIND_LABEL: Record<StepKind, string> = {
   preflight: "Checking cost and capabilities",
   reference_image: "Making a still",
   speech: "Recording speech",
-  shot_video: "Filming a shot",
+  shot_video: "Generating video",
   lipsync: "Syncing lips",
   review_shot: "Reviewing a shot",
   music: "Scoring music",
@@ -189,12 +189,14 @@ export const generationItems = (
       const group = steps.filter((step) => step.kind === kind);
       const done = group.filter((step) => step.status === "succeeded").length;
       const failed = group.some((step) => step.status === "failed");
-      const active = group.some((step) => step.status === "leased" || step.status === "waiting_provider");
+      const running = group.filter((step) => step.status === "leased" || step.status === "waiting_provider").length;
+      const counts = group.length > 1 ? `${done}/${group.length}` : undefined;
+      const generating = kind === "shot_video" && running > 0 ? `${running} generating` : running > 0 ? `${running} running` : undefined;
       return {
         key: kind,
         label: STEP_KIND_LABEL[kind],
-        detail: group.length > 1 ? `${done}/${group.length}` : undefined,
-        state: (failed ? "failed" : done === group.length ? "done" : active ? "active" : "pending") as StatusItemState,
+        detail: [counts, generating].filter(Boolean).join(" · ") || undefined,
+        state: (failed ? "failed" : done === group.length ? "done" : running > 0 ? "active" : "pending") as StatusItemState,
       };
     });
 };

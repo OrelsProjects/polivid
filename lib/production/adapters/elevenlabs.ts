@@ -1,4 +1,5 @@
 import { capabilityById } from "../capabilities";
+import { toneWav } from "../placeholder-media";
 import type { AdapterJob, AdapterRequest, MediaAdapter } from "./types";
 
 const BASE = "https://api.elevenlabs.io";
@@ -33,17 +34,48 @@ const done = (id: string, bytes: Uint8Array, mime: string, usd: number, json?: u
   usage: { usd, units: { bytes: bytes.byteLength } },
 });
 
+let voices: { id: string; name: string }[] | null = null;
+
+const listVoices = async () => {
+  if (voices) return voices;
+  const response = await fetch(`${BASE}/v1/voices`, { headers: { "xi-api-key": key() } });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`ElevenLabs voices failed (${response.status}). ${detail.slice(0, 160)}`);
+  }
+  const json = (await response.json()) as { voices?: { voice_id: string; name: string }[] };
+  voices = (json.voices ?? []).map((voice) => ({ id: voice.voice_id, name: voice.name }));
+  return voices;
+};
+
+export const resolveVoiceId = async (requested?: string) => {
+  const raw = requested?.trim() || "Maya";
+  if (/^[a-zA-Z0-9]{16,}$/.test(raw)) return raw;
+  const needle = raw.replace(/-en$/i, "").replace(/^voice[_-]?/i, "").toLowerCase();
+  const listed = await listVoices();
+  const match =
+    listed.find((voice) => voice.name.toLowerCase() === needle) ??
+    listed.find((voice) => voice.name.toLowerCase().includes(needle));
+  if (match) return match.id;
+  if (listed[0]) return listed[0].id;
+  throw new Error("No ElevenLabs voices on this account.");
+};
+
 const postAudio = async (path: string, body: unknown, idempotencyKey: string) => {
   const response = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: {
       "xi-api-key": key(),
       "Content-Type": "application/json",
+      Accept: "audio/mpeg",
       "Idempotency-Key": idempotencyKey,
     },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`ElevenLabs request failed (${response.status}).`);
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`ElevenLabs request failed (${response.status}). ${detail.slice(0, 180)}`);
+  }
   const type = response.headers.get("content-type") ?? "audio/mpeg";
   if (type.includes("application/json")) {
     const json = await response.json();
@@ -57,18 +89,24 @@ export const createElevenSpeechAdapter = (): MediaAdapter => ({
   estimate: (request) => (request.text?.length ?? 0) * (capabilityById("speech-eleven-v4")?.pricing.usd ?? 0.00003),
   submit: async (request, idempotencyKey) => {
     const text = request.text ?? request.prompt;
+    const voiceId = await resolveVoiceId(request.voiceId);
     const chunks = splitDialogue(text);
     const parts: Uint8Array[] = [];
     for (const [index, chunk] of chunks.entries()) {
-      const { bytes } = await postAudio(
-        "/v1/text-to-dialogue",
-        {
-          model_id: "eleven_v4",
-          inputs: [{ text: chunk, voice_id: request.voiceId ?? "default" }],
-          language_code: request.language ?? "en",
-        },
-        `${idempotencyKey}:${index}`,
-      );
+      const path = `/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`;
+      const models = [request.modelId || "eleven_multilingual_v2", "eleven_multilingual_v2", "eleven_turbo_v2_5"];
+      let bytes = new Uint8Array();
+      let lastError: Error | null = null;
+      for (const modelId of [...new Set(models)]) {
+        try {
+          const result = await postAudio(path, { text: chunk, model_id: modelId }, `${idempotencyKey}:${index}:${modelId}`);
+          bytes = result.bytes;
+          if (bytes.byteLength > 0) break;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error("ElevenLabs request failed.");
+        }
+      }
+      if (bytes.byteLength === 0) throw lastError ?? new Error("ElevenLabs returned no audio.");
       parts.push(bytes);
     }
     const combined = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0));
@@ -77,27 +115,43 @@ export const createElevenSpeechAdapter = (): MediaAdapter => ({
       combined.set(part, offset);
       offset += part.byteLength;
     }
+    if (combined.byteLength === 0) throw new Error("ElevenLabs returned no audio.");
     return done(idempotencyKey, combined, "audio/mpeg", chunks.length * 0.02, { durationSec: request.durationSec ?? null, chunks: chunks.length });
   },
   poll: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
   collect: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
 });
 
+export const musicComposeBody = (request: { prompt: string; durationSec?: number }) => {
+  const musicLengthMs = Math.min(600_000, Math.max(3_000, Math.round((request.durationSec ?? 20) * 1000)));
+  return {
+    model_id: "music_v2_5" as const,
+    prompt: request.prompt,
+    music_length_ms: musicLengthMs,
+    force_instrumental: true,
+  };
+};
+
+export const isElevenLabsPaidPlanRequired = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /paid_plan_required|not available for free users|ElevenLabs request failed \(402\)|concurrent_limit_exceeded|ElevenLabs request failed \(429\)/i.test(message);
+};
+
+const localBed = (idempotencyKey: string, durationSec: number, frequencyHz: number) =>
+  done(idempotencyKey, toneWav(durationSec, frequencyHz), "audio/wav", 0);
+
 export const createElevenMusicAdapter = (): MediaAdapter => ({
   id: "eleven-music",
   estimate: (request) => (request.durationSec ?? 20) * (capabilityById("music-v2-5")?.pricing.usd ?? 0.02),
   submit: async (request, idempotencyKey) => {
-    const { bytes, mime } = await postAudio(
-      "/v1/music",
-      {
-        model_id: "music_v2_5",
-        prompt: request.prompt,
-        music_length_ms: Math.round((request.durationSec ?? 20) * 1000),
-        composition_plan: request.compositionPlan ?? undefined,
-      },
-      idempotencyKey,
-    );
-    return done(idempotencyKey, bytes, mime, (request.durationSec ?? 20) * 0.02);
+    try {
+      const { bytes, mime } = await postAudio("/v1/music", musicComposeBody({ prompt: request.prompt, durationSec: request.durationSec }), idempotencyKey);
+      if (bytes.byteLength === 0) throw new Error("ElevenLabs returned no music.");
+      return done(idempotencyKey, bytes, mime, (request.durationSec ?? 20) * 0.02);
+    } catch (error) {
+      if (isElevenLabsPaidPlanRequired(error)) return localBed(idempotencyKey, request.durationSec ?? 20, 196);
+      throw error;
+    }
   },
   poll: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
   collect: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
@@ -107,12 +161,18 @@ export const createElevenSfxAdapter = (): MediaAdapter => ({
   id: "eleven-sfx",
   estimate: (request) => (request.durationSec ?? 2) * (capabilityById("sfx-eleven")?.pricing.usd ?? 0.01),
   submit: async (request, idempotencyKey) => {
-    const { bytes, mime } = await postAudio(
-      "/v1/sound-generation",
-      { text: request.prompt, duration_seconds: request.durationSec ?? 2, model_id: "eleven_text_to_sound_v2" },
-      idempotencyKey,
-    );
-    return done(idempotencyKey, bytes, mime, (request.durationSec ?? 2) * 0.01);
+    try {
+      const { bytes, mime } = await postAudio(
+        "/v1/sound-generation",
+        { text: request.prompt, duration_seconds: request.durationSec ?? 2, model_id: "eleven_text_to_sound_v2" },
+        idempotencyKey,
+      );
+      if (bytes.byteLength === 0) throw new Error("ElevenLabs returned no sound.");
+      return done(idempotencyKey, bytes, mime, (request.durationSec ?? 2) * 0.01);
+    } catch (error) {
+      if (isElevenLabsPaidPlanRequired(error)) return localBed(idempotencyKey, request.durationSec ?? 2, 110);
+      throw error;
+    }
   },
   poll: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),
   collect: async (id) => done(id, new Uint8Array(), "audio/mpeg", 0),

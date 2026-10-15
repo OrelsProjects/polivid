@@ -3,7 +3,10 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import {
+  LIVE_PRODUCTION_STATUSES,
+  isLiveProductionStatus,
   parseEntityData,
+  type Attachment,
   type EntityKind,
   type PlannerProvider,
   type ProductionMode,
@@ -50,6 +53,7 @@ export const createProductionForUser = async (
     creativeDelegation: boolean;
     plannerProvider: PlannerProvider;
     budgetUsd: number;
+    attachments?: Attachment[];
   },
 ) => {
   const title = titleFrom(input.text);
@@ -59,6 +63,7 @@ export const createProductionForUser = async (
       title,
       status: "drafting",
       stage: "intake",
+      runStartedAt: new Date(),
       mode: input.mode,
       creativeDelegation: input.creativeDelegation,
       plannerProvider: input.plannerProvider,
@@ -69,7 +74,7 @@ export const createProductionForUser = async (
   });
   await putEntity(production.id, "input", "input", {
     text: input.text,
-    attachments: [],
+    attachments: input.attachments ?? [],
     classification: null,
   }, "user");
   return production.id;
@@ -98,6 +103,7 @@ export const getProductionForUser = async (userId: string, id: string): Promise<
     spentUsd: money(row.spentUsd),
     error: row.error,
     editProjectId: row.editProjectId,
+    runStartedAt: row.runStartedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     entities: row.entities.map((entity) => {
@@ -142,11 +148,21 @@ export const updateProduction = async (
     creditsHeld?: number;
   },
 ) => {
+  if (data.status && isLiveProductionStatus(data.status)) {
+    // Start the run clock only when entering a live status from an idle one, so
+    // transitions between live statuses (generating → reviewing → …) keep counting.
+    await db.production.updateMany({
+      where: { id, status: { notIn: [...LIVE_PRODUCTION_STATUSES] } },
+      data: { runStartedAt: new Date() },
+    });
+  }
+  const stopsRun = data.status !== undefined && !isLiveProductionStatus(data.status);
   await db.production.update({
     where: { id },
     data: {
       ...(data.title ? { title: data.title } : {}),
       ...(data.status ? { status: data.status } : {}),
+      ...(stopsRun ? { runStartedAt: null } : {}),
       ...(data.stage ? { stage: data.stage } : {}),
       ...(data.error !== undefined ? { error: data.error } : {}),
       ...(data.spentUsd !== undefined ? { spentUsd: data.spentUsd } : {}),
@@ -245,10 +261,10 @@ export const enqueueStep = async (input: {
 export const listSteps = async (productionId: string) =>
   db.productionStep.findMany({ where: { productionId }, orderBy: { createdAt: "asc" } });
 
-export const leaseReadySteps = async (workerId: string, limit = 4, leaseMs = 60_000) => {
+export const leaseReadySteps = async (workerId: string, limit = 4, leaseMs = 15 * 60_000) => {
   const ready = await db.productionStep.findMany({
     where: {
-      status: { in: ["ready", "leased"] },
+      status: { in: ["ready", "leased", "waiting_provider"] },
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
     },
     take: limit * 3,
@@ -259,8 +275,13 @@ export const leaseReadySteps = async (workerId: string, limit = 4, leaseMs = 60_
     if (leased.length >= limit) break;
     if (step.status === "leased" && step.leaseUntil && step.leaseUntil > new Date()) continue;
     const result = await db.productionStep.updateMany({
-      where: { id: step.id, status: { in: ["ready", "leased"] } },
-      data: { status: "leased", workerId, leaseUntil: new Date(Date.now() + leaseMs), attempt: step.attempt + 1 },
+      where: { id: step.id, status: { in: ["ready", "leased", "waiting_provider"] } },
+      data: {
+        status: "leased",
+        workerId,
+        leaseUntil: new Date(Date.now() + leaseMs),
+        attempt: step.status === "waiting_provider" ? step.attempt : step.attempt + 1,
+      },
     });
     if (result.count === 1) leased.push(step);
   }
@@ -423,10 +444,28 @@ export const cancelOpenSteps = async (productionId: string) => {
 export const retryStep = async (productionId: string, stepId: string) => {
   const step = await db.productionStep.findFirst({ where: { id: stepId, productionId } });
   if (!step) return false;
-  if (step.status !== "failed" && step.status !== "canceled") return false;
+  if (
+    step.status !== "failed" &&
+    step.status !== "canceled" &&
+    step.status !== "blocked" &&
+    step.status !== "leased"
+  ) {
+    return false;
+  }
+  await db.generationJob.updateMany({
+    where: { stepId, status: { in: ["submitting", "needs_reconcile"] } },
+    data: { status: "failed" },
+  });
   await db.productionStep.update({
     where: { id: stepId },
-    data: { status: "ready", error: null, leaseUntil: null, attempt: 0 },
+    data: {
+      status: "ready",
+      error: null,
+      leaseUntil: null,
+      workerId: null,
+      attempt: 0,
+      idempotencyKey: `${step.idempotencyKey}:retry${Date.now().toString(36)}`,
+    },
   });
   return true;
 };

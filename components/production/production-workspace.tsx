@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
 import { StatusTimeline } from "@/components/production/status-timeline";
@@ -21,16 +21,18 @@ import {
   STEP_STATUS_LABEL,
 } from "@/lib/production/progress";
 import type { ProductionView } from "@/lib/production/types";
-import type {
-  AssumptionsRecord,
-  CreativeBrief,
-  QuestionsRecord,
-  Requirements,
-  Script,
-  Shot,
+import { referencePictures } from "@/lib/production/references";
+import {
+  isLiveProductionStatus,
+  type AssumptionsRecord,
+  type CreativeBrief,
+  type InputRecord,
+  type QuestionsRecord,
+  type Requirements,
+  type Script,
+  type Shot,
 } from "@/lib/production/schema";
-
-const LIVE_STATUSES = ["generating", "reviewing", "assembling", "drafting"];
+import { uploadFileUrl } from "@/lib/storage/upload-key";
 
 const statusLine = (production: ProductionView, estimatedCredits: number | null) => {
   const status = STATUS_LABEL[production.status] ?? production.status;
@@ -66,13 +68,13 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const questions = entity("questions") as QuestionsRecord | undefined;
   const requirements = entity("requirements") as Requirements | undefined;
   const shots = production.entities.filter((entry) => entry.kind === "shot").map((entry) => entry.current?.data as Shot);
+  const references = referencePictures(entity("input") as InputRecord | undefined);
 
   const doneSteps = production.steps.filter((step) => step.status === "succeeded").length;
-  const live = LIVE_STATUSES.includes(production.status) || busy === "answers";
-  const liveStartedAt = useRef<number | null>(null);
-  if (live && liveStartedAt.current === null) liveStartedAt.current = Date.now();
-  if (!live) liveStartedAt.current = null;
-  const elapsed = liveStartedAt.current ? formatElapsed(liveStartedAt.current, now) : null;
+  const live = isLiveProductionStatus(production.status) || busy === "answers";
+  // Anchor the clock to the server-side run start so it survives page reloads.
+  const runStartedAt = production.runStartedAt ? Date.parse(production.runStartedAt) : null;
+  const elapsed = live && runStartedAt !== null ? formatElapsed(runStartedAt, now) : null;
 
   useEffect(() => {
     if (!live) return;
@@ -92,7 +94,12 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const handleAnswers = async () => {
     setBusy("answers");
     setMessage(null);
-    setProduction((current) => ({ ...current, status: "drafting", stage: "develop" }));
+    setProduction((current) => ({
+      ...current,
+      status: "drafting",
+      stage: "develop",
+      runStartedAt: new Date().toISOString(),
+    }));
     const response = await fetch(`/api/productions/${production.id}/answers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -105,7 +112,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   };
 
   useEffect(() => {
-    if (production.status !== "preview") return;
+    if (production.status !== "preview" && production.status !== "ready") return;
     const loadEstimate = async () => {
       const response = await fetch("/api/billing/estimate", {
         method: "POST",
@@ -133,6 +140,34 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
       } else {
         setMessage(json.error ?? "Couldn't start generation.");
       }
+    }
+    await refresh();
+    setBusy(null);
+  };
+
+  const handleRegenerate = async () => {
+    setBusy("regenerate");
+    setMessage(null);
+    const response = await fetch(`/api/productions/${production.id}/regenerate`, { method: "POST" });
+    const json = (await response.json()) as {
+      error?: string;
+      code?: string;
+      required?: number;
+      balance?: number;
+      id?: string;
+    };
+    if (!response.ok) {
+      if (response.status === 402 && json.code === "insufficient_credits") {
+        setUpgrade({ required: json.required ?? 0, balance: json.balance ?? 0 });
+      } else {
+        setMessage(json.error ?? "Couldn't regenerate this video.");
+      }
+      setBusy(null);
+      return;
+    }
+    if (json.id) {
+      router.push(`/productions/${json.id}`);
+      return;
     }
     await refresh();
     setBusy(null);
@@ -264,6 +299,20 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
               {estimatedCredits ? `Generate · ${estimatedCredits.toLocaleString()} credits` : "Generate"}
             </Button>
           )}
+          {production.status === "ready" && (
+            <Button
+              variant="outline"
+              onClick={() => void handleRegenerate()}
+              disabled={busy === "regenerate"}
+              aria-label="Regenerate video"
+            >
+              {busy === "regenerate"
+                ? "Starting…"
+                : estimatedCredits
+                  ? `Regenerate · ${estimatedCredits.toLocaleString()} credits`
+                  : "Regenerate video"}
+            </Button>
+          )}
           {production.editProjectId ? (
             <Link href={`/editor/${production.editProjectId}`} className={buttonVariants()} aria-label="Open in editor">
               Open in editor
@@ -273,7 +322,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
               {busy === "editor" ? "Opening…" : "Open in editor"}
             </Button>
           ) : null}
-          {LIVE_STATUSES.includes(production.status) && (
+          {isLiveProductionStatus(production.status) && (
             <Button variant="outline" onClick={() => void handleCancel()} disabled={busy === "cancel"}>
               Cancel
             </Button>
@@ -321,6 +370,26 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
           elapsed={elapsed}
           currentLabel={activityLabel(production)}
         />
+      )}
+
+      {references.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Reference pictures</CardTitle>
+            <CardDescription>Stills for characters, places, and shots are matched to these.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {references.map((picture, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={picture.id}
+                src={uploadFileUrl(picture.key)}
+                alt={`Reference picture ${index + 1}`}
+                className="size-24 rounded-xl border border-border object-cover"
+              />
+            ))}
+          </CardContent>
+        </Card>
       )}
 
       {script && (
@@ -447,7 +516,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
                     {STEP_KIND_LABEL[step.kind] ?? step.kind} · {prettyTarget(step.targetKey)} · {STEP_STATUS_LABEL[step.status]}
                     {step.error ? ` — ${step.error}` : ""}
                   </span>
-                  {(step.status === "failed" || step.status === "canceled") && (
+                  {(step.status === "failed" || step.status === "canceled" || step.status === "blocked") && (
                     <Button size="sm" variant="outline" onClick={() => void handleRetry(step.id)} disabled={busy === step.id}>
                       Retry
                     </Button>

@@ -1,4 +1,4 @@
-export type { AdapterJob, AdapterRequest, AdapterOutput, MediaAdapter } from "./types";
-export { splitDialogue } from "./elevenlabs";
+export type { AdapterFrame, AdapterJob, AdapterRequest, AdapterOutput, AdapterRef, MediaAdapter } from "./types";
+export { musicComposeBody, splitDialogue } from "./elevenlabs";
 export { resetMockAdapters, mockAdapterSet } from "./mock";
 export { getAdapters, type AdapterSet } from "./runtime";

@@ -29,21 +29,30 @@ const visibleItems = (timeline: Timeline, playheadFrame: number) => {
   return visible;
 };
 
+const scrubVideoId = (timeline: Timeline, item: TimelineItem) => {
+  if (item.kind !== "video") return null;
+  const asset = assetById(timeline, item.assetId);
+  return asset?.source.type === "video" ? asset.source.videoId : null;
+};
+
 export function ScrubOverlay() {
   const timeline = useEditorTimeline();
   const { playheadFrame, isPlaying } = useEditorPlayback();
   const hoverFrame = useHoverFrame();
   if (isPlaying) return null;
   const previewFrame = hoverFrame ?? playheadFrame;
+  const items = visibleItems(timeline, previewFrame);
+  // Only legacy videos have scrub stills. Covering anything else would hide the paused player frame.
+  if (items.some((item) => item.kind === "video" && !scrubVideoId(timeline, item))) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[#0C1222]" aria-hidden>
-      {visibleItems(timeline, previewFrame).map((item) => {
+      {items.map((item) => {
         const localFrame = previewFrame - item.from;
         const asset = "assetId" in item ? assetById(timeline, item.assetId) : null;
 
         if (item.kind === "video") {
-          const videoId = asset?.source.type === "video" ? asset.source.videoId : null;
+          const videoId = scrubVideoId(timeline, item);
           if (!videoId) return null;
           return (
             <div key={item.id} style={layerStyle(coverFrame(item.transform), item.opacity)}>

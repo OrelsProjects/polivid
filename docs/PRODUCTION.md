@@ -42,7 +42,7 @@ Set `PLANNER_PROVIDER=openai` to switch the planner family. Override a task with
 - Omni does not accept standalone audio references, ignores reference-video audio, and a first-frame + extra refs + extension combo is rejected in preflight.
 - A job interrupted during submit with no provider id becomes `needs_reconcile` instead of being paid for twice.
 - Full-sequence extension responses replace earlier footage; they are not appended.
-- Planned actions are stored separately from observations of what a clip actually contains.
+- Planned actions are stored separately from observations of what a clip actually contains. The review step pulls the clip's exact final frame with ffmpeg, stores it as a `derived` image asset, and has the reviewer describe it literally; a `continue_shot` then starts from that frame and a `new_angle` carries the description forward in its prompt.
 - MP4 assembly currently compiles an editor timeline and marks the production ready; live Remotion export of production assets still uses the editor export path once an `EditProject` exists.
 
 ## Tests and eval

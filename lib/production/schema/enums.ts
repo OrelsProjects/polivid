@@ -11,6 +11,10 @@ export const PRODUCTION_STATUSES = [
 ] as const;
 export type ProductionStatus = (typeof PRODUCTION_STATUSES)[number];
 
+/** Statuses during which the production is actively being worked on by the pipeline. */
+export const LIVE_PRODUCTION_STATUSES: readonly ProductionStatus[] = ["drafting", "generating", "reviewing", "assembling"];
+export const isLiveProductionStatus = (status: ProductionStatus) => LIVE_PRODUCTION_STATUSES.includes(status);
+
 export const PRODUCTION_STAGES = [
   "intake",
   "develop",
@@ -62,7 +66,8 @@ export type VersionOrigin = (typeof VERSION_ORIGINS)[number];
 export const VERSION_STATUSES = ["draft", "accepted", "superseded", "stale"] as const;
 export type VersionStatus = (typeof VERSION_STATUSES)[number];
 
-export const ASSET_STATUSES = ["candidate", "accepted", "rejected", "alternate"] as const;
+/** `derived` marks helper files (such as a clip's final frame) that never appear in the timeline or editor. */
+export const ASSET_STATUSES = ["candidate", "accepted", "rejected", "alternate", "derived"] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
 export const STEP_KINDS = [

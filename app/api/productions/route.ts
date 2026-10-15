@@ -8,9 +8,10 @@ import { tickProductionJobs } from "@/lib/production/jobs/runner";
 import { plannerProvider } from "@/lib/production/planner";
 import { labelForPlanningStep } from "@/lib/production/progress";
 import { PRODUCTION_MODES } from "@/lib/production/schema";
+import { ownedReferenceKeys, referenceAttachments } from "@/lib/production/references";
 import { createProductionForUser, listProductionsForUser, updateProduction } from "@/lib/production/store";
 import type { ProductionStreamEvent } from "@/lib/production/stream";
-import { VIDEO_FORMATS as FORMATS } from "@/lib/video/schema";
+import { MAX_REFERENCE_IMAGES, VIDEO_FORMATS as FORMATS } from "@/lib/video/schema";
 
 export const maxDuration = 300;
 
@@ -21,6 +22,7 @@ const CreateSchema = z.object({
   mode: z.enum(PRODUCTION_MODES).optional().default("review"),
   creativeDelegation: z.boolean().optional().default(false),
   budgetUsd: z.number().positive().max(500).optional(),
+  referenceKeys: z.array(z.string().min(1)).max(MAX_REFERENCE_IMAGES).optional().default([]),
 });
 
 export async function GET() {
@@ -40,6 +42,10 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
   }
   const budgetUsd = parsed.data.budgetUsd ?? Number(process.env.PRODUCTION_DEFAULT_BUDGET_USD ?? "15");
+  const referenceKeys = ownedReferenceKeys(userId, parsed.data.referenceKeys);
+  if (referenceKeys.length !== new Set(parsed.data.referenceKeys).size) {
+    return Response.json({ error: "Use pictures from your own library as references." }, { status: 400 });
+  }
   try {
     await requireCredits(userId, 1);
   } catch (error) {
@@ -58,6 +64,7 @@ export async function POST(request: Request) {
         creativeDelegation: parsed.data.creativeDelegation,
         plannerProvider: plannerProvider(),
         budgetUsd,
+        attachments: referenceAttachments(referenceKeys),
       });
       emit({
         type: "created",

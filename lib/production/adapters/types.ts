@@ -7,6 +7,13 @@ export interface AdapterRef {
   url?: string;
 }
 
+/** A still pulled from footage, for reviewers that need to see what actually happened. */
+export interface AdapterFrame {
+  timeSec: number;
+  bytes: Uint8Array;
+  mime: string;
+}
+
 export interface AdapterRequest {
   modelId: string;
   prompt: string;
@@ -14,6 +21,8 @@ export interface AdapterRequest {
   format?: string;
   resolution?: string;
   refs?: AdapterRef[];
+  /** Sampled frames of the clip under review, in time order. */
+  frames?: AdapterFrame[];
   audioBytes?: Uint8Array;
   videoBytes?: Uint8Array;
   text?: string;
