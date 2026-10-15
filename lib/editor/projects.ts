@@ -103,7 +103,7 @@ export const createProjectFromTimelineForUser = async (
 export const createProjectFromVideoForUser = async (userId: string, videoId: string) => {
   const video = await getVideoForUser(userId, videoId);
   if (!video || video.status !== "ready") return null;
-  const timeline = timelineFromVideo(video, { hasFootage: hasFootage(video.id) });
+  const timeline = timelineFromVideo(video, { hasFootage: await hasFootage(video.id) });
   const row = await db.editProject.create({
     data: {
       userId,
@@ -167,7 +167,7 @@ export const revertProjectForUser = async (userId: string, id: string): Promise<
   if (!project?.sourceVideoId) return null;
   const video = await getVideoForUser(userId, project.sourceVideoId);
   if (!video) return null;
-  const timeline = timelineFromVideo(video, { hasFootage: hasFootage(video.id) });
+  const timeline = timelineFromVideo(video, { hasFootage: await hasFootage(video.id) });
   const row = await db.editProject.update({
     where: { id: project.id },
     data: {

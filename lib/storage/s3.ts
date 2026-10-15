@@ -2,9 +2,12 @@ import "server-only";
 import {
   DeleteObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
+  NoSuchKey,
   PutObjectCommand,
   S3Client,
+  S3ServiceException,
 } from "@aws-sdk/client-s3";
 import { uploadPrefix } from "./upload-key";
 
@@ -32,10 +35,15 @@ export const UPLOAD_TYPES: Record<string, string> = {
 
 export const hasS3Config = () => Boolean(bucketName() && accessKeyId() && secretAccessKey());
 
-const bucketName = () => process.env.AWS_S3_BUCKET?.trim() ?? "";
-const region = () => process.env.AWS_REGION_APP?.trim() || process.env.AWS_REGION?.trim() || "us-east-1";
-const accessKeyId = () => process.env.AWS_ACCESS_KEY_APP?.trim() || process.env.AWS_ACCESS_KEY_ID?.trim() || "";
-const secretAccessKey = () => process.env.AWS_SECRET_KEY_APP?.trim() || process.env.AWS_SECRET_ACCESS_KEY?.trim() || "";
+/**
+ * Vercel sets AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_REGION to its own function role,
+ * and that role can't reach our bucket. Only the app's own names are read.
+ */
+const firstEnv = (...names: string[]) => names.map((name) => process.env[name]?.trim()).find(Boolean) ?? "";
+const bucketName = () => firstEnv("AWS_S3_BUCKET");
+const region = () => firstEnv("AWS_REGION_APP", "POLIVID_AWS_REGION") || "us-east-1";
+const accessKeyId = () => firstEnv("AWS_ACCESS_KEY_APP", "AWS_ACCESS_KEY");
+const secretAccessKey = () => firstEnv("AWS_SECRET_KEY_APP", "AWS_SECRET_KEY");
 
 let client: S3Client | null = null;
 
@@ -80,17 +88,49 @@ export const getUpload = async (key: string) => {
   return { bytes, contentType };
 };
 
+/** Size and type of an object, or null when it doesn't exist. */
+export const statObject = async (key: string) => {
+  try {
+    const response = await s3().send(new HeadObjectCommand({ Bucket: bucketName(), Key: key }));
+    return {
+      size: response.ContentLength ?? 0,
+      contentType: response.ContentType ?? "application/octet-stream",
+      etag: response.ETag ?? null,
+    };
+  } catch (error) {
+    if (error instanceof S3ServiceException && error.$metadata.httpStatusCode === 404) return null;
+    throw error;
+  }
+};
+
+/** Streams bytes start..end (inclusive) of an object. */
+export const streamObjectRange = async (key: string, start: number, end: number) => {
+  const response = await s3().send(
+    new GetObjectCommand({ Bucket: bucketName(), Key: key, Range: `bytes=${start}-${end}` }),
+  );
+  if (!response.Body) throw new Error("The stored file is missing.");
+  return response.Body.transformToWebStream();
+};
+
+export const getObjectIfExists = async (key: string) => {
+  try {
+    return await getUpload(key);
+  } catch (error) {
+    if (error instanceof NoSuchKey) return null;
+    throw error;
+  }
+};
+
 export type StoredUpload = { key: string; size: number; uploadedAt: Date | null };
 
-/** Everything under uploads/{userId}/, newest first. */
-export const listUploads = async (userId: string) => {
+const listObjects = async (prefix: string, limit = Number.POSITIVE_INFINITY) => {
   const items: StoredUpload[] = [];
   let token: string | undefined;
   do {
     const response = await s3().send(
       new ListObjectsV2Command({
         Bucket: bucketName(),
-        Prefix: uploadPrefix(userId),
+        Prefix: prefix,
         ContinuationToken: token,
       }),
     );
@@ -99,7 +139,16 @@ export const listUploads = async (userId: string) => {
       items.push({ key: object.Key, size: object.Size ?? 0, uploadedAt: object.LastModified ?? null });
     }
     token = response.IsTruncated ? response.NextContinuationToken : undefined;
-  } while (token && items.length < MAX_LISTED_UPLOADS);
+  } while (token && items.length < limit);
+  return items;
+};
+
+/** Every key under `prefix`. */
+export const listObjectKeys = async (prefix: string) => (await listObjects(prefix)).map((object) => object.key);
+
+/** Everything under uploads/{userId}/, newest first. */
+export const listUploads = async (userId: string) => {
+  const items = await listObjects(uploadPrefix(userId), MAX_LISTED_UPLOADS);
   return items.sort((a, b) => (b.uploadedAt?.getTime() ?? 0) - (a.uploadedAt?.getTime() ?? 0));
 };
 

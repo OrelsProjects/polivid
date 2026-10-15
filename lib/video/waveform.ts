@@ -1,17 +1,12 @@
 import "server-only";
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { promisify } from "node:util";
-import { footagePath } from "./footage";
+import { withFootageFile } from "./footage";
+import { assertVideoId, putVideoMedia, readVideoMedia } from "./media-store";
 
 const execFileAsync = promisify(execFile);
 
 export const WAVEFORM_RATE = 80;
-
-const VIDEO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MEDIA_DIR = path.join(process.cwd(), "data", "media");
 
 export interface WaveformMeta {
   rate: number;
@@ -19,34 +14,29 @@ export interface WaveformMeta {
   peaks: number[];
 }
 
-export const waveformPath = (id: string) => {
-  if (!VIDEO_ID.test(id)) throw new Error("Invalid video id.");
-  return path.join(MEDIA_DIR, "waveform", `${id}.json`);
-};
+const waveformKey = (id: string) => `waveform/${assertVideoId(id)}.json`;
 
 export const readWaveform = async (id: string): Promise<WaveformMeta | null> => {
-  const file = waveformPath(id);
-  if (!existsSync(file)) return null;
-  const { readFile } = await import("node:fs/promises");
-  return JSON.parse(await readFile(file, "utf8")) as WaveformMeta;
+  const bytes = await readVideoMedia(waveformKey(id));
+  return bytes ? (JSON.parse(Buffer.from(bytes).toString("utf8")) as WaveformMeta) : null;
 };
 
 const writeWaveform = async (id: string, meta: WaveformMeta) => {
-  const file = waveformPath(id);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, JSON.stringify(meta));
+  await putVideoMedia(waveformKey(id), new TextEncoder().encode(JSON.stringify(meta)), "application/json");
   return meta;
 };
 
-export const extractWaveform = async (id: string) => {
-  const source = footagePath(id);
-  if (!existsSync(source)) throw new Error("This video has no filmed clip.");
+const isMissingFfmpeg = (error: unknown) => (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+
+/** Reads peaks from the clip and stores them. Pass `sourceFile` when a local copy is already at hand. */
+export const extractWaveform = async (id: string, sourceFile?: string): Promise<WaveformMeta> => {
+  if (!sourceFile) return withFootageFile(id, (file) => extractWaveform(id, file));
   try {
     const { stdout } = await execFileAsync(
       "ffmpeg",
       [
         "-i",
-        source,
+        sourceFile,
         "-vn",
         "-ac",
         "1",
@@ -72,7 +62,8 @@ export const extractWaveform = async (id: string) => {
     });
     const peaks = raw.map((value) => Math.round((value / max) * 1000) / 1000);
     return writeWaveform(id, { rate: WAVEFORM_RATE, hasAudio: true, peaks });
-  } catch {
+  } catch (error) {
+    if (isMissingFfmpeg(error)) throw error;
     return writeWaveform(id, { rate: WAVEFORM_RATE, hasAudio: false, peaks: [] });
   }
 };

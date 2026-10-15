@@ -32,6 +32,37 @@ const headersFor = (
   };
 };
 
+export interface RangedSource {
+  size: number;
+  etag: string | null;
+  contentType: string;
+  /** Opens bytes start..end (inclusive). */
+  open: (start: number, end: number) => Promise<ReadableStream<Uint8Array>>;
+}
+
+/** Serves a stored file without loading it into memory, and honors Range so the browser can seek. */
+export const rangedStreamResponse = async (
+  source: RangedSource,
+  rangeHeader: string | null,
+  cacheControl = "private, max-age=3600",
+) => {
+  const range = parseByteRange(rangeHeader, source.size);
+  if (range === "invalid") {
+    return new Response("Range Not Satisfiable", {
+      status: 416,
+      headers: { "Content-Range": `bytes */${source.size}` },
+    });
+  }
+  const stream = await source.open(range?.start ?? 0, range?.end ?? source.size - 1);
+  return new Response(stream, {
+    status: range ? 206 : 200,
+    headers: {
+      ...headersFor(source.contentType, cacheControl, source.size, range),
+      ...(source.etag ? { ETag: source.etag } : {}),
+    },
+  });
+};
+
 /** Serves a local file and honors Range so the browser can seek in video and audio. */
 export const rangedFileResponse = async (
   filePath: string,
@@ -40,15 +71,16 @@ export const rangedFileResponse = async (
   cacheControl = "private, max-age=3600",
 ) => {
   const { size, mtimeMs } = await stat(filePath);
-  const range = parseByteRange(rangeHeader, size);
-  if (range === "invalid") {
-    return new Response("Range Not Satisfiable", {
-      status: 416,
-      headers: { "Content-Range": `bytes */${size}` },
-    });
-  }
-  const start = range?.start ?? 0;
-  const end = range?.end ?? size - 1;
+  const source: RangedSource = {
+    size,
+    etag: `"${size}-${Math.round(mtimeMs)}"`,
+    contentType,
+    open: async (start, end) => fileStream(filePath, start, end),
+  };
+  return rangedStreamResponse(source, rangeHeader, cacheControl);
+};
+
+const fileStream = (filePath: string, start: number, end: number) => {
   const file = createReadStream(filePath, { start, end });
   const iterator = file[Symbol.asyncIterator]();
   const stream = new ReadableStream<Uint8Array>({
@@ -74,13 +106,7 @@ export const rangedFileResponse = async (
       void iterator.return?.(undefined).catch(() => undefined);
     },
   });
-  return new Response(stream, {
-    status: range ? 206 : 200,
-    headers: {
-      ...headersFor(contentType, cacheControl, size, range),
-      ETag: `"${size}-${Math.round(mtimeMs)}"`,
-    },
-  });
+  return stream;
 };
 
 /** Serves in-memory bytes (S3 uploads) and honors Range. */

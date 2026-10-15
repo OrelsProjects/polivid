@@ -1,8 +1,9 @@
 import "server-only";
-import { mkdir, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { finishGeminiVideo, submitGeminiVideo } from "./gemini-footage";
+import { assertVideoId, hasVideoMedia, isVideoId, putVideoMedia, readVideoMedia, videoMediaResponse } from "./media-store";
 import { clipDuration, clipResolution, GENERATION_MODELS, generationModelBySlug, type VideoProvider } from "./models";
 import { prepareFootageForSeeking } from "./prepare-footage";
 import {
@@ -22,41 +23,54 @@ export { FootageStopped } from "./provider-http";
 
 const API = "https://openrouter.ai/api/v1";
 
-const MEDIA_DIR = path.join(process.cwd(), "data", "media");
+const footageKey = (id: string) => `${assertVideoId(id)}.mp4`;
 
-const VIDEO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const hasFootage = async (id: string) => isVideoId(id) && hasVideoMedia(footageKey(id));
 
-export const footagePath = (id: string) => {
-  if (!VIDEO_ID.test(id)) throw new Error("Invalid video id.");
-  return path.join(MEDIA_DIR, `${id}.mp4`);
+/** Streams the clip and honors Range. Null when the video has no clip. */
+export const footageResponse = (id: string, rangeHeader: string | null, cacheControl?: string) =>
+  videoMediaResponse(footageKey(id), "video/mp4", rangeHeader, cacheControl);
+
+/** ffmpeg needs a path, so `work` gets a temporary copy that is removed afterwards. */
+const withTempClip = async <T>(id: string, bytes: Uint8Array, work: (file: string) => Promise<T>) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-footage-"));
+  try {
+    const file = path.join(dir, `${id}.mp4`);
+    await writeFile(file, bytes);
+    return await work(file);
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 };
 
-export const hasFootage = (id: string) => {
-  if (!VIDEO_ID.test(id)) return false;
-  return existsSync(footagePath(id));
+/** Runs `work` on a local copy of the stored clip. */
+export const withFootageFile = async <T>(id: string, work: (file: string) => Promise<T>) => {
+  const bytes = await readVideoMedia(footageKey(id));
+  if (!bytes) throw new Error("This video has no filmed clip.");
+  return withTempClip(id, bytes, work);
 };
 
 export const saveFootage = async (id: string, bytes: Uint8Array) => {
-  const file = footagePath(id);
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(file, bytes);
-  try {
-    await prepareFootageForSeeking(file);
-  } catch (error) {
-    console.error("Could not prepare footage for seeking. The clip will still play.", error);
-  }
-  try {
-    const { extractScrubFrames } = await import("./scrub-frames");
-    await extractScrubFrames(id);
-  } catch (error) {
-    console.error("Could not build scrub frames. Dragging the playhead may feel slow.", error);
-  }
-  try {
-    const { extractWaveform } = await import("./waveform");
-    await extractWaveform(id);
-  } catch (error) {
-    console.error("Could not build a waveform. The sound lane may stay empty.", error);
-  }
+  await withTempClip(assertVideoId(id), bytes, async (file) => {
+    try {
+      await prepareFootageForSeeking(file);
+    } catch (error) {
+      console.error("Could not prepare footage for seeking. The clip will still play.", error);
+    }
+    await putVideoMedia(footageKey(id), new Uint8Array(await readFile(file)), "video/mp4");
+    try {
+      const { extractScrubFrames } = await import("./scrub-frames");
+      await extractScrubFrames(id, file);
+    } catch (error) {
+      console.error("Could not build scrub frames. Dragging the playhead may feel slow.", error);
+    }
+    try {
+      const { extractWaveform } = await import("./waveform");
+      await extractWaveform(id, file);
+    } catch (error) {
+      console.error("Could not build a waveform. The sound lane may stay empty.", error);
+    }
+  });
 };
 
 export interface FootageRequest {

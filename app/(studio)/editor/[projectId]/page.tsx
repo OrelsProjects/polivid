@@ -23,14 +23,16 @@ export default function EditorProjectPage({ params }: PageProps<"/editor/[projec
 async function EditorLoader({ projectId }: { projectId: string }) {
   const [project, videos] = await Promise.all([getMyProject(projectId), listMyVideos()]);
   if (!project) notFound();
-  const library: LibraryVideo[] = videos
-    .filter((video) => video.status === "ready")
-    .map((video) => ({
-      id: video.id,
-      title: video.title,
-      format: video.format,
-      length: video.length,
-      hasFootage: hasFootage(video.id),
-    }));
+  const library: LibraryVideo[] = await Promise.all(
+    videos
+      .filter((video) => video.status === "ready")
+      .map(async (video) => ({
+        id: video.id,
+        title: video.title,
+        format: video.format,
+        length: video.length,
+        hasFootage: await hasFootage(video.id),
+      })),
+  );
   return <EditorShell project={project} videos={library} />;
 }

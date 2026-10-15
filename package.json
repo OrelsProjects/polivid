@@ -16,6 +16,7 @@
     "try": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/try-pipeline.ts",
     "test": "tsx --test --test-reporter=spec 'lib/**/*.test.ts'",
     "verify:capabilities": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-capabilities.ts",
+    "media:upload": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/upload-local-media.ts",
     "eval:planners": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/eval-planners.ts"
   },
   "dependencies": {

@@ -1,23 +1,9 @@
 import { readAssetToken } from "@/lib/editor/asset-token";
 import { db } from "@/lib/db";
-import { rangedBytesResponse, rangedFileResponse } from "@/lib/http/range";
+import { rangedBytesResponse } from "@/lib/http/range";
 import { getUpload, hasS3Config } from "@/lib/storage/s3";
 import { isOwnedUploadKey } from "@/lib/storage/upload-key";
-import { footagePath, hasFootage } from "@/lib/video/footage";
-
-const contentTypeFor = (name: string) => {
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
-  if (ext === "png") return "image/png";
-  if (ext === "webp") return "image/webp";
-  if (ext === "mp3") return "audio/mpeg";
-  if (ext === "wav") return "audio/wav";
-  if (ext === "m4a") return "audio/mp4";
-  if (ext === "aac") return "audio/aac";
-  if (ext === "webm") return "video/webm";
-  if (ext === "mov") return "video/quicktime";
-  return "video/mp4";
-};
+import { footageResponse } from "@/lib/video/footage";
 
 export async function GET(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
@@ -47,8 +33,9 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
       where: { id: payload.source.videoId, userId: payload.userId },
       select: { id: true },
     });
-    if (!row || !hasFootage(row.id)) return new Response("Not found.", { status: 404 });
-    return rangedFileResponse(footagePath(row.id), contentTypeFor(footagePath(row.id)), range, "private, max-age=300");
+    if (!row) return new Response("Not found.", { status: 404 });
+    const response = await footageResponse(row.id, range, "private, max-age=300");
+    return response ?? new Response("Not found.", { status: 404 });
   } catch {
     return new Response("Not found.", { status: 404 });
   }

@@ -45,7 +45,7 @@ export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
 async function VideoDetail({ id }: { id: string }) {
   const video = await getMyVideo(id);
   if (!video) notFound();
-  const footageUrl = hasFootage(video.id) ? `/api/videos/${video.id}/file` : undefined;
+  const footageUrl = (await hasFootage(video.id)) ? `/api/videos/${video.id}/file` : undefined;
 
   return (
     <div className="flex flex-col gap-6">
