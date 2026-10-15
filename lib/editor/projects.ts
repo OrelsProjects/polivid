@@ -84,6 +84,22 @@ export const createBlankProjectForUser = async (userId: string, format: VideoFor
 export const createBlankProject = async (format: VideoFormat = "9:16") =>
   createBlankProjectForUser((await getCurrentUser()).id, format);
 
+export const createProjectFromTimelineForUser = async (
+  userId: string,
+  input: { title: string; format: VideoFormat; timeline: Timeline },
+) => {
+  const timeline = parseTimeline(input.timeline);
+  const row = await db.editProject.create({
+    data: {
+      userId,
+      title: input.title.trim() || "Untitled edit",
+      format: input.format,
+      timeline: timeline as unknown as Prisma.InputJsonValue,
+    },
+  });
+  return toView(row);
+};
+
 export const createProjectFromVideoForUser = async (userId: string, videoId: string) => {
   const video = await getVideoForUser(userId, videoId);
   if (!video || video.status !== "ready") return null;

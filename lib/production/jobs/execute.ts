@@ -18,7 +18,7 @@ import {
   updateGenerationJob,
   updateProduction,
 } from "../store";
-import { compileToEditorTimeline } from "../timeline";
+import { openEditorProjectForProduction } from "../editor";
 import { loadBrief, loadStructure } from "./coordinator";
 import { db } from "@/lib/db";
 
@@ -299,11 +299,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       "system",
       step.id,
     );
-    compileToEditorTimeline(
-      { fps: FPS, width: dims.width, height: dims.height, clips, durationSec },
-      production.format as "9:16" | "16:9" | "1:1",
-      assets.map((asset) => ({ id: asset.id, kind: asset.kind as "video" | "audio" | "image", name: asset.id })),
-    );
+    await openEditorProjectForProduction(userId, productionId);
     await finishStep(step.id, "succeeded");
     return;
   }
@@ -314,6 +310,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
   }
 
   if (step.kind === "export") {
+    await openEditorProjectForProduction(userId, productionId);
     await updateProduction(productionId, { status: "ready", stage: "done" });
     await finishStep(step.id, "succeeded");
     return;

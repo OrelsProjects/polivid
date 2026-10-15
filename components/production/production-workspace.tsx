@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
@@ -47,6 +48,7 @@ const statusLine = (production: ProductionView, estimatedCredits: number | null)
 };
 
 export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
+  const router = useRouter();
   const [production, setProduction] = useState(initial);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -140,6 +142,25 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
     setBusy("cancel");
     await fetch(`/api/productions/${production.id}/cancel`, { method: "POST" });
     await refresh();
+    setBusy(null);
+  };
+
+  const handleOpenEditor = async () => {
+    if (production.editProjectId) {
+      router.push(`/editor/${production.editProjectId}`);
+      return;
+    }
+    setBusy("editor");
+    setMessage(null);
+    const response = await fetch(`/api/productions/${production.id}/editor`, { method: "POST" });
+    const json = (await response.json().catch(() => null)) as { project?: { id: string }; error?: string } | null;
+    if (!response.ok || !json?.project?.id) {
+      setMessage(json?.error ?? "Couldn't open this in the editor.");
+      setBusy(null);
+      return;
+    }
+    setProduction((current) => ({ ...current, editProjectId: json.project!.id }));
+    router.push(`/editor/${json.project.id}`);
     setBusy(null);
   };
 
@@ -243,11 +264,15 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
               {estimatedCredits ? `Generate · ${estimatedCredits.toLocaleString()} credits` : "Generate"}
             </Button>
           )}
-          {production.editProjectId && (
-            <Link href={`/editor/${production.editProjectId}`} className={buttonVariants()}>
+          {production.editProjectId ? (
+            <Link href={`/editor/${production.editProjectId}`} className={buttonVariants()} aria-label="Open in editor">
               Open in editor
             </Link>
-          )}
+          ) : production.status === "ready" ? (
+            <Button onClick={() => void handleOpenEditor()} disabled={busy === "editor"} aria-label="Open in editor">
+              {busy === "editor" ? "Opening…" : "Open in editor"}
+            </Button>
+          ) : null}
           {LIVE_STATUSES.includes(production.status) && (
             <Button variant="outline" onClick={() => void handleCancel()} disabled={busy === "cancel"}>
               Cancel

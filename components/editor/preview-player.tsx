@@ -50,7 +50,7 @@ const PreviewStage = ({ playerRef }: { playerRef: RefObject<PlayerRef | null> })
           compositionHeight={height}
           style={{ width: "100%", height: "100%" }}
           controls={false}
-          initiallyMuted
+          initiallyMuted={false}
           clickToPlay={false}
         />
         <ScrubOverlay />
@@ -73,6 +73,7 @@ const usePreviewSync = (playerRef: RefObject<PlayerRef | null>) => {
     if (!player) return;
     if (isPlaying) {
       if (player.getCurrentFrame() !== playheadRef.current) player.seekTo(playheadRef.current);
+      player.unmute();
       player.play();
       return;
     }

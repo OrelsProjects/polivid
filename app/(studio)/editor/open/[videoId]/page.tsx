@@ -17,6 +17,6 @@ export default function OpenVideoEditorPage({ params }: PageProps<"/editor/open/
 async function OpenVideoEditor({ videoId }: { videoId: string }) {
   const user = await getCurrentUser();
   const project = await openProjectForVideoForUser(user.id, videoId);
-  if (!project) redirect(`/videos/${videoId}`);
-  redirect(`/editor/${project.id}`);
+  if (!project) return redirect(`/videos/${videoId}`);
+  return redirect(`/editor/${project.id}`);
 }

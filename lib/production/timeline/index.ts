@@ -2,6 +2,7 @@ import { FPS, dimensionsFor, type VideoFormat } from "@/lib/video/schema";
 import {
   defaultTransform,
   emptyTimeline,
+  makeTrack,
   newId,
   type AudioItem,
   type Timeline,
@@ -80,14 +81,22 @@ export const compileToEditorTimeline = (
     }
   }
 
+  const audioTracks =
+    audioItems.length === 0
+      ? timeline.tracks.filter((track) => track.kind === "audio")
+      : audioItems.map((item, index) => ({
+          ...makeTrack("audio", audioItems.length === 1 ? "Audio" : `Audio ${index + 1}`),
+          items: [item],
+        }));
+
   return {
     ...timeline,
     assets: mappedAssets,
-    tracks: timeline.tracks.map((track, index) => {
-      if (index === 0) return { ...track, items: videoItems };
-      if (track.kind === "audio") return { ...track, items: audioItems };
-      return track;
-    }),
+    tracks: [
+      { ...timeline.tracks[0]!, items: videoItems },
+      ...timeline.tracks.filter((track) => track.kind === "text"),
+      ...audioTracks,
+    ],
   };
 };
 

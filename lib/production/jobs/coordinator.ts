@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { getPlanner, plannerProvider } from "../planner";
 import { applyAnswers, needsUserQuestions, runDevelopPass, runStructurePass } from "../plan";
 import { resumeTarget } from "./resume";
-import { preflight } from "../capabilities";
+import { preflight, repairPreflightStructure } from "../capabilities";
 import { estimatePlanCost } from "../cost";
 import type { AudioSegment, Character, CreativeBrief, DevelopOutput, InputRecord, Location, Shot, StructureOutput } from "../schema";
 import {
@@ -18,6 +18,40 @@ import { labelForPlanningStep, type PlanningProgress, type PlanningStepKey } fro
 import { persistDevelop, persistStructure } from "./persist";
 
 const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24);
+
+const preflightOrRepair = async (
+  productionId: string,
+  develop: DevelopOutput,
+  structure: StructureOutput,
+  budgetUsd: number,
+  plannerUsd: number,
+) => {
+  const cost = estimatePlanCost({ develop, structure }, { plannerUsd });
+  const check = preflight({ develop, structure }, { budgetUsd, estimatedUsd: cost.total });
+  if (check.ok) return { ok: true as const, cost };
+  const repaired = repairPreflightStructure(structure, check.issues);
+  const second = preflight({ develop, structure: repaired }, { budgetUsd, estimatedUsd: cost.total });
+  if (!second.ok) {
+    return { ok: false as const, message: second.issues.map((issue) => issue.message).join(" ") };
+  }
+  await persistStructure(productionId, repaired);
+  return { ok: true as const, cost };
+};
+
+const markPreview = async (productionId: string, userId: string, cost: { total: number }) => {
+  const productionMode = (await (await import("@/lib/db")).db.production.findUnique({ where: { id: productionId } }))!;
+  await updateProduction(productionId, { status: "preview", stage: "preview", error: null });
+  if (productionMode.mode === "auto" && productionMode.creativeDelegation) {
+    const { approveGenerationCharged } = await import("@/lib/billing/production");
+    const { InsufficientCreditsError } = await import("@/lib/billing/errors");
+    try {
+      await approveGenerationCharged(productionId, userId);
+    } catch (error) {
+      if (!(error instanceof InsufficientCreditsError)) throw error;
+    }
+  }
+  return { status: "preview" as const, cost };
+};
 
 export const startPlanning = async (
   productionId: string,
@@ -94,27 +128,18 @@ const finishFromDevelop = async (
   }
   await persistStructure(productionId, structured.structure);
   report("cost");
-  const cost = estimatePlanCost({ develop, structure: structured.structure }, { plannerUsd: (options.plannerUsd ?? 0) + structured.usage.usd });
-  const check = preflight(
-    { develop, structure: structured.structure },
-    { budgetUsd: Number(productionMode.budgetUsd), estimatedUsd: cost.total },
+  const accepted = await preflightOrRepair(
+    productionId,
+    develop,
+    structured.structure,
+    Number(productionMode.budgetUsd),
+    (options.plannerUsd ?? 0) + structured.usage.usd,
   );
-  if (!check.ok) {
-    return fail(check.issues.map((issue) => issue.message).join(" "));
-  }
+  if (!accepted.ok) return fail(accepted.message);
   report("ready");
-  await updateProduction(productionId, { status: "preview", stage: "preview", error: null });
-  if (productionMode.mode === "auto" && productionMode.creativeDelegation) {
-    const { approveGenerationCharged } = await import("@/lib/billing/production");
-    const { InsufficientCreditsError } = await import("@/lib/billing/errors");
-    try {
-      await approveGenerationCharged(productionId, userId);
-    } catch (error) {
-      if (!(error instanceof InsufficientCreditsError)) throw error;
-    }
-  }
+  const result = await markPreview(productionId, userId, accepted.cost);
   report("ready", "done");
-  return { status: "preview" as const, cost };
+  return result;
 };
 
 export const loadDevelop = async (productionId: string): Promise<DevelopOutput | null> => {
@@ -159,6 +184,12 @@ export const resumeFromLastStep = async (productionId: string, userId: string) =
     if (needsUserQuestions(develop, production.creativeDelegation) && !develop.questions.questions.some((question) => question.answer)) {
       await updateProduction(productionId, { status: "awaiting_answers", stage: "develop", error: null });
       return { status: "awaiting_answers" as const };
+    }
+    await updateProduction(productionId, { status: "drafting", stage: "structure", error: null });
+    const existing = await loadStructure(productionId);
+    if (existing) {
+      const accepted = await preflightOrRepair(productionId, develop, existing, Number(production.budgetUsd), 0);
+      if (accepted.ok) return markPreview(productionId, userId, accepted.cost);
     }
     return finishFromDevelop(productionId, userId, develop, { retryNotes: production.error });
   }

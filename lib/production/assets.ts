@@ -38,6 +38,16 @@ export const readProductionBytes = async (storageKey: string) => {
   return { bytes, contentType: mimeFor(storageKey) };
 };
 
+export const overwriteProductionBytes = async (storageKey: string, bytes: Uint8Array, mime: string) => {
+  if (hasS3Config() && storageKey.startsWith("productions/")) {
+    await putUpload(storageKey, bytes, mime);
+    return;
+  }
+  const file = localPath(storageKey);
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, bytes);
+};
+
 const localPath = (key: string) => {
   const parts = key.split("/");
   if (parts.some((part) => part === ".." || part === "")) throw new Error("Invalid storage key.");

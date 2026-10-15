@@ -164,9 +164,6 @@ export const activityLabel = (args: {
     const target = prettyTarget(running.targetKey);
     return target ? `${label} · ${target}` : label;
   }
-  if (args.status === "drafting" || args.status === "awaiting_answers" || args.status === "preview") {
-    return STAGE_LABEL[args.stage] ?? STATUS_LABEL[args.status];
-  }
   return STAGE_LABEL[args.stage] ?? STATUS_LABEL[args.status];
 };
 

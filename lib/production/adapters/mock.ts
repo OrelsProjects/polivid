@@ -1,4 +1,5 @@
 import { capabilityById } from "../capabilities";
+import { playablePlaceholderMp4, toneWav } from "../placeholder-media";
 import type { AdapterJob, AdapterRequest, MediaAdapter } from "./types";
 
 const jobs = new Map<string, AdapterJob>();
@@ -7,30 +8,6 @@ const submittedKeys = new Map<string, string>();
 export const resetMockAdapters = () => {
   jobs.clear();
   submittedKeys.clear();
-};
-
-const wavHeader = (durationSec: number) => {
-  const sampleRate = 8000;
-  const samples = Math.max(1, Math.round(sampleRate * durationSec));
-  const bytes = new Uint8Array(44 + samples * 2);
-  const view = new DataView(bytes.buffer);
-  const write = (offset: number, text: string) => {
-    for (let i = 0; i < text.length; i += 1) bytes[offset + i] = text.charCodeAt(i);
-  };
-  write(0, "RIFF");
-  view.setUint32(4, 36 + samples * 2, true);
-  write(8, "WAVE");
-  write(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  write(36, "data");
-  view.setUint32(40, samples * 2, true);
-  return bytes;
 };
 
 const pngBytes = () =>
@@ -89,18 +66,21 @@ export const createMockAdapter = (id: string): MediaAdapter => ({
 
     if (id === "video") {
       const span = request.interactionContext ? "full" : undefined;
-      return complete(providerJobId, request, "video/mp4", mp4Placeholder(request.prompt), {
+      const bytes = await playablePlaceholderMp4().catch(() => mp4Placeholder(request.prompt));
+      return complete(providerJobId, request, "video/mp4", bytes, {
         interactionContext: { turn: 1, prompt: request.prompt },
         extensionSpan: span ?? (request.modelId.includes("omni") ? "full" : "new_only"),
       });
     }
     if (id === "image") return complete(providerJobId, request, "image/png", pngBytes());
     if (id === "speech" || id === "music" || id === "sfx") {
-      return complete(providerJobId, request, "audio/wav", wavHeader(request.durationSec ?? 3), {
+      const freq = id === "speech" ? 220 : id === "music" ? 330 : 880;
+      const bytes = toneWav(request.durationSec ?? 3, freq);
+      return complete(providerJobId, request, "audio/wav", bytes, {
         outputs: [
           {
             mime: "audio/wav",
-            bytes: wavHeader(request.durationSec ?? 3),
+            bytes,
             json: { durationSec: request.durationSec ?? 3 },
           },
         ],
@@ -116,7 +96,8 @@ export const createMockAdapter = (id: string): MediaAdapter => ({
           error: "sync_mode is required so footage is not looped, reversed, sped up, or truncated.",
         };
       }
-      return complete(providerJobId, request, "video/mp4", mp4Placeholder("lipsync"));
+      const bytes = await playablePlaceholderMp4().catch(() => mp4Placeholder("lipsync"));
+      return complete(providerJobId, request, "video/mp4", bytes);
     }
     if (id === "transcribe") {
       return complete(providerJobId, request, "application/json", new Uint8Array(), {

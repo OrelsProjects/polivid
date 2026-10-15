@@ -34,6 +34,8 @@ export function TimelineItemView({
   const width = Math.max(8, item.durationInFrames * zoom);
   const asset = "assetId" in item ? assetById(timeline, item.assetId) : null;
   const videoId = item.kind === "video" && asset?.source.type === "video" ? asset.source.videoId : null;
+  const productionVideoSrc =
+    item.kind === "video" && asset?.source.type === "production" ? browserAssetUrl(asset) : null;
   const imageSrc = item.kind === "image" && asset ? browserAssetUrl(asset) : null;
   const label = item.kind === "text" ? item.text : item.kind === "scene" ? item.scene.headline : KIND_LABEL[item.kind];
 
@@ -104,6 +106,16 @@ export function TimelineItemView({
           startSeconds={item.trimStart / FPS}
           durationSeconds={item.durationInFrames / FPS}
           width={width}
+        />
+      ) : null}
+      {productionVideoSrc ? (
+        <video
+          src={`${productionVideoSrc}#t=${Math.max(0.05, item.trimStart / FPS)}`}
+          muted
+          playsInline
+          preload="metadata"
+          className="pointer-events-none h-full w-full object-cover"
+          aria-hidden
         />
       ) : null}
       {imageSrc ? (

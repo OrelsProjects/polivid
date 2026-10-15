@@ -153,3 +153,20 @@ export const preflight = (
   void neededRefs;
   return { ok: issues.every((entry) => entry.severity !== "error"), issues };
 };
+
+export const repairPreflightStructure = (structure: StructureOutput, issues: PreflightIssue[]): StructureOutput => {
+  const blocked = new Set(
+    issues.filter((issue) => issue.code === "omni-no-first-and-refs-mix-unverified" && issue.shotId).map((issue) => issue.shotId as string),
+  );
+  if (blocked.size === 0) return structure;
+  return {
+    ...structure,
+    shots: structure.shots.map((shot) => {
+      if (!blocked.has(shot.id)) return shot;
+      return {
+        ...shot,
+        refs: shot.refs.filter((ref) => ref.role !== "subject_ref" && ref.role !== "style_ref"),
+      };
+    }),
+  };
+};

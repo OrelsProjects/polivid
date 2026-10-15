@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import test from "node:test";
 import { mockAdapterSet, resetMockAdapters } from "./adapters/mock";
-import { checkCapabilityCombo, preflight } from "./capabilities";
+import { checkCapabilityCombo, preflight, repairPreflightStructure } from "./capabilities";
 import { defaultVideoCapability } from "./capabilities/registry";
 import { compileShotPrompt } from "./compile";
 import { applyExtension, decideSubmit, nextLipsyncStep } from "./jobs/idempotency";
@@ -17,6 +17,7 @@ import { invalidate } from "./revisions";
 import { compareTranscript } from "./review/speech";
 import { checkMediaFile, timelineDuration } from "./review/ffmpeg";
 import { DevelopOutputSchema, StructureOutputSchema } from "./schema";
+import { TimelineSchema } from "@/lib/editor/schema";
 import { compileToEditorTimeline, validateProductionTimeline } from "./timeline";
 
 const execFileAsync = promisify(execFile);
@@ -147,9 +148,16 @@ test("unsupported feature combinations fail before paid generation", () => {
   });
   assert.ok(issues.some((issue) => issue.severity === "error"));
   const plan = { develop: mockDevelop("delegate someone waiting"), structure: mockStructure() };
-  plan.structure.shots[0]!.generationDurationSec = 120;
   const result = preflight(plan, { budgetUsd: 15, estimatedUsd: 1, videoModelId: "video-omni" });
   assert.equal(result.ok, false);
+  const repaired = repairPreflightStructure(plan.structure, result.issues);
+  assert.ok(repaired.shots.some((shot) => shot.continuity === "continue_shot" && !shot.refs.some((ref) => ref.role === "subject_ref" || ref.role === "style_ref")));
+  const second = preflight({ develop: plan.develop, structure: repaired }, { budgetUsd: 15, estimatedUsd: 1, videoModelId: "video-omni" });
+  assert.equal(second.ok, true);
+  plan.structure.shots[0]!.generationDurationSec = 120;
+  const duration = preflight(plan, { budgetUsd: 15, estimatedUsd: 1, videoModelId: "video-omni" });
+  assert.equal(duration.ok, false);
+  assert.ok(duration.issues.some((issue) => issue.code === "duration_unsupported"));
 });
 
 test("a structure retry drops the unverified Omni combo", async () => {
@@ -211,9 +219,29 @@ test("exported media matches the intended timeline", async () => {
     { id: "a2", kind: "audio", name: "music" },
   ]);
   assert.equal(editor.assets[0]?.source.type, "production");
+  assert.equal(TimelineSchema.parse(editor).format, "9:16");
   const videoItem = editor.tracks[0]?.items[0];
   assert.equal(videoItem?.kind, "video");
   assert.equal(videoItem?.durationInFrames, 240);
+  const audioTracks = editor.tracks.filter((track) => track.kind === "audio");
+  assert.equal(audioTracks.length, 1);
+  assert.equal(audioTracks[0]?.items[0]?.kind, "audio");
+  const layered = compileToEditorTimeline(
+    {
+      ...production,
+      clips: [
+        ...clips,
+        { id: "d1", shotId: "shot_1", assetId: "a3", kind: "audio" as const, startSec: 1, durationSec: 3, trimInSec: 0, trimOutSec: 3, volume: 1, fadeInSec: 0, fadeOutSec: 0, transition: null },
+      ],
+    },
+    "9:16",
+    [
+      { id: "a1", kind: "video", name: "shot" },
+      { id: "a2", kind: "audio", name: "music" },
+      { id: "a3", kind: "audio", name: "dialogue" },
+    ],
+  );
+  assert.equal(layered.tracks.filter((track) => track.kind === "audio").length, 2);
 
   const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-timeline-"));
   const file = path.join(dir, "clip.mp4");

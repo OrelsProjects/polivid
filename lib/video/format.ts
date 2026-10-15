@@ -76,6 +76,9 @@ export const placeholderIds = (text: string) =>
 
 export const stripPlaceholders = (text: string) => text.replace(PLACEHOLDER, "");
 
+export const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
 export const domainOf = (url: string) => {
   try {
     return new URL(url).hostname.replace(/^www\./, "");

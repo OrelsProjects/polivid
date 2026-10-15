@@ -74,7 +74,7 @@ export function ScrubOverlay() {
 
         if (item.kind === "text") {
           return (
-            <div key={item.id} style={layerStyle(item.transform, item.opacity)}>
+            <div key={item.id} style={layerStyle(item.transform, 1)}>
               <div
                 style={{
                   maxWidth: "86%",

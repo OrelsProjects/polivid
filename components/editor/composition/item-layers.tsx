@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AbsoluteFill,
   Audio,
@@ -34,10 +35,11 @@ export function VideoLayer({
   src: string | null;
   muted: boolean;
 }) {
-  if (!src) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
     return (
       <AbsoluteFill style={{ background: "#111", color: "#fff", alignItems: "center", justifyContent: "center" }}>
-        {asset?.name ?? "Missing clip"}
+        {failed ? "This clip isn't playable." : (asset?.name ?? "Missing clip")}
       </AbsoluteFill>
     );
   }
@@ -47,6 +49,7 @@ export function VideoLayer({
     volume: muted ? 0 : item.volume,
     muted,
     style: { width: "100%", height: "100%", objectFit: item.transform.fit },
+    onError: () => setFailed(true),
   };
   return (
     <AbsoluteFill style={transformStyle(coverFrame(item.transform), item.opacity)}>
