@@ -13,6 +13,9 @@ import {
   type VideoJobView,
 } from "./job-status";
 
+/** Model slug stamped on edit exports, so they can be kept out of the video library. */
+export const EDITOR_EXPORT_MODEL = "editor";
+
 export interface VideoJobInput {
   prompt: string;
   format: string;
@@ -160,12 +163,13 @@ export const getVideoJobForUser = async (userId: string, jobId: string): Promise
   return job ? toView(job) : null;
 };
 
+/** Open jobs shown in the video library. Edit exports report progress in the editor instead. */
 export const listActiveVideoJobs = async (userId: string): Promise<VideoJobView[]> => {
   const jobs = await db.videoJob.findMany({
     where: { userId, status: { in: ["queued", "running"] } },
     orderBy: { createdAt: "desc" },
   });
-  return jobs.map(toView);
+  return jobs.filter((job) => readJobInput(job.input).model !== EDITOR_EXPORT_MODEL).map(toView);
 };
 
 const toView = (job: {

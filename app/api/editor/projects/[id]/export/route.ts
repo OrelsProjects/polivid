@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { getProjectForUser } from "@/lib/editor/projects";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
-import { createQueuedVideoJob } from "@/lib/video/jobs";
+import { createQueuedVideoJob, EDITOR_EXPORT_MODEL } from "@/lib/video/jobs";
 import { FPS } from "@/lib/video/schema";
 import { startVideoJob } from "@/lib/video/worker";
 
@@ -23,7 +23,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       prompt: project.title,
       format: project.format,
       length,
-      model: "editor",
+      model: EDITOR_EXPORT_MODEL,
       mode: "editor-export",
       projectId: project.id,
     });

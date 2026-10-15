@@ -1,6 +1,5 @@
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import { Readable } from "node:stream";
 
 export const parseByteRange = (header: string | null, size: number) => {
   if (!header) return null;
@@ -50,7 +49,31 @@ export const rangedFileResponse = async (
   }
   const start = range?.start ?? 0;
   const end = range?.end ?? size - 1;
-  const stream = Readable.toWeb(createReadStream(filePath, { start, end })) as ReadableStream;
+  const file = createReadStream(filePath, { start, end });
+  const iterator = file[Symbol.asyncIterator]();
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await iterator.next();
+        if (done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(value as Uint8Array);
+      } catch {
+        file.destroy();
+        try {
+          controller.error(new Error("Could not read the video."));
+        } catch {
+          // The browser closed the stream after seeking or leaving the page.
+        }
+      }
+    },
+    cancel() {
+      file.destroy();
+      void iterator.return?.(undefined).catch(() => undefined);
+    },
+  });
   return new Response(stream, {
     status: range ? 206 : 200,
     headers: {

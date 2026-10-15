@@ -1,7 +1,26 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    localPatterns: [
+      { pathname: "/api/uploads/**" },
+      { pathname: "/api/videos/**" },
+      { pathname: "/api/editor/assets/**" },
+      { pathname: "/api/productions/assets/**" },
+    ],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.googleusercontent.com",
+        pathname: "/**",
+      },
+    ],
+  },
   serverExternalPackages: ["@remotion/renderer", "@remotion/bundler"],
   experimental: {
     agentFeedback: true,

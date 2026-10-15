@@ -2,7 +2,7 @@ import "server-only";
 import type { Prisma, Video } from "@/generated/prisma/client";
 import { db } from "./db";
 import { getCurrentUser } from "./session";
-import { listActiveVideoJobs } from "./video/jobs";
+import { EDITOR_EXPORT_MODEL, listActiveVideoJobs } from "./video/jobs";
 import type { VideoJobView } from "./video/job-status";
 import type {
   Fact,
@@ -28,7 +28,7 @@ export async function listMyActiveJobs(): Promise<VideoJobView[]> {
 export async function listMyVideos(): Promise<VideoRecord[]> {
   const user = await getCurrentUser();
   const rows = await db.video.findMany({
-    where: { userId: user.id },
+    where: { userId: user.id, model: { not: EDITOR_EXPORT_MODEL } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map(toRecord);

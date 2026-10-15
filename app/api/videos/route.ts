@@ -14,7 +14,6 @@ import {
   VIDEO_MODE_IDS,
   VIDEO_TIERS,
 } from "@/lib/video/modes";
-import { resumeOpenVideos, startVideoJob } from "@/lib/video/worker";
 import { MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, VIDEO_FORMATS } from "@/lib/video/schema";
 
 const CreateVideoSchema = z.object({
@@ -120,9 +119,11 @@ export async function POST(request: Request) {
       showText: parsed.data.showText,
       creditsHeld: credits,
     });
-    void startVideoJob(userId, job.id).catch((error) => {
-      console.error("Video stopped", error);
-    });
+    void import("@/lib/video/worker")
+      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
+      .catch((error) => {
+        console.error("Video stopped", error);
+      });
     return Response.json({ jobId: job.id }, { status: 202 });
   } catch (error) {
     if (error instanceof InsufficientCreditsError) return insufficientCreditsResponse(error);
@@ -147,20 +148,27 @@ const missingUpload = (kind: "image" | "audio" | "video" | "media", userId: stri
 
 /** Active jobs for the signed-in user, so a fresh page can pick them up. */
 export async function GET(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return Response.json({ error: "Sign in to see your videos." }, { status: 401 });
+  try {
+    const session = await auth();
+    const userId = session?.user?.id;
+    if (!userId) return Response.json({ error: "Sign in to see your videos." }, { status: 401 });
 
-  const status = new URL(request.url).searchParams.get("status");
-  if (status !== "active") {
-    return Response.json({ error: "Pass status=active." }, { status: 400 });
-  }
+    const status = new URL(request.url).searchParams.get("status");
+    if (status !== "active") {
+      return Response.json({ error: "Pass status=active." }, { status: 400 });
+    }
 
-  const jobs = await listActiveVideoJobs(userId);
-  if (jobs.length > 0) {
-    void resumeOpenVideos(userId).catch((error) => {
-      console.error("Could not resume videos", error);
-    });
+    const jobs = await listActiveVideoJobs(userId);
+    if (jobs.length > 0) {
+      void import("@/lib/video/worker")
+        .then(({ resumeOpenVideos }) => resumeOpenVideos(userId))
+        .catch((error) => {
+          console.error("Could not resume videos", error);
+        });
+    }
+    return Response.json({ jobs });
+  } catch (error) {
+    console.error("Could not list videos", error);
+    return Response.json({ error: "Couldn't load your videos. Try again." }, { status: 500 });
   }
-  return Response.json({ jobs });
 }

@@ -12,8 +12,14 @@ import { AUDIO_EXTS, IMAGE_EXTS, VIDEO_EXTS, isImageKey, isOwnedUploadKey, uploa
 
 /** The signed-in user's picture library, newest first. */
 export async function GET(request: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
+  let userId: string | undefined;
+  try {
+    const session = await auth();
+    userId = session?.user?.id;
+  } catch (error) {
+    console.error("Could not list uploads", error);
+    return Response.json({ error: "Couldn't load your pictures. Try again." }, { status: 500 });
+  }
   if (!userId) return Response.json({ error: "Sign in to see your pictures." }, { status: 401 });
   if (!hasS3Config()) return Response.json({ uploads: [] });
 

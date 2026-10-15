@@ -285,7 +285,9 @@ const filmDemo = async (userId: string, jobId: string, input: JobInput) => {
   await transitionVideoJob(jobId, "succeeded", { outputUrl: null, error: null });
 };
 
+/** A failed edit export stays on its job, where the export dialog shows the error. It is not a video. */
 const saveFailedVideo = async (userId: string, jobId: string, input: ReturnType<typeof readJobInput>, message: string) => {
+  if (input.mode === "editor-export") return;
   const format = isFormat(input.format) ? input.format : "9:16";
   try {
     await createVideo(userId, {
