@@ -8,13 +8,13 @@ import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { FPS, dimensionsFor } from "@/lib/video/schema";
 import { prefetchScrubFrames } from "@/lib/editor/scrub-preview";
 import { loadWaveform } from "@/lib/editor/waveform-preview";
-import { useEditorActions, useEditorPlayback, useEditorState, useEditorTimeline } from "./editor-provider";
+import { useEditorActions, useEditorPlayback, useEditorSelection, useEditorTimeline } from "./editor-provider";
 import { ScrubOverlay } from "./scrub-overlay";
 import { TransformOverlay } from "./transform-overlay";
 
 const PreviewStage = ({ playerRef }: { playerRef: RefObject<PlayerRef | null> }) => {
   const timeline = useEditorTimeline();
-  const { selection } = useEditorState();
+  const selection = useEditorSelection();
   const { width, height } = dimensionsFor(timeline.format);
   const durationInFrames = timelineDurationInFrames(timeline);
   const inputProps = useMemo(

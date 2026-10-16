@@ -11,6 +11,7 @@ test("regenerate clones settings onto a new preview production", () => {
     budgetUsd: 15,
     format: "9:16",
     targetDurationSec: 30,
+    characterId: "11111111-2222-3333-4444-555555555555",
   });
   assert.deepEqual(cloned, {
     title: "The letter",
@@ -22,6 +23,7 @@ test("regenerate clones settings onto a new preview production", () => {
     budgetUsd: 15,
     format: "9:16",
     targetDurationSec: 30,
+    characterId: "11111111-2222-3333-4444-555555555555",
   });
   assert.equal("editProjectId" in cloned, false);
   assert.equal("spentUsd" in cloned, false);

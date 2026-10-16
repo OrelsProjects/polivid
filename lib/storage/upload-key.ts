@@ -21,8 +21,11 @@ export const ownedUploadKey = (userId: string, name: string) => {
   return isOwnedUploadKey(userId, key) ? key : null;
 };
 
+/** The object name at the end of an upload key, as used in `/api/uploads/[name]`. */
+export const uploadFileName = (key: string) => key.slice(key.lastIndexOf("/") + 1);
+
 /** Signed-in URL that serves an upload. The bucket itself stays private. */
-export const uploadFileUrl = (key: string) => `/api/uploads/${key.slice(key.lastIndexOf("/") + 1)}`;
+export const uploadFileUrl = (key: string) => `/api/uploads/${uploadFileName(key)}`;
 
 /** Only keys this user uploaded, under uploads/{userId}/. */
 export const isOwnedUploadKey = (userId: string, key: string) => {

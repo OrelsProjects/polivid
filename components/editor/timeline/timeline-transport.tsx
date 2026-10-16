@@ -4,12 +4,12 @@ import { Pause, Play, Scissors, SkipBack } from "lucide-react";
 import { addTrack, splitItem } from "@/lib/editor/operations";
 import { findItem, timelineDurationInFrames } from "@/lib/editor/schema";
 import { formatClock } from "@/lib/editor/timecode";
-import { useEditorActions, useEditorPlayback, useEditorState, useEditorTimeline } from "../editor-provider";
+import { useEditorActions, useEditorPlayback, useEditorSelection, useEditorTimeline } from "../editor-provider";
 import { ZoomControl } from "./zoom-control";
 
 export function TimelineTransport() {
   const timeline = useEditorTimeline();
-  const { selection } = useEditorState();
+  const selection = useEditorSelection();
   const { playheadFrame, isPlaying } = useEditorPlayback();
   const actions = useEditorActions();
   const durationInFrames = timelineDurationInFrames(timeline);

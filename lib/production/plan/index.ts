@@ -10,6 +10,7 @@ export interface PlanContext {
   language: string;
   answers?: Record<string, string>;
   delegated: boolean;
+  styleLock?: string | null;
 }
 
 export const runDevelopPass = async (planner: Planner, context: PlanContext) => {

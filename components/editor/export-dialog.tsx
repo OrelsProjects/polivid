@@ -2,55 +2,34 @@
 
 import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { skipToken } from "@reduxjs/toolkit/query";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { VideoJobView } from "@/lib/video/job-status";
-import { useEditorState } from "./editor-provider";
+import { apiErrorMessage } from "@/lib/store/api-errors";
+import { useExportEditProjectMutation } from "@/lib/store/endpoints/editor";
+import { useGetVideoJobQuery } from "@/lib/store/endpoints/videos";
+import { useEditorProjectId } from "./editor-provider";
+
+const POLL_MS = 2000;
 
 export function ExportDialog() {
-  const { projectId } = useEditorState();
+  const projectId = useEditorProjectId();
   const [open, setOpen] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
-  const [job, setJob] = useState<VideoJobView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [exportProject, { isLoading: starting }] = useExportEditProjectMutation();
+  const { data: job } = useGetVideoJobQuery(jobId && open ? jobId : skipToken, { pollingInterval: POLL_MS });
 
   const handleExport = async () => {
     if (starting) return;
-    setStarting(true);
     setError(null);
     setOpen(true);
     try {
-      const response = await fetch(`/api/editor/projects/${projectId}/export`, { method: "POST" });
-      const body = (await response.json().catch(() => null)) as { jobId?: string; error?: string } | null;
-      if (!response.ok || !body?.jobId) {
-        setError(body?.error ?? "Couldn't start the export.");
-        return;
-      }
-      setJobId(body.jobId);
-    } catch {
-      setError("Couldn't start the export.");
-    } finally {
-      setStarting(false);
+      setJobId(await exportProject(projectId).unwrap());
+    } catch (cause) {
+      setError(apiErrorMessage(cause, "Couldn't start the export."));
     }
   };
-
-  useEffect(() => {
-    if (!jobId || !open) return;
-    let stopped = false;
-    const tick = async () => {
-      const response = await fetch(`/api/videos/${jobId}`, { cache: "no-store" });
-      if (!response.ok || stopped) return;
-      const next = (await response.json()) as VideoJobView;
-      setJob(next);
-    };
-    void tick();
-    const timer = window.setInterval(() => void tick(), 2000);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [jobId, open]);
 
   const done = job?.status === "succeeded";
   const failed = job?.status === "failed";

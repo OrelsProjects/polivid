@@ -55,6 +55,9 @@ export const createProductionForUser = async (
     plannerProvider: PlannerProvider;
     budgetUsd: number;
     attachments?: Attachment[];
+    presetId?: string | null;
+    visualDirection?: string | null;
+    characterId?: string | null;
   },
 ) => {
   const title = titleFrom(input.text);
@@ -71,6 +74,9 @@ export const createProductionForUser = async (
       budgetUsd: input.budgetUsd,
       format: input.format,
       targetDurationSec: input.durationSec,
+      presetId: input.presetId ?? null,
+      visualDirection: input.visualDirection ?? null,
+      characterId: input.characterId ?? null,
     },
   });
   await putEntity(production.id, "input", "input", {
@@ -100,6 +106,9 @@ export const getProductionForUser = async (userId: string, id: string): Promise<
     plannerProvider: row.plannerProvider as PlannerProvider,
     format: row.format,
     targetDurationSec: row.targetDurationSec,
+    presetId: row.presetId,
+    visualDirection: row.visualDirection,
+    characterId: row.characterId,
     budgetUsd: money(row.budgetUsd),
     spentUsd: money(row.spentUsd),
     error: row.error,

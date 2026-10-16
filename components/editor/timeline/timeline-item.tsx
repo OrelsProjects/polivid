@@ -8,7 +8,12 @@ import { browserAssetUrl } from "@/lib/editor/asset-url";
 import { productionFilmstripUrl } from "@/lib/editor/filmstrip";
 import { FPS } from "@/lib/video/schema";
 import { cn } from "@/lib/utils";
-import { useEditorActions, useEditorPlaybackRef, useEditorState } from "../editor-provider";
+import {
+  useEditorActions,
+  useEditorSelection,
+  useEditorZoom,
+  useGetEditorPlayback,
+} from "../editor-provider";
 import { ClipFilmstrip } from "./clip-filmstrip";
 import { VideoFilmstrip } from "./video-filmstrip";
 
@@ -29,8 +34,9 @@ export function TimelineItemView({
   item: TimelineItem;
   timeline: Timeline;
 }) {
-  const { zoom, selection } = useEditorState();
-  const playbackRef = useEditorPlaybackRef();
+  const zoom = useEditorZoom();
+  const selection = useEditorSelection();
+  const getPlayback = useGetEditorPlayback();
   const actions = useEditorActions();
   const selected = selection?.itemId === item.id;
   const width = Math.max(8, item.durationInFrames * zoom);
@@ -55,7 +61,7 @@ export function TimelineItemView({
 
     const handleMove = (moveEvent: PointerEvent) => {
       const delta = Math.round((moveEvent.clientX - startX) / zoom);
-      const candidates = snapCandidates(timeline, playbackRef.current.playheadFrame, [item.id]);
+      const candidates = snapCandidates(timeline, getPlayback().playheadFrame, [item.id]);
       if (mode === "move") {
         const from = snapFrame(Math.max(0, startFrom + delta), candidates, zoom);
         actions.updateTimeline(moveItem(timeline, item.id, from, track.id));

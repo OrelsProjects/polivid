@@ -1,9 +1,9 @@
 "use client";
 
-import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM, useEditorActions, useEditorState } from "../editor-provider";
+import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM, useEditorActions, useEditorZoom } from "../editor-provider";
 
 export function ZoomControl() {
-  const { zoom } = useEditorState();
+  const zoom = useEditorZoom();
   const { setZoom } = useEditorActions();
   const percent = Math.round((zoom / DEFAULT_ZOOM) * 100);
 

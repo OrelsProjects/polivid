@@ -32,6 +32,10 @@ export interface GenerationModel {
   audio: boolean;
   /** Accepts OpenRouter input_references images for subject or style. */
   referenceImages: boolean;
+  /** Accepts an audio_url reference, so a singer's mouth can follow a song. */
+  referenceAudio?: boolean;
+  /** Turns down reference pictures of real people. */
+  refusesRealPeople?: boolean;
 }
 
 export const GENERATION_MODELS: readonly GenerationModel[] = [
@@ -62,6 +66,7 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "2K": 0.13 },
     audio: true,
     referenceImages: true,
+    referenceAudio: true,
   },
   {
     id: "seedance",
@@ -76,6 +81,8 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "480p": 0.1028, "720p": 0.23112 },
     audio: true,
     referenceImages: true,
+    referenceAudio: true,
+    refusesRealPeople: true,
   },
   {
     id: "flux",

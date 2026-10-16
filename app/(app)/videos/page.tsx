@@ -55,7 +55,9 @@ const isFailedVideo = (video: VideoRecord) => video.status === "failed" || !vide
 async function VideoGrid({ filter }: { filter: VideoFilter }) {
   const [videos, jobs] = await Promise.all([listMyVideos(), listMyActiveJobs()]);
   const showJobs = filter === "all" || filter === "progress";
+  const pausedIds = new Set(jobs.filter((job) => job.status === "paused").map((job) => job.id));
   const visibleVideos = videos.filter((video) => {
+    if (pausedIds.has(video.id)) return false;
     if (filter === "progress") return false;
     if (filter === "done") return !isFailedVideo(video);
     if (filter === "failed") return isFailedVideo(video);

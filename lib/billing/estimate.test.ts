@@ -22,3 +22,30 @@ test("production estimates round provider USD up to credits", () => {
   assert.equal(productionCredits(0.004), 5);
   assert.equal(productionCredits(12.4, true), 0);
 });
+
+test("stitched modes price the filmed segment seconds", () => {
+  assert.equal(videoJobCredits({ mode: "prompt", modelId: "wan", resolution: "720p", length: 13 }), 130);
+  assert.equal(videoJobCredits({ mode: "prompt", modelId: "hailuo", length: 2 }), 65);
+  assert.equal(videoJobCredits({ mode: "avatar", modelId: "wan", resolution: "720p", length: 2 }), 20);
+});
+
+test("lyrics prices one song plus the filmed clips", () => {
+  const picture = videoJobCredits({ mode: "prompt", modelId: "wan", resolution: "720p", length: 14 });
+  const song = videoJobCredits({ mode: "lyrics", modelId: "wan", resolution: "720p", length: 14 });
+  const singer = videoJobCredits({
+    mode: "lyrics",
+    modelId: "wan",
+    resolution: "720p",
+    length: 14,
+    referenceCount: 1,
+  });
+  assert.ok(song > picture);
+  assert.ok(singer > song);
+});
+
+test("mode and tier pick the model when one is not passed", () => {
+  assert.equal(
+    videoJobCredits({ mode: "prompt", tier: "low", length: 13 }),
+    videoJobCredits({ mode: "prompt", modelId: "wan", resolution: "480p", length: 13 }),
+  );
+});

@@ -5,7 +5,7 @@ import { assetById, type Timeline, type VideoItem } from "@/lib/editor/schema";
 import { formatTimecode } from "@/lib/editor/timecode";
 import { FPS } from "@/lib/video/schema";
 import { cn } from "@/lib/utils";
-import { useEditorActions, useEditorState } from "../editor-provider";
+import { useEditorActions, useEditorSelection } from "../editor-provider";
 import { ClipWaveform } from "./clip-waveform";
 
 const videoClips = (timeline: Timeline) => {
@@ -19,7 +19,7 @@ const videoClips = (timeline: Timeline) => {
 };
 
 export function LinkedVideoSound({ timeline, zoom }: { timeline: Timeline; zoom: number }) {
-  const { selection } = useEditorState();
+  const selection = useEditorSelection();
   const actions = useEditorActions();
 
   return (

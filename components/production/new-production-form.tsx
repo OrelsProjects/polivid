@@ -4,6 +4,10 @@ import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MediaUpload } from "@/components/media-upload";
+import { PresetPicker } from "@/components/preset-picker";
+import { CharacterPicker } from "@/components/characters/character-picker";
+import { STUDIO_VOICE_ID } from "@/lib/voice/constants";
+import { VisualDirectionField } from "@/components/visual-direction-field";
 import { StatusTimeline } from "@/components/production/status-timeline";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +34,9 @@ export function NewProductionForm() {
   const [format, setFormat] = useState<"9:16" | "16:9" | "1:1">("9:16");
   const [durationSec, setDurationSec] = useState(30);
   const [referenceKeys, setReferenceKeys] = useState<string[]>([]);
+  const [presetId, setPresetId] = useState("auto");
+  const [visualDirection, setVisualDirection] = useState("");
+  const [characterId, setCharacterId] = useState(STUDIO_VOICE_ID);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [items, setItems] = useState<StatusItem[]>([]);
@@ -64,6 +71,9 @@ export function NewProductionForm() {
           format,
           durationSec,
           referenceKeys,
+          presetId,
+          visualDirection,
+          characterId,
         }),
       });
       if (!isNdjson(response)) {
@@ -198,6 +208,21 @@ export function NewProductionForm() {
             </label>
           </div>
         </fieldset>
+      </div>
+      <div>
+        <p className="mb-2 text-sm font-medium">Visual style</p>
+        <PresetPicker engine="footage" value={presetId} onChange={setPresetId} disabled={pending} hideCreate />
+        <VisualDirectionField value={visualDirection} onChange={setVisualDirection} disabled={pending} />
+        <div className="mt-4">
+          <CharacterPicker
+            value={characterId}
+            onChange={setCharacterId}
+            disabled={pending}
+            allowOff={false}
+            studioLabel="Plan voice"
+            detail="A character speaks every line and adds their picture as a reference. Plan voice keeps the voice written into the plan."
+          />
+        </div>
       </div>
       <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
         <input

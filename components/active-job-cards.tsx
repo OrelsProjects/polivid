@@ -3,16 +3,19 @@
 import { LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ExpandableText } from "@/components/expandable-text";
+import { JobHoldControls } from "@/components/job-hold-controls";
+import { JobMoreMenu } from "@/components/job-more-menu";
+import { JobStageList } from "@/components/job-stage-list";
 import { Button } from "@/components/ui/button";
-import { isJobStep, type JobStep, type VideoJobView } from "@/lib/video/job-status";
+import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
+import { useCancelVideoMutation, useGetActiveJobsQuery } from "@/lib/store/endpoints/videos";
+import { isJobStep, type VideoJobView } from "@/lib/video/job-status";
+import { STEP_LABEL } from "@/lib/video/job-stages";
 
-const STEP_LABEL: Record<JobStep, string> = {
-  script: "Writing the script",
-  images: "Making the frames",
-  videos: "Filming the scenes",
-  render: "Stitching the video",
-  finalize: "Finishing up",
-};
+const POLL_MS = 3000;
+
+const jobIdsKey = (jobs: VideoJobView[]) => jobs.map((job) => job.id).join();
 
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -33,70 +36,44 @@ const formatElapsed = (startedAt: string, now: number) => {
 
 export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] }) {
   const router = useRouter();
-  const [jobs, setJobs] = useState(initialJobs);
-  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const { data: polledJobs } = useGetActiveJobsQuery(undefined, {
+    pollingInterval: POLL_MS,
+    refetchOnMountOrArgChange: true,
+  });
+  const jobs = polledJobs ?? initialJobs;
+  const [cancelVideo, { isLoading: canceling, originalArgs: cancelArg }] = useCancelVideoMutation();
+  const cancelingId = canceling ? cancelArg : null;
   const [cancelError, setCancelError] = useState<{ id: string; message: string } | null>(null);
-  const [now, setNow] = useState(() => Date.now());
-  const idsRef = useRef(initialJobs.map((job) => job.id).join());
+  const [now, setNow] = useState<number | null>(null);
+  const idsRef = useRef(jobIdsKey(initialJobs));
+  const idsKey = jobIdsKey(jobs);
   const hasRunning = jobs.some((job) => job.status === "running" && job.startedAt);
 
   useEffect(() => {
+    if (idsRef.current === idsKey) return;
+    idsRef.current = idsKey;
+    router.refresh();
+  }, [idsKey, router]);
+
+  useEffect(() => {
     if (!hasRunning) return;
-    const timer = setInterval(() => setNow(Date.now()), 1000);
+    const tick = () => setNow(Date.now());
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, [hasRunning]);
 
-  useEffect(() => {
-    let stopped = false;
-
-    const tick = async () => {
-      const response = await fetch("/api/videos?status=active", { cache: "no-store" });
-      if (!response.ok || stopped) return;
-      const body = (await response.json().catch(() => null)) as { jobs?: VideoJobView[] } | null;
-      if (!body?.jobs || stopped) return;
-      const nextIds = body.jobs.map((job) => job.id).join();
-      if (idsRef.current !== nextIds) {
-        idsRef.current = nextIds;
-        router.refresh();
-      }
-      setJobs(body.jobs);
-    };
-
-    void tick();
-    const timer = setInterval(() => void tick(), 3000);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
-  }, [router]);
-
   const handleCancel = async (jobId: string) => {
     if (cancelingId) return;
-    setCancelingId(jobId);
     setCancelError(null);
     try {
-      const response = await fetch(`/api/videos/${jobId}/cancel`, { method: "POST" });
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (response.status === 401) {
-        router.push(`/login?callbackUrl=${encodeURIComponent("/videos")}`);
+      await cancelVideo(jobId).unwrap();
+    } catch (error) {
+      if (apiErrorStatus(error) === 401) {
+        router.push(loginPath("/videos"));
         return;
       }
-      if (!response.ok) {
-        throw new Error(body?.error ?? "Couldn't cancel the video.");
-      }
-      setJobs((current) => current.filter((job) => job.id !== jobId));
-      idsRef.current = idsRef.current
-        .split(",")
-        .filter((id) => id && id !== jobId)
-        .join();
-      router.refresh();
-    } catch (error) {
-      setCancelError({
-        id: jobId,
-        message: error instanceof Error ? error.message : "Couldn't cancel the video.",
-      });
-    } finally {
-      setCancelingId(null);
+      setCancelError({ id: jobId, message: apiErrorMessage(error, "Couldn't cancel the video.") });
     }
   };
 
@@ -104,74 +81,141 @@ export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] })
 
   return (
     <>
-      {jobs.map((job) => {
-        const title = jobTitle(job.prompt);
-        const stepLabel = isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Starting";
-        const meta = [job.format, job.length > 0 ? `${job.length}s` : null, formatDate(job.createdAt)]
-          .filter((part) => part)
-          .join(" · ");
-        const canceling = cancelingId === job.id;
-        const elapsed = job.status === "running" && job.startedAt ? formatElapsed(job.startedAt, now) : null;
-
-        return (
-          <article key={job.id} className="flex flex-col gap-2.5" aria-label={`${stepLabel}: ${title}`}>
-            <div className="relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border border-border bg-white px-4 shadow-sm">
-              <span className="absolute top-3 left-3 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
-                {job.status === "queued" ? "STARTING" : "IN PROGRESS"}
-              </span>
-              <div className="flex w-full flex-col items-center gap-3 text-center">
-                <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
-                <p className="text-sm font-medium" aria-live="polite">
-                  {stepLabel}
-                </p>
-                <div
-                  className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
-                  role="progressbar"
-                  aria-valuenow={job.progressPct}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-label={`${title} progress`}
-                >
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${job.progressPct}%` }} />
-                </div>
-                <span className="text-xs text-muted-foreground tabular-nums">{job.progressPct}%</span>
-                {elapsed && (
-                  <span className="text-xs text-muted-foreground tabular-nums" aria-label={`Elapsed ${elapsed}`}>
-                    Elapsed {elapsed}
-                  </span>
-                )}
-                {job.currentStep === "videos" && (
-                  <p className="text-xs text-muted-foreground">
-                    Waiting on the video model. This often takes 20–30 minutes, and sometimes longer.
-                  </p>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={canceling}
-                  aria-label={`Cancel ${title}`}
-                  aria-busy={canceling}
-                  onClick={() => {
-                    void handleCancel(job.id);
-                  }}
-                >
-                  {canceling ? "Canceling…" : "Cancel"}
-                </Button>
-                {cancelError?.id === job.id && (
-                  <p className="text-xs text-destructive" role="alert">
-                    {cancelError.message}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-col gap-0.5 px-0.5">
-              <span className="line-clamp-2 text-sm font-medium">{title}</span>
-              <span className="text-xs text-muted-foreground">{meta}</span>
-            </div>
-          </article>
-        );
-      })}
+      {jobs.map((job) => (
+        <ActiveJobCard
+          key={job.id}
+          job={job}
+          now={now}
+          canceling={cancelingId === job.id}
+          cancelError={cancelError?.id === job.id ? cancelError.message : null}
+          onCancel={() => {
+            void handleCancel(job.id);
+          }}
+        />
+      ))}
     </>
   );
 }
+
+const ActiveJobCard = ({
+  job,
+  now,
+  canceling,
+  cancelError,
+  onCancel,
+}: {
+  job: VideoJobView;
+  now: number | null;
+  canceling: boolean;
+  cancelError: string | null;
+  onCancel: () => void;
+}) => {
+  const title = jobTitle(job.prompt);
+  const paused = job.status === "paused";
+  const stepLabel = paused ? "Paused" : isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Starting";
+  const meta = [job.format, job.length > 0 ? `${job.length}s` : null, formatDate(job.createdAt)]
+    .filter((part) => part)
+    .join(" · ");
+  const elapsed = now !== null && job.status === "running" && job.startedAt ? formatElapsed(job.startedAt, now) : null;
+
+  return (
+    <article className="col-span-2 flex flex-col gap-2.5 sm:col-span-1" aria-label={`${stepLabel}: ${title}`}>
+      <div className="relative flex flex-col gap-3 rounded-2xl border border-border bg-white px-4 pt-14 pb-4 shadow-sm">
+        <JobMoreMenu title={title} rows={job.details ?? []} />
+        <span className="absolute top-3.5 right-3 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
+          {paused ? "PAUSED" : job.status === "queued" ? "STARTING" : "IN PROGRESS"}
+        </span>
+        <div className="flex flex-col items-center gap-3">
+          {paused && job.outputUrl ? (
+            <video
+              src={`${job.outputUrl}?v=${encodeURIComponent(job.updatedAt)}`}
+              controls
+              playsInline
+              preload="metadata"
+              className="aspect-[9/16] w-full rounded-xl bg-black"
+              aria-label={`Clips filmed so far for ${title}`}
+            />
+          ) : (
+            <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
+          )}
+          <p className="sr-only" aria-live="polite">
+            {stepLabel}
+          </p>
+          {paused ? null : (
+            <>
+          <JobStageList
+            mode={job.mode}
+            tier={job.tier}
+            model={job.model}
+            length={job.length}
+            currentStep={job.currentStep}
+            clipIndex={job.clipIndex ?? null}
+            clipTotal={job.clipTotal ?? 1}
+            clipsDone={job.clipsDone}
+            songUrl={job.songUrl}
+          />
+          <div
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={job.progressPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${title} progress`}
+          >
+            <div className="h-full rounded-full bg-primary" style={{ width: `${job.progressPct}%` }} />
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">{job.progressPct}%</span>
+          {elapsed ? (
+            <span className="text-xs text-muted-foreground tabular-nums" aria-label={`Elapsed ${elapsed}`}>
+              Elapsed {elapsed}
+            </span>
+          ) : null}
+            </>
+          )}
+          {paused ? (
+            <p className="text-center text-xs text-muted-foreground">
+              Stopped after clip {job.clipsDone} of {job.clipTotal}. Continue films the rest.
+            </p>
+          ) : null}
+          {job.currentStep === "videos" && !paused ? (
+            <p className="text-center text-xs text-muted-foreground">
+              {job.mode === "lyrics" && job.clipTotal > 1
+                ? job.stopping
+                  ? "Finishing the clips in progress, then stopping. "
+                  : `Filming ${job.clipsDone} of ${job.clipTotal} clips. `
+                : job.stopping
+                  ? `Finishing clip ${job.clipIndex ?? job.clipsDone + 1} of ${job.clipTotal}, then stopping. `
+                  : job.clipIndex && job.clipTotal > 1
+                    ? `Filming clip ${job.clipIndex} of ${job.clipTotal}. `
+                    : "Waiting on the video model. "}
+              {job.stopping ? "" : "This often takes 20–30 minutes, and sometimes longer."}
+            </p>
+          ) : null}
+          <JobHoldControls job={job} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={canceling}
+            aria-label={`Cancel ${title}`}
+            aria-busy={canceling}
+            onClick={onCancel}
+          >
+            {canceling ? "Canceling…" : "Cancel"}
+          </Button>
+          {cancelError ? (
+            <p className="text-center text-xs text-destructive" role="alert">
+              {cancelError}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex flex-col gap-0.5 px-0.5">
+        <span className="text-sm font-medium">
+          <ExpandableText text={title} limit={80} placement="below" />
+        </span>
+        <span className="text-xs text-muted-foreground">{meta}</span>
+      </div>
+    </article>
+  );
+};

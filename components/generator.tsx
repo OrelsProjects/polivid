@@ -3,7 +3,6 @@
 import {
   ArrowRight,
   LoaderCircle,
-  Plus,
   RectangleHorizontal,
   RectangleVertical,
   Square,
@@ -16,27 +15,44 @@ import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
 import { MediaUpload } from "@/components/media-upload";
 import { ModelPicker } from "@/components/model-picker";
 import { TierPicker } from "@/components/tier-picker";
+import { PresetPicker } from "@/components/preset-picker";
 import { PreviewSample, StylePoster } from "@/components/style-frame";
+import { VisualDirectionField } from "@/components/visual-direction-field";
+import { CharacterPicker } from "@/components/characters/character-picker";
+import { SongTakeStep } from "@/components/song-take-step";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { videoJobCredits } from "@/lib/billing/estimate";
+import { apiErrorMessage, apiErrorStatus, insufficientCredits, loginPath } from "@/lib/store/api-errors";
+import { useGetCreditsQuery } from "@/lib/store/endpoints/billing";
+import { useGetPresetsQuery } from "@/lib/store/endpoints/presets";
+import {
+  useCreateVideoMutation,
+  useImprovePromptMutation,
+  type SongTake,
+  type SongTakeBody,
+} from "@/lib/store/endpoints/videos";
 import { cn } from "@/lib/utils";
 import { clearCreateDraft, readCreateDraft, writeCreateDraft } from "@/lib/video/create-draft";
 import { generationModelById, generationModelBySlug, type GenerationModelId } from "@/lib/video/models";
-import { isVideoTier, modeNeedsUpload, videoModeById, type VideoModeId, type VideoTier } from "@/lib/video/modes";
+import {
+  isVideoTier,
+  modeAcceptsReferenceImages,
+  modeNeedsUpload,
+  resolveModeTier,
+  videoModeById,
+  type VideoModeId,
+  type VideoTier,
+} from "@/lib/video/modes";
+import { formatClipSplit, isStitchedMode, planSegments } from "@/lib/video/segments";
 import { isVideoLength, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
-import type { VisualStyle } from "@/lib/showcase";
+import { AUTO_PRESET_ID, defaultPresetIdFor } from "@/lib/video/presets";
+import { defaultCharacterForMode, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
   { value: "9:16", label: "Vertical", hint: "Shorts, TikTok, Reels", icon: RectangleVertical },
   { value: "1:1", label: "Square", hint: "Feeds, LinkedIn", icon: Square },
   { value: "16:9", label: "Wide", hint: "YouTube, Substack", icon: RectangleHorizontal },
-];
-
-const STYLES: { id: VisualStyle; title: string; body: string; soon?: boolean }[] = [
-  { id: "bold", title: "Bold", body: "Big type, amber on navy" },
-  { id: "minimal", title: "Minimal", body: "Light, quiet, lots of air", soon: true },
-  { id: "editorial", title: "Editorial", body: "Serif, cream, magazine feel", soon: true },
 ];
 
 const INPUTS = [
@@ -104,13 +120,19 @@ export function Generator({
   const [mediaKey, setMediaKey] = useState<string | null>(null);
   const [referenceKeys, setReferenceKeys] = useState<string[]>([]);
   const [showText, setShowText] = useState(true);
+  const presetEngine = videoMode?.engine === "motion" ? "motion" : "footage";
+  const [presetId, setPresetId] = useState(videoMode?.engine === "motion" ? defaultPresetIdFor("motion") : AUTO_PRESET_ID);
+  const [visualDirection, setVisualDirection] = useState("");
+  const canNarrate = modeCanNarrate(videoMode?.id);
+  const [characterId, setCharacterId] = useState(defaultCharacterForMode(videoMode?.id));
+  const { data: customPresets } = useGetPresetsQuery();
+  const { data: creditBalance = null } = useGetCreditsQuery();
+  const [createVideo, { isLoading: submitting }] = useCreateVideoMutation();
+  const [improvePrompt, { isLoading: improving }] = useImprovePromptMutation();
   const [status, setStatus] = useState<Status>({ state: "idle" });
-  const [improving, setImproving] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [improveError, setImproveError] = useState<string | null>(null);
   const autoStarted = useRef(false);
   const [draftReady, setDraftReady] = useState(false);
-  const [creditBalance, setCreditBalance] = useState<number | null>(null);
   const [upgrade, setUpgrade] = useState<{ required: number; balance: number } | null>(null);
   const busy = improving || submitting;
   const styleNote = requestedStyle === "minimal" || requestedStyle === "editorial";
@@ -121,18 +143,50 @@ export function Generator({
   const uploadKind = videoMode && videoMode.upload !== "none" ? videoMode.upload : null;
   const showInputTabs = !videoMode || videoMode.id === "prompt";
   const promptReady = Boolean(videoMode?.promptOptional) || prompt.trim().length >= 3;
-  const hasReferences = referenceKeys.length > 0;
+  const acceptsReferences = !videoMode || modeAcceptsReferenceImages(videoMode);
+  const hasReferences = acceptsReferences && referenceKeys.length > 0;
   const canHideText = videoMode?.id !== "lyrics" && videoMode?.id !== "captions";
+  const resolvedTier = videoMode ? resolveModeTier(videoMode.id, tier) : null;
+  const filmingModel = resolvedTier?.model ?? generationModelById(model);
+  const clipSplit = useMemo(() => {
+    if (!lengthValid || !isStitchedMode(videoMode?.id) || !filmingModel) return "";
+    return formatClipSplit(planSegments(activeLength, filmingModel.durations));
+  }, [lengthValid, videoMode?.id, filmingModel, activeLength]);
+  const songFirst = videoMode?.id === "lyrics";
+  const songRequest = useMemo<SongTakeBody | null>(
+    () =>
+      songFirst && lengthValid && prompt.trim().length >= 3
+        ? { prompt: prompt.trim(), length: activeLength, tier, characterId, hasSinger: hasReferences }
+        : null,
+    [songFirst, lengthValid, prompt, activeLength, tier, characterId, hasReferences],
+  );
+  const songRequestKey = songRequest ? JSON.stringify(songRequest) : "";
+  const [songTake, setSongTake] = useState<{ key: string; take: SongTake } | null>(null);
+  const approvedTake = songTake && songTake.key === songRequestKey ? songTake.take : null;
   const estimatedCredits = useMemo(
     () =>
       videoJobCredits({
         demo,
         mode: videoMode?.id,
         tier,
-        modelId: model,
+        modelId: filmingModel?.id ?? model,
+        resolution: resolvedTier?.resolution,
         length: lengthValid ? activeLength : MIN_VIDEO_LENGTH,
+        referenceCount: referenceKeys.length,
+        songReady: Boolean(approvedTake),
       }),
-    [demo, videoMode?.id, tier, model, lengthValid, activeLength],
+    [
+      demo,
+      videoMode?.id,
+      tier,
+      filmingModel?.id,
+      model,
+      resolvedTier?.resolution,
+      lengthValid,
+      activeLength,
+      referenceKeys.length,
+      approvedTake,
+    ],
   );
   const needsUpgrade = creditBalance !== null && estimatedCredits > creditBalance && !demo;
 
@@ -141,61 +195,50 @@ export function Generator({
     if (busy || !lengthValid || !promptReady) return;
     if (!videoMode?.promptOptional && !value) return;
     if (needsUpload && !mediaKey) return;
-    setSubmitting(true);
+    if (songFirst && !approvedTake) return;
 
     try {
-      const res = await fetch("/api/videos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          videoMode
-            ? {
-                prompt: value,
-                format,
-                length: activeLength,
-                mode: videoMode.id,
-                tier,
-                ...(needsUpload && mediaKey ? { mediaKey, imageKey: mediaKey } : {}),
-                showText,
-              }
-            : {
-                prompt: value,
-                format,
-                length: activeLength,
-                model,
-                ...(hasReferences ? { referenceKeys } : {}),
-                showText,
-              },
-        ),
-      });
-      if (res.status === 401) {
-        router.push(`/login?callbackUrl=${encodeURIComponent(createPath)}`);
-        return;
-      }
-      const body = (await res.json().catch(() => null)) as {
-        jobId?: string;
-        error?: string;
-        code?: string;
-        required?: number;
-        balance?: number;
-      } | null;
-      if (res.status === 402 && body?.code === "insufficient_credits") {
-        setUpgrade({ required: body.required ?? 0, balance: body.balance ?? 0 });
-        return;
-      }
-      if (res.status !== 202 || !body?.jobId) {
-        throw new Error(body?.error ?? "Couldn't queue the video.");
-      }
+      await createVideo(
+        videoMode
+          ? {
+              prompt: value,
+              format,
+              length: activeLength,
+              mode: videoMode.id,
+              tier,
+              ...(needsUpload && mediaKey ? { mediaKey, imageKey: mediaKey } : {}),
+              ...(hasReferences ? { referenceKeys } : {}),
+              showText,
+              presetId,
+              visualDirection,
+              ...(canNarrate ? { characterId } : {}),
+              ...(approvedTake ? { songId: approvedTake.id } : {}),
+            }
+          : {
+              prompt: value,
+              format,
+              length: activeLength,
+              model,
+              ...(hasReferences ? { referenceKeys } : {}),
+              showText,
+              presetId,
+              visualDirection,
+              characterId,
+            },
+      ).unwrap();
       clearCreateDraft(videoMode?.id);
       router.push("/videos");
     } catch (error) {
-      setStatus({
-        state: "failed",
-        error: error instanceof Error ? error.message : String(error),
-        videoId: null,
-      });
-    } finally {
-      setSubmitting(false);
+      if (apiErrorStatus(error) === 401) {
+        router.push(loginPath(createPath));
+        return;
+      }
+      const shortfall = insufficientCredits(error);
+      if (shortfall) {
+        setUpgrade(shortfall);
+        return;
+      }
+      setStatus({ state: "failed", error: apiErrorMessage(error, "Couldn't queue the video."), videoId: null });
     }
   };
 
@@ -215,6 +258,9 @@ export function Generator({
       if (draft.mediaKey) setMediaKey(draft.mediaKey);
       if (draft.referenceKeys.length > 0) setReferenceKeys(draft.referenceKeys);
       setShowText(draft.showText);
+      if (draft.presetId) setPresetId(draft.presetId);
+      if (draft.visualDirection) setVisualDirection(draft.visualDirection);
+      if (draft.characterId) setCharacterId(draft.characterId);
     }
     setDraftReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -236,6 +282,9 @@ export function Generator({
         mediaKey,
         referenceKeys,
         showText,
+        presetId,
+        visualDirection,
+        characterId,
       },
       videoMode?.id,
     );
@@ -252,44 +301,26 @@ export function Generator({
     mediaKey,
     referenceKeys,
     showText,
+    presetId,
+    visualDirection,
+    characterId,
     videoMode?.id,
   ]);
 
   const handleImprove = async () => {
     const description = prompt.trim();
     if (description.length < 3 || busy) return;
-    setImproving(true);
     setImproveError(null);
     try {
-      const response = await fetch("/api/improve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
-      });
-      if (response.status === 401) {
-        router.push(`/login?callbackUrl=${encodeURIComponent(createPath)}`);
+      setPrompt(await improvePrompt(description).unwrap());
+    } catch (error) {
+      if (apiErrorStatus(error) === 401) {
+        router.push(loginPath(createPath));
         return;
       }
-      const body = (await response.json().catch(() => null)) as { script?: string; error?: string } | null;
-      if (!response.ok || !body?.script) {
-        throw new Error(body?.error ?? "Couldn't improve that.");
-      }
-      setPrompt(body.script);
-    } catch (error) {
-      setImproveError(error instanceof Error ? error.message : "Couldn't improve that.");
-    } finally {
-      setImproving(false);
+      setImproveError(apiErrorMessage(error, "Couldn't improve that."));
     }
   };
-
-  useEffect(() => {
-    const loadCredits = async () => {
-      const response = await fetch("/api/billing/credits");
-      const body = (await response.json().catch(() => null)) as { total?: number } | null;
-      if (response.ok && typeof body?.total === "number") setCreditBalance(body.total);
-    };
-    void loadCredits();
-  }, []);
 
   useEffect(() => {
     if (autoStarted.current || searchParams.get("start") !== "1" || !prompt.trim()) return;
@@ -376,7 +407,7 @@ export function Generator({
             aria-label="Your video prompt"
             className="mt-3 min-h-28 resize-none rounded-xl bg-background text-base md:text-sm"
           />
-          {!videoMode && (
+          {acceptsReferences && (
             <div className="mt-3">
               <MediaUpload
                 kind="image"
@@ -384,8 +415,12 @@ export function Generator({
                 mediaKeys={referenceKeys}
                 onChangeKeys={setReferenceKeys}
                 disabled={busy}
-                label="Reference pictures"
-                hint="Optional. JPEG, PNG, or WebP · under 4 MB each"
+                label={videoMode?.id === "lyrics" ? "Singer or look" : "Reference pictures"}
+                hint={
+                  videoMode?.id === "lyrics"
+                    ? "Optional. A photo of the singer, or a look to match."
+                    : "Optional. JPEG, PNG, or WebP · under 4 MB each"
+                }
               />
             </div>
           )}
@@ -421,82 +456,37 @@ export function Generator({
 
         <section className="min-w-0 rounded-2xl border border-border bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold">2 · Visual style</h2>
-          <div
-            className="-mx-1 mt-3 flex gap-3 overflow-x-auto px-1 pt-1 pb-2"
-            role="group"
-            aria-label="Visual style"
-          >
-            {STYLES.map((style) => {
-              const selected = style.id === "bold" && (showText || !canHideText);
-              const poster = (
-                <StylePoster
-                  style={style.id}
-                  title="40%"
-                  size="picker"
-                  className={cn("aspect-[3/4] w-full", selected && "ring-2 ring-primary ring-offset-2")}
-                />
-              );
-              return (
-                <div key={style.id} className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
-                  {style.id === "bold" && canHideText ? (
-                    <button
-                      type="button"
-                      aria-pressed={showText}
-                      disabled={busy}
-                      onClick={() => setShowText(true)}
-                      className="cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {poster}
-                    </button>
-                  ) : (
-                    poster
-                  )}
-                  <div>
-                    <p className="text-sm font-medium">
-                      {style.title}
-                      {style.soon && (
-                        <span className="ml-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">SOON</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{style.body}</p>
-                  </div>
-                </div>
-              );
-            })}
-            {canHideText && (
-              <div className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
-                <button
-                  type="button"
-                  aria-pressed={!showText}
-                  disabled={busy}
-                  onClick={() => setShowText(false)}
-                  className="cursor-pointer rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <StylePoster
-                    style="bold"
-                    size="picker"
-                    className={cn("aspect-[3/4] w-full", !showText && "ring-2 ring-primary ring-offset-2")}
-                  />
-                </button>
-                <div>
-                  <p className="text-sm font-medium">No text</p>
-                  <p className="text-xs text-muted-foreground">Footage only, no titles</p>
-                </div>
-              </div>
-            )}
-            <div className="flex w-36 shrink-0 flex-col gap-2 sm:w-40">
-              <div className="grid aspect-[3/4] place-items-center rounded-2xl border border-dashed border-border bg-muted/40 text-muted-foreground">
-                <Plus className="size-6" aria-hidden />
-              </div>
-              <div>
-                <p className="text-sm font-medium">
-                  Brand kit
-                  <span className="ml-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">SOON</span>
-                </p>
-                <p className="text-xs text-muted-foreground">Logo, colors, font</p>
-              </div>
-            </div>
+          <div className="mt-3">
+            <PresetPicker
+              engine={presetEngine}
+              value={presetId}
+              onChange={setPresetId}
+              customPresets={customPresets}
+              disabled={busy}
+            />
           </div>
+          {canHideText && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                type="button"
+                aria-pressed={!showText}
+                disabled={busy}
+                onClick={() => setShowText((current) => !current)}
+                className={cn(
+                  "flex w-24 shrink-0 cursor-pointer flex-col gap-1 rounded-2xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+                )}
+              >
+                <StylePoster
+                  style="bold"
+                  size="picker"
+                  className={cn("aspect-[3/4] w-full", !showText && "ring-2 ring-primary ring-offset-2")}
+                />
+                <span className="text-xs font-medium">No text</span>
+              </button>
+              <p className="text-xs text-muted-foreground">Turn off titles and on-screen letters. Captions still appear after you add them.</p>
+            </div>
+          )}
+          <VisualDirectionField value={visualDirection} onChange={setVisualDirection} disabled={busy} />
         </section>
 
         <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
@@ -581,13 +571,20 @@ export function Generator({
             <span className="text-xs text-muted-foreground">
               {customLength !== "" && !isVideoLength(Number(customLength))
                 ? `Use a whole number from ${MIN_VIDEO_LENGTH} to ${MAX_VIDEO_LENGTH}.`
-                : `${MIN_VIDEO_LENGTH}–${MAX_VIDEO_LENGTH} seconds. A model shortens anything longer than it can film.`}
+                : clipSplit
+                  ? `${MIN_VIDEO_LENGTH}–${MAX_VIDEO_LENGTH} seconds.`
+                  : `${MIN_VIDEO_LENGTH}–${MAX_VIDEO_LENGTH} seconds. A model shortens anything longer than it can film.`}
             </span>
           </div>
+          {clipSplit ? (
+            <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+              {clipSplit}
+            </p>
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold">4 · Voice, media and extras</h2>
+          <h2 className="text-sm font-semibold">4 · Character, media and extras</h2>
           <div className="mt-4">
             {videoMode ? (
               <TierPicker mode={videoMode} value={tier} onChange={setTier} disabled={busy} />
@@ -595,11 +592,24 @@ export function Generator({
               <ModelPicker value={model} onChange={setModel} models={models} disabled={busy} />
             )}
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Voice</span>
-            <span className="rounded-xl border border-dashed border-border px-3 py-2 text-muted-foreground">
-              Narrator · coming next
-            </span>
+          <div className="mt-4">
+            {canNarrate ? (
+              <CharacterPicker
+                value={characterId}
+                onChange={setCharacterId}
+                disabled={busy}
+                usesImage={acceptsReferences && Boolean(filmingModel?.referenceImages)}
+                detail={
+                  videoMode?.id === "lyrics"
+                    ? characterId === OFF_VOICE_ID
+                      ? "No added voice keeps the sung track."
+                      : "This character performs the lyrics."
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">This video keeps its own audio.</p>
+            )}
           </div>
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Media">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
@@ -630,6 +640,18 @@ export function Generator({
           </ul>
         </section>
 
+        {songFirst ? (
+          <SongTakeStep
+            request={songRequest}
+            take={approvedTake}
+            onTake={(take) => setSongTake({ key: songRequestKey, take })}
+            onShortfall={setUpgrade}
+            returnPath={createPath}
+            disabled={busy}
+            demo={demo}
+          />
+        ) : null}
+
         {needsUpgrade && (
           <p className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-sm text-primary" role="status">
             This video needs {estimatedCredits.toLocaleString()} credits. You have {creditBalance?.toLocaleString()} left.{" "}
@@ -657,17 +679,31 @@ export function Generator({
           <p className="text-xs text-muted-foreground">
             {demo ? "Demo mode is free · " : estimatedCredits > 0 ? `Uses ${estimatedCredits.toLocaleString()} credits · ` : ""}
             {needsUpgrade ? "You need more credits. " : ""}
-            You&apos;ll go to My videos while it generates. Come back here to start another.
+            {songFirst && !approvedTake
+              ? "Make the song and listen to it first. Filming uses that exact song."
+              : "You'll go to My videos while it generates. Come back here to start another."}
           </p>
-          <Button type="submit" size="lg" disabled={!promptReady || busy || !lengthValid || (needsUpload && !mediaKey) || needsUpgrade} className="h-11 rounded-xl px-5">
+          <Button
+            type="submit"
+            size="lg"
+            disabled={
+              !promptReady ||
+              busy ||
+              !lengthValid ||
+              (needsUpload && !mediaKey) ||
+              needsUpgrade ||
+              (songFirst && !approvedTake)
+            }
+            className="h-11 rounded-xl px-5"
+          >
             {submitting ? (
               <>
                 <LoaderCircle className="animate-spin" data-icon="inline-start" />
-                Generating…
+                {songFirst ? "Starting…" : "Generating…"}
               </>
             ) : (
               <>
-                Generate video
+                {songFirst ? "Film the video" : "Generate video"}
                 <ArrowRight data-icon="inline-end" />
               </>
             )}

@@ -8,6 +8,10 @@ test("allows the legal video job moves", () => {
   assert.doesNotThrow(() => assertJobTransition("running", "succeeded"));
   assert.doesNotThrow(() => assertJobTransition("running", "failed"));
   assert.doesNotThrow(() => assertJobTransition("running", "canceled"));
+  assert.doesNotThrow(() => assertJobTransition("running", "paused"));
+  assert.doesNotThrow(() => assertJobTransition("paused", "running"));
+  assert.doesNotThrow(() => assertJobTransition("paused", "canceled"));
+  assert.doesNotThrow(() => assertJobTransition("failed", "running"));
 });
 
 test("rejects illegal video job moves", () => {
@@ -20,6 +24,9 @@ test("rejects illegal video job moves", () => {
     ["failed", "queued"],
     ["failed", "canceled"],
     ["canceled", "running"],
+    ["queued", "paused"],
+    ["paused", "succeeded"],
+    ["succeeded", "paused"],
   ];
   for (const [from, to] of illegal) {
     assert.throws(() => assertJobTransition(from, to), JobTransitionError);
@@ -47,6 +54,10 @@ test("reads the prompt stored on a video job", () => {
       referenceKeys: [],
       showText: true,
       projectId: "",
+      presetId: "",
+      visualDirection: "",
+      characterId: "",
+      songId: "",
     },
   );
   assert.deepEqual(readJobInput(null), {
@@ -62,6 +73,10 @@ test("reads the prompt stored on a video job", () => {
     referenceKeys: [],
     showText: true,
     projectId: "",
+    presetId: "",
+    visualDirection: "",
+    characterId: "",
+    songId: "",
   });
   assert.equal(readJobInput({ prompt: "  ", aspectRatio: "square", duration: 1.5 }).format, "9:16");
   assert.deepEqual(
@@ -89,6 +104,29 @@ test("reads the prompt stored on a video job", () => {
       "uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg",
       "uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png",
     ],
+  );
+});
+
+test("reads a character id from a stored job, including older voiceSettingId payloads", () => {
+  assert.equal(
+    readJobInput({
+      prompt: "A man walking down Paris",
+      aspectRatio: "9:16",
+      duration: 5,
+      model: "alibaba/wan-3.0",
+      characterId: "11111111-2222-3333-4444-555555555555",
+    }).characterId,
+    "11111111-2222-3333-4444-555555555555",
+  );
+  assert.equal(
+    readJobInput({
+      prompt: "A man walking down Paris",
+      aspectRatio: "9:16",
+      duration: 5,
+      model: "alibaba/wan-3.0",
+      voiceSettingId: "11111111-2222-3333-4444-555555555555",
+    }).characterId,
+    "11111111-2222-3333-4444-555555555555",
   );
 });
 

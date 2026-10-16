@@ -28,6 +28,7 @@ import {
 import { openEditorProjectForProduction } from "../editor";
 import { loadBrief, loadStructure } from "./coordinator";
 import { db } from "@/lib/db";
+import { resolveNarrationVoice } from "@/lib/voice/speak";
 
 const assetKindFor = (mime: string): "image" | "audio" | "video" => {
   if (mime.startsWith("image/")) return "image";
@@ -205,6 +206,13 @@ export const executeStep = async (userId: string, productionId: string, step: { 
   if (step.kind === "speech") {
     const id = step.targetKey.replace(/^speech:/, "");
     const segment = structure?.audioSegments.find((entry) => entry.id === id);
+    const production = await db.production.findUnique({
+      where: { id: productionId },
+      select: { userId: true, characterId: true },
+    });
+    const savedVoice = production?.characterId
+      ? await resolveNarrationVoice(production.userId, production.characterId)
+      : null;
     const result = await runAdapter({
       productionId,
       stepId: step.id,
@@ -213,8 +221,9 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         modelId: "eleven_multilingual_v2",
         prompt: segment?.text ?? "",
         text: segment?.text ?? "",
-        voiceId: segment?.voiceId ?? "maya-en",
+        voiceId: savedVoice?.providerVoiceId ?? segment?.voiceId ?? "maya-en",
         durationSec: segment?.durationSec,
+        settings: savedVoice?.cloned ? { cloned: true } : undefined,
       },
       idempotencyKey: step.idempotencyKey,
     });
@@ -241,10 +250,14 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       ? await currentEntityData<Observation>(productionId, "observation", shot.dependsOn)
       : null;
     const previousTake = await currentEntityData<Observation>(productionId, "observation", shot.id);
+    const production = await db.production.findUnique({ where: { id: productionId } });
+    const { styleLockForProduction } = await import("@/lib/video/style-lock");
+    const styleLock = await styleLockForProduction(production?.presetId, production?.visualDirection, production?.userId);
     const prompt = compileShotPrompt({
       corrections: previousTake
         ? [...previousTake.deviations, ...previousTake.incompleteActions.map((action) => `not completed: ${action}`)]
         : [],
+      styleLock,
       brief,
       scene: scene ?? {
         id: shot.sceneId,
@@ -520,17 +533,19 @@ const subjectFor = async (
   structure: Awaited<ReturnType<typeof loadStructure>>,
   brief: CreativeBrief,
 ) => {
-  void productionId;
+  const production = await db.production.findUnique({ where: { id: productionId } });
+  const { styleLockForProduction } = await import("@/lib/video/style-lock");
+  const styleLock = await styleLockForProduction(production?.presetId, production?.visualDirection, production?.userId);
   if (targetKey.startsWith("character:")) {
     const character = structure?.characters.find((entry) => entry.id === targetKey.slice(10));
-    return compileImagePrompt(`${character?.name ?? "character"}. ${character?.appearance}. ${character?.clothing}`, brief);
+    return compileImagePrompt(`${character?.name ?? "character"}. ${character?.appearance}. ${character?.clothing}`, brief, styleLock);
   }
   if (targetKey.startsWith("location:")) {
     const location = structure?.locations.find((entry) => entry.id === targetKey.slice(9));
-    return compileImagePrompt(location?.description ?? "location", brief);
+    return compileImagePrompt(location?.description ?? "location", brief, styleLock);
   }
   const shot = structure?.shots.find((entry) => entry.id === targetKey.slice(5));
-  return compileImagePrompt(shot?.intendedBeginning ?? "storyboard frame", brief);
+  return compileImagePrompt(shot?.intendedBeginning ?? "storyboard frame", brief, styleLock);
 };
 
 const fallbackBrief = (): CreativeBrief => ({

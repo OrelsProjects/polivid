@@ -6,6 +6,7 @@ export const cloneProductionSettings = (source: {
   budgetUsd: number;
   format: string;
   targetDurationSec: number;
+  characterId?: string | null;
 }) => ({
   title: source.title,
   status: "preview" as const,
@@ -16,4 +17,5 @@ export const cloneProductionSettings = (source: {
   budgetUsd: source.budgetUsd,
   format: source.format,
   targetDurationSec: source.targetDurationSec,
+  characterId: source.characterId ?? null,
 });

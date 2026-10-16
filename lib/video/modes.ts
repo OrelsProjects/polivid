@@ -59,6 +59,8 @@ export interface VideoMode {
   upload: ModeUpload;
   placeholder: string;
   promptOptional?: boolean;
+  /** Takes optional reference pictures for subject or style. Every tier model must accept them. */
+  referenceImages?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -121,6 +123,7 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     engine: "video",
     upload: "none",
     placeholder: "Describe the scene. Mention the audience, the angle, and anything you want on screen.",
+    referenceImages: true,
     tiers: T2V_TIERS,
   },
   {
@@ -193,14 +196,15 @@ export const VIDEO_MODES: readonly VideoMode[] = [
   {
     id: "lyrics",
     title: "Lyrics to Music Video",
-    description: "Generate a lyrics video from pasted lyrics.",
+    description: "Generate a lyrics video from pasted lyrics. Optional pictures can lock a singer or a look.",
     icon: Type,
     tint: "from-rose-400 to-orange-200",
     status: "live",
     phase: 5,
     engine: "video",
     upload: "none",
-    placeholder: "Paste the lyrics. Mention a visual style if you have one.",
+    placeholder: "Paste the lyrics. Add a photo of the singer if you want that person on screen.",
+    referenceImages: true,
     tiers: T2V_TIERS,
   },
   {
@@ -228,6 +232,8 @@ export const isVideoTier = (value: string): value is VideoTier =>
 export const videoModeById = (id: string) => VIDEO_MODES.find((mode) => mode.id === id) ?? null;
 
 export const modeNeedsUpload = (mode: VideoMode) => mode.upload !== "none";
+
+export const modeAcceptsReferenceImages = (mode: VideoMode) => mode.referenceImages === true;
 
 export const defaultPromptForMode = (mode: VideoMode) => {
   if (mode.id === "captions") return "Add captions to this video.";

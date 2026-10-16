@@ -2,22 +2,20 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/store/api-errors";
+import { useOpenBillingPortalMutation } from "@/lib/store/endpoints/billing";
 
 export function ManageBillingButton() {
-  const [busy, setBusy] = useState(false);
+  const [openPortal, { isLoading, isSuccess }] = useOpenBillingPortalMutation();
   const [error, setError] = useState<string | null>(null);
+  const busy = isLoading || isSuccess;
 
   const handleClick = async () => {
-    setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/billing/portal", { method: "POST" });
-      const body = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
-      if (!response.ok || !body?.url) throw new Error(body?.error ?? "Couldn't open billing.");
-      window.location.assign(body.url);
+      window.location.assign(await openPortal().unwrap());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't open billing.");
-      setBusy(false);
+      setError(apiErrorMessage(cause, "Couldn't open billing."));
     }
   };
 

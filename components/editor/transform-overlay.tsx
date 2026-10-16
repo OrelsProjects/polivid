@@ -3,7 +3,7 @@
 import { coverFrame } from "@/lib/editor/framing";
 import { assetById, findItem, hasTransform, type Asset, type FitMode, type Timeline } from "@/lib/editor/schema";
 import { dimensionsFor } from "@/lib/video/schema";
-import { useEditorState, useEditorTimeline } from "./editor-provider";
+import { useEditorSelection, useEditorTimeline } from "./editor-provider";
 
 type Box = { width: number; height: number };
 
@@ -22,7 +22,7 @@ const mediaBox = (asset: Asset | null, fit: FitMode, timeline: Timeline): Box =>
 
 export function TransformOverlay() {
   const timeline = useEditorTimeline();
-  const { selection } = useEditorState();
+  const selection = useEditorSelection();
   if (!selection) return null;
   const found = findItem(timeline, selection.itemId);
   if (!found || !hasTransform(found.item)) return null;

@@ -9,6 +9,7 @@ import {
   S3Client,
   S3ServiceException,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { uploadPrefix } from "./upload-key";
 
 export { isOwnedUploadKey, uploadObjectKey } from "./upload-key";
@@ -62,6 +63,10 @@ const s3 = () => {
   }
   return client;
 };
+
+/** A temporary HTTPS link so a video model can fetch a private object. */
+export const signedGetUrl = (key: string, expiresIn = 60 * 60) =>
+  getSignedUrl(s3(), new GetObjectCommand({ Bucket: bucketName(), Key: key }), { expiresIn });
 
 export const putUpload = async (key: string, bytes: Uint8Array, contentType: string) => {
   await s3().send(

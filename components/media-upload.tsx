@@ -5,6 +5,8 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ImageLibrary, type LibrarySource } from "@/components/image-library";
 import { Button } from "@/components/ui/button";
 import { uploadFileUrl } from "@/lib/storage/upload-key";
+import { apiErrorMessage } from "@/lib/store/api-errors";
+import { useUploadFileMutation } from "@/lib/store/endpoints/uploads";
 import { cn } from "@/lib/utils";
 import type { ModeUpload } from "@/lib/video/modes";
 import { MAX_REFERENCE_IMAGES } from "@/lib/video/schema";
@@ -46,26 +48,16 @@ const revokePreview = (preview: string | null) => {
 const previewKindFor = (type: string): PreviewKind =>
   type.startsWith("audio/") ? "audio" : type.startsWith("video/") ? "video" : "image";
 
-const uploadFile = async (file: File) => {
-  const body = new FormData();
-  body.set("file", file);
-  const response = await fetch("/api/uploads", { method: "POST", body });
-  const payload = (await response.json().catch(() => null)) as {
-    mediaKey?: string;
-    imageKey?: string;
-    error?: string;
-  } | null;
-  if (response.status === 401) throw new Error("Sign in to upload a file.");
-  const key = payload?.mediaKey ?? payload?.imageKey;
-  if (!response.ok || !key) throw new Error(payload?.error ?? "Couldn't save that file.");
-  return key;
-};
+const UPLOAD_FAILED = "Couldn't save that file.";
 
 type MediaUploadProps = {
   kind: Exclude<ModeUpload, "none">;
   disabled?: boolean;
   label?: string;
   hint?: string;
+  compact?: boolean;
+  librarySide?: "top" | "bottom";
+  onBusyChange?: (busy: boolean) => void;
   librarySource?: LibrarySource;
   libraryLayout?: "popover" | "inline";
 } & (
@@ -90,6 +82,9 @@ export function MediaUpload({
   disabled,
   label,
   hint,
+  compact = false,
+  librarySide = "bottom",
+  onBusyChange,
   librarySource,
   libraryLayout = "popover",
   ...props
@@ -104,6 +99,7 @@ export function MediaUpload({
   const [items, setItems] = useState<PreviewItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadFile] = useUploadFileMutation();
   const Icon = kind === "audio" ? FileAudio : kind === "image" ? ImagePlus : FileVideo;
   const library = librarySource ?? (kind === "video" ? "video" : kind === "image" ? "image" : null);
   const accept =
@@ -113,12 +109,19 @@ export function MediaUpload({
   const savedSingleKey = !multiple ? props.mediaKey : null;
   const atLimit = multiple && items.length >= MAX_REFERENCE_IMAGES;
 
+  const onBusyChangeRef = useRef(onBusyChange);
+  onBusyChangeRef.current = onBusyChange;
+
   useEffect(() => {
     return () => {
       revokePreview(previewUrl.current);
       for (const item of itemsRef.current) revokePreview(item.preview);
     };
   }, []);
+
+  useEffect(() => {
+    onBusyChangeRef.current?.(uploading);
+  }, [uploading]);
 
   useEffect(() => {
     if (!multiple) return;
@@ -202,11 +205,11 @@ export function MediaUpload({
     }
 
     try {
-      const key = await uploadFile(file);
+      const key = await uploadFile(file).unwrap();
       props.onChange(key);
     } catch (cause) {
       handleClear();
-      setError(cause instanceof Error ? cause.message : "Couldn't save that file.");
+      setError(apiErrorMessage(cause, UPLOAD_FAILED));
     } finally {
       setUploading(false);
     }
@@ -225,14 +228,14 @@ export function MediaUpload({
     for (const file of batch) {
       const preview = URL.createObjectURL(file);
       try {
-        const key = await uploadFile(file);
+        const key = await uploadFile(file).unwrap();
         next.push({ key, preview, kind: previewKindFor(file.type), fileName: file.name });
         itemsRef.current = next;
         setItems([...next]);
         props.onChangeKeys(next.map((item) => item.key));
       } catch (cause) {
         revokePreview(preview);
-        lastError = cause instanceof Error ? cause.message : "Couldn't save that file.";
+        lastError = apiErrorMessage(cause, UPLOAD_FAILED);
       }
     }
 
@@ -243,10 +246,11 @@ export function MediaUpload({
 
   const namedLabel = label ?? LABEL[kind];
   const namedHint = hint ?? HINT[kind];
+  const tileClass = compact ? "size-14" : "size-28 sm:size-32";
 
   return (
     <div className="flex flex-col gap-2">
-      <span id={`${inputId}-label`} className={libraryLayout === "inline" ? "sr-only" : "text-sm font-medium"}>
+      <span id={`${inputId}-label`} className={libraryLayout === "inline" || compact ? "sr-only" : "text-sm font-medium"}>
         {namedLabel}
       </span>
       <input
@@ -273,7 +277,7 @@ export function MediaUpload({
             {items.map((item, index) => (
               <div
                 key={item.key}
-                className="relative size-28 overflow-hidden rounded-xl border border-border sm:size-32"
+                className={cn("relative overflow-hidden rounded-xl border border-border", tileClass)}
               >
                 {item.preview && item.kind === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -290,7 +294,10 @@ export function MediaUpload({
                   size="sm"
                   disabled={disabled || uploading}
                   aria-label={`Remove picture ${index + 1}`}
-                  className="absolute top-1.5 right-1.5 size-8 rounded-full bg-white p-0"
+                  className={cn(
+                    "absolute rounded-full bg-white p-0",
+                    compact ? "top-0.5 right-0.5 size-5" : "top-1.5 right-1.5 size-8",
+                  )}
                   onClick={() => handleRemoveKey(item.key)}
                 >
                   <X />
@@ -306,6 +313,8 @@ export function MediaUpload({
                 disabled={disabled}
                 uploading={uploading}
                 triggerLabel={items.length ? "Add another" : namedLabel}
+                tileClassName={compact ? tileClass : undefined}
+                side={librarySide}
                 onToggle={handleToggleLibraryPicture}
                 onUploadNew={handlePick}
                 onDeleted={handleRemoveKey}
@@ -324,7 +333,8 @@ export function MediaUpload({
                   }
                 }}
                 className={cn(
-                  "flex size-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:size-32",
+                  "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                  tileClass,
                 )}
               >
                 {uploading ? (
@@ -338,7 +348,7 @@ export function MediaUpload({
               </button>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">{namedHint}</p>
+          {!compact && <p className="text-xs text-muted-foreground">{namedHint}</p>}
         </div>
       ) : library && (libraryLayout === "inline" || (!savedSingleKey && !preview)) ? (
         <ImageLibrary
@@ -415,7 +425,7 @@ export function MediaUpload({
       {!multiple && props.mediaKey && !uploading && !error && (
         <p className="text-xs text-muted-foreground">Saved. Ready to generate.</p>
       )}
-      {multiple && items.length > 0 && !uploading && !error && (
+      {multiple && !compact && items.length > 0 && !uploading && !error && (
         <p className="text-xs text-muted-foreground">
           {items.length === 1 ? "1 picture saved. Ready to generate." : `${items.length} pictures saved. Ready to generate.`}
         </p>

@@ -18,7 +18,7 @@ import type { LibraryVideo } from "@/lib/editor/types";
 import { newId, type Asset, type AssetKind } from "@/lib/editor/schema";
 import { isAudioKey, isVideoKey } from "@/lib/storage/upload-key";
 import { cn } from "@/lib/utils";
-import { useEditorActions, useEditorPlaybackRef, useEditorTimeline } from "./editor-provider";
+import { useEditorActions, useEditorTimeline, useGetEditorPlayback } from "./editor-provider";
 
 type Tab = "uploads" | "videos" | "text" | "audio";
 
@@ -54,9 +54,9 @@ const imageSize = (url: string) =>
 export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
   const [tab, setTab] = useState<Tab>("uploads");
   const timeline = useEditorTimeline();
-  const playbackRef = useEditorPlaybackRef();
+  const getPlayback = useGetEditorPlayback();
   const actions = useEditorActions();
-  const playheadFrame = () => playbackRef.current.playheadFrame;
+  const playheadFrame = () => getPlayback().playheadFrame;
 
   const handleAddAsset = async (asset: Asset, kind: AssetKind) => {
     let next = addAsset(timeline, asset);

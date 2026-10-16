@@ -61,6 +61,133 @@ export const resolveVoiceId = async (requested?: string) => {
   throw new Error("No ElevenLabs voices on this account.");
 };
 
+/** Cloned voices stay close to the recording. Other speech keeps the provider default. */
+export const speechRequestBody = (text: string, modelId: string, settings?: Record<string, unknown>) => {
+  const body: Record<string, unknown> = { text, model_id: modelId };
+  if (settings?.cloned === true) {
+    body.voice_settings = {
+      stability: 0.42,
+      similarity_boost: 0.86,
+      style: 0.12,
+      use_speaker_boost: true,
+    };
+  }
+  return body;
+};
+
+export const addInstantVoice = async (input: {
+  name: string;
+  description: string;
+  files: { bytes: Uint8Array; filename: string; type: string }[];
+}) => {
+  const form = new FormData();
+  form.set("name", input.name);
+  form.set("description", input.description);
+  form.set("remove_background_noise", "true");
+  for (const file of input.files) {
+    form.append("files", new Blob([file.bytes as BlobPart], { type: file.type }), file.filename);
+  }
+  const response = await fetch(`${BASE}/v1/voices/add`, {
+    method: "POST",
+    headers: { "xi-api-key": key() },
+    body: form,
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(voiceAddMessage(response.status, detail));
+  }
+  const json = (await response.json()) as { voice_id?: string; requires_verification?: boolean };
+  if (!json.voice_id) throw new Error("The voice service didn't return a voice.");
+  if (json.requires_verification) {
+    await deleteInstantVoice(json.voice_id).catch(() => undefined);
+    throw new Error("This voice needs verification on ElevenLabs before it can be used.");
+  }
+  voices = null;
+  return json.voice_id;
+};
+
+export interface DesignedVoicePreview {
+  generatedVoiceId: string;
+  audioBase64: string;
+}
+
+export const designVoicePreviews = async (description: string, sampleText: string) => {
+  const response = await fetch(`${BASE}/v1/text-to-voice/design`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": key(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      voice_description: description,
+      text: sampleText,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(voiceAddMessage(response.status, detail));
+  }
+  const json = (await response.json()) as {
+    previews?: { generated_voice_id?: string; audio_base_64?: string }[];
+  };
+  const previews = (json.previews ?? [])
+    .filter((preview): preview is { generated_voice_id: string; audio_base_64: string } =>
+      Boolean(preview.generated_voice_id && preview.audio_base_64),
+    )
+    .map((preview) => ({
+      generatedVoiceId: preview.generated_voice_id,
+      audioBase64: preview.audio_base_64,
+    }));
+  if (previews.length === 0) throw new Error("The voice service didn't return any previews.");
+  return previews;
+};
+
+export const saveDesignedVoice = async (input: { name: string; description: string; generatedVoiceId: string }) => {
+  const response = await fetch(`${BASE}/v1/text-to-voice`, {
+    method: "POST",
+    headers: {
+      "xi-api-key": key(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      voice_name: input.name,
+      voice_description: input.description,
+      generated_voice_id: input.generatedVoiceId,
+    }),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(voiceAddMessage(response.status, detail));
+  }
+  const json = (await response.json()) as { voice_id?: string };
+  if (!json.voice_id) throw new Error("The voice service didn't return a voice.");
+  voices = null;
+  return json.voice_id;
+};
+
+export const deleteInstantVoice = async (voiceId: string) => {
+  const response = await fetch(`${BASE}/v1/voices/${encodeURIComponent(voiceId)}`, {
+    method: "DELETE",
+    headers: { "xi-api-key": key() },
+  });
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Couldn't remove that voice (${response.status}). ${detail.slice(0, 160)}`);
+  }
+  voices = null;
+};
+
+const voiceAddMessage = (status: number, detail: string) => {
+  if (status === 401) return "The voice service rejected the API key.";
+  if (status === 402 || /paid_plan_required|quota|voice_limit/i.test(detail)) {
+    return "The voice service needs a paid plan, or this account is out of voice slots.";
+  }
+  if (/audio|sample|duration|too short|empty/i.test(detail)) {
+    return "Those recordings were too short or too quiet. Say each line all the way through.";
+  }
+  return `Couldn't create that voice (${status}).`;
+};
+
 const postAudio = async (path: string, body: unknown, idempotencyKey: string) => {
   const response = await fetch(`${BASE}${path}`, {
     method: "POST",
@@ -99,7 +226,11 @@ export const createElevenSpeechAdapter = (): MediaAdapter => ({
       let lastError: Error | null = null;
       for (const modelId of [...new Set(models)]) {
         try {
-          const result = await postAudio(path, { text: chunk, model_id: modelId }, `${idempotencyKey}:${index}:${modelId}`);
+          const result = await postAudio(
+            path,
+            speechRequestBody(chunk, modelId, request.settings),
+            `${idempotencyKey}:${index}:${modelId}`,
+          );
           bytes = result.bytes;
           if (bytes.byteLength > 0) break;
         } catch (error) {

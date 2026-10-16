@@ -34,6 +34,9 @@ model User {
   editProjects       EditProject[]
   productions        Production[]
   creditLedger       CreditLedger[]
+  stylePresets       StylePreset[]
+  characters         Character[]
+  coachThreads       CoachThread[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 }
@@ -148,9 +151,11 @@ model VideoJob {
   id           String    @id @default(uuid())
   userId       String
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status       String // queued | running | succeeded | failed | canceled
+  status       String // queued | running | paused | succeeded | failed | canceled
   currentStep  String? // script | images | videos | render | finalize
   progressPct  Int       @default(0)
+  /// Finish the clip already filming, then stitch what exists and wait.
+  stopAfterClip Boolean  @default(false)
   input        Json
   artifacts    Json      @default("{}")
   outputUrl    String?
@@ -181,6 +186,12 @@ model ProviderJob {
   sceneIdx      Int
   waitToken     String?
   status        String // pending | in_progress | completed | failed | cancelled | expired
+  /// Model slug that filmed this clip, for example minimax/hailuo-3.
+  model         String?
+  /// When the provider accepted this clip.
+  startedAt     DateTime?
+  /// When the clip was ready, or the provider declined it.
+  finishedAt    DateTime?
   costUsd       Decimal? @db.Decimal(10, 4)
   contentUrl    String?
   storedUrl     String?
@@ -217,6 +228,10 @@ model Production {
   creditsHeld        Int      @default(0)
   format             String
   targetDurationSec  Int
+  presetId           String?
+  visualDirection    String?
+  /// Saved character used for speech and reference. Null keeps the plan voice.
+  characterId        String?
   editProjectId      String?
   editProject        EditProject? @relation("ProductionEdit", fields: [editProjectId], references: [id], onDelete: SetNull)
   error              String?
@@ -364,4 +379,64 @@ model UsageLedger {
 
   @@index([productionId, createdAt])
   @@map("usage_ledger")
+}
+
+/// A person the user named, pictured, and optionally voiced for videos.
+model Character {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  imageKey         String?
+  imagePrompt      String?
+  providerVoiceId  String?
+  voiceSource      String?
+  voiceDescription String?
+  sampleCount      Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("characters")
+}
+
+/// A user-authored visual style, reused on Create and in the Coach.
+model StylePreset {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  promptFragment   String
+  negativeFragment String?
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("style_presets")
+}
+
+model CoachThread {
+  id        String         @id @default(uuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String         @default("New chat")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  messages  CoachMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("coach_threads")
+}
+
+model CoachMessage {
+  id        String      @id @default(uuid())
+  threadId  String
+  thread    CoachThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  role      String
+  parts     Json
+  status    String      @default("complete")
+  usage     Json?
+  createdAt DateTime    @default(now())
+
+  @@index([threadId, createdAt])
+  @@map("coach_messages")
 }

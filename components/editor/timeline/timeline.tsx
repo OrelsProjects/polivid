@@ -2,13 +2,7 @@
 
 import { useRef, type PointerEvent } from "react";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
-import {
-  useEditorActions,
-  useEditorPlayback,
-  useEditorState,
-  useEditorTimeline,
-  useSetHoverFrame,
-} from "../editor-provider";
+import { useEditorActions, useEditorPlayback, useEditorTimeline, useEditorZoom } from "../editor-provider";
 import { HoverLine, Playhead, TRACK_HEADER_WIDTH } from "./playhead";
 import { TimelineRuler } from "./timeline-ruler";
 import { TimelineTrack } from "./timeline-track";
@@ -37,9 +31,9 @@ const PlaybackNeedle = ({ zoom }: { zoom: number }) => {
 
 export function TimelinePanel() {
   const timeline = useEditorTimeline();
-  const { zoom } = useEditorState();
+  const zoom = useEditorZoom();
   const actions = useEditorActions();
-  const setHoverFrame = useSetHoverFrame();
+  const { setHoverFrame } = actions;
   const contentRef = useRef<HTMLDivElement>(null);
   const durationInFrames = timelineDurationInFrames(timeline);
   const pictureTracks = timeline.tracks.filter((track) => track.kind !== "audio").reverse();

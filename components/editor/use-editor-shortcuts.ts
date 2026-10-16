@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { deleteItem, duplicateItem, nudgeItem, splitItem } from "@/lib/editor/operations";
 import { findItem } from "@/lib/editor/schema";
-import { useEditorActions, useEditorPlaybackRef, useEditorState } from "./editor-provider";
+import { selectEditorDocument, selectEditorPlayback } from "@/lib/store/editor-slice";
+import { useAppStore } from "@/lib/store/hooks";
+import { useEditorActions } from "./editor-provider";
 
 const typingTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) return false;
@@ -13,22 +15,19 @@ const typingTarget = (target: EventTarget | null) => {
 };
 
 export const useEditorShortcuts = () => {
-  const state = useEditorState();
-  const playbackRef = useEditorPlaybackRef();
+  const store = useAppStore();
   const actions = useEditorActions();
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (typingTarget(event.target)) return;
+      const state = store.getState();
+      const current = selectEditorDocument(state);
+      if (!current) return;
+      const playback = selectEditorPlayback(state);
       const meta = event.metaKey || event.ctrlKey;
-      const current = stateRef.current;
       const timeline = current.history.present.timeline;
       const selected = current.selection ? findItem(timeline, current.selection.itemId) : null;
-      const playback = playbackRef.current;
 
       if (event.code === "Space") {
         event.preventDefault();
@@ -76,5 +75,5 @@ export const useEditorShortcuts = () => {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actions, playbackRef]);
+  }, [actions, store]);
 };

@@ -1,4 +1,5 @@
 import "server-only";
+import { connection } from "next/server";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { auth } from "@/auth";
@@ -13,10 +14,13 @@ export interface CurrentUser {
 /**
  * Data Access Layer entry point: the signed-in user, or a redirect to /login.
  *
- * It reads the session cookie, so call it inside a <Suspense> boundary (Cache
- * Components rule). React's cache() dedupes it within one request.
+ * Call it inside a <Suspense> boundary. `connection()` runs first so Auth.js
+ * can mint its CSRF token at request time; that uses `crypto.getRandomValues()`,
+ * which Cache Components rejects during prerender. React's cache() dedupes it
+ * within one request.
  */
 export const getCurrentUser = cache(async (): Promise<CurrentUser> => {
+  await connection();
   const session = await auth();
   const user = session?.user;
   if (!user?.id) redirect("/login");

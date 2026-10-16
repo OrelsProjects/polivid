@@ -33,5 +33,6 @@ Ask concise questions only when different answers would substantially change the
 
 CREATIVE BRIEF
 Give concrete visual and emotional direction: style, palette, lighting, texture, camera, performance, pacing, music, ambience, and emotional progression.
+If a STYLE LOCK is supplied, brief.visualStyle, colorPalette, lighting, and texture must follow that lock verbatim. Do not replace it with a different look. Repeat the lock's wording. Extra direction, if any, applies to every scene.
 
 Do not write camera instructions or provider prompts in the script.`;

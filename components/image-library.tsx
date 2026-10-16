@@ -2,20 +2,17 @@
 
 import { Popover } from "@base-ui/react/popover";
 import { Check, FileVideo, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiErrorMessage } from "@/lib/store/api-errors";
+import { useDeleteUploadMutation, useGetUploadsQuery, type LibraryUpload } from "@/lib/store/endpoints/uploads";
 import { cn } from "@/lib/utils";
 
 export type LibraryMediaKind = "image" | "video";
 export type LibrarySource = "image" | "video" | "visual";
 
-type LibraryPicture = {
-  key: string;
-  url: string;
-  kind: LibraryMediaKind | "audio" | "file";
-  uploadedAt: string | null;
-};
+type LibraryPicture = LibraryUpload;
 
 type ImageLibraryProps = {
   selectedKeys: string[];
@@ -23,6 +20,8 @@ type ImageLibraryProps = {
   disabled?: boolean;
   uploading?: boolean;
   triggerLabel: string;
+  tileClassName?: string;
+  side?: "top" | "bottom";
   source?: LibrarySource;
   layout?: "popover" | "inline";
   onToggle: (key: string, url: string, kind: LibraryMediaKind) => void;
@@ -64,6 +63,8 @@ export function ImageLibrary({
   disabled,
   uploading,
   triggerLabel,
+  tileClassName,
+  side = "bottom",
   source = "image",
   layout = "popover",
   onToggle,
@@ -71,41 +72,29 @@ export function ImageLibrary({
   onDeleted,
 }: ImageLibraryProps) {
   const [open, setOpen] = useState(false);
-  const [pictures, setPictures] = useState<LibraryPicture[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [confirmingKey, setConfirmingKey] = useState<string | null>(null);
-  const pendingDeletes = useRef(new Set<string>());
   const atLimit = selectedKeys.length >= maxSelected;
-
-  const loadPictures = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const query = source === "image" ? "" : "?kind=all";
-      const response = await fetch(`/api/uploads${query}`, { cache: "no-store" });
-      const body = (await response.json().catch(() => null)) as { uploads?: LibraryPicture[]; error?: string } | null;
-      if (!response.ok) throw new Error(body?.error ?? "Couldn't load your library.");
-      setPictures(
-        (body?.uploads ?? []).filter((item) => matchesSource(item.kind, source) && !pendingDeletes.current.has(item.key)),
-      );
-      setLoaded(true);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't load your library.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (layout === "inline") void loadPictures();
-  }, [layout, source, uploading]);
+  const {
+    data: uploads,
+    isFetching: loading,
+    error: loadError,
+  } = useGetUploadsQuery(source === "image" ? "image" : "all", {
+    skip: layout !== "inline" && !open,
+    refetchOnMountOrArgChange: true,
+  });
+  const [deleteUpload] = useDeleteUploadMutation();
+  const loaded = uploads !== undefined;
+  const pictures = useMemo(
+    () => (uploads ?? []).filter((item) => matchesSource(item.kind, source)),
+    [uploads, source],
+  );
+  const error = deleteError ?? (loadError ? apiErrorMessage(loadError, "Couldn't load your library.") : null);
 
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     setConfirmingKey(null);
-    if (next) void loadPictures();
+    if (next) setDeleteError(null);
   };
 
   const handleUploadNew = () => {
@@ -114,32 +103,18 @@ export function ImageLibrary({
   };
 
   const handleDelete = (key: string) => {
-    const index = pictures.findIndex((item) => item.key === key);
-    const picture = pictures[index];
+    const picture = pictures.find((item) => item.key === key);
     if (!picture) return;
     const wasSelected = selectedKeys.includes(key);
-    pendingDeletes.current.add(key);
-    setPictures((current) => current.filter((item) => item.key !== key));
     setConfirmingKey(null);
-    setError(null);
+    setDeleteError(null);
     onDeleted(key);
 
-    void fetch(picture.url, { method: "DELETE" })
-      .then(async (response) => {
-        if (response.ok) return;
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Couldn't delete that file.");
-      })
+    void deleteUpload(key)
+      .unwrap()
       .catch((cause: unknown) => {
-        pendingDeletes.current.delete(key);
-        setPictures((current) => {
-          if (current.some((item) => item.key === key)) return current;
-          const next = [...current];
-          next.splice(Math.min(index, next.length), 0, picture);
-          return next;
-        });
         if (wasSelected) onToggle(key, picture.url, asMediaKind(picture.kind));
-        setError(cause instanceof Error ? cause.message : "Couldn't delete that file.");
+        setDeleteError(apiErrorMessage(cause, "Couldn't delete that file."));
       });
   };
 
@@ -207,7 +182,10 @@ export function ImageLibrary({
       <Popover.Trigger
         disabled={disabled || uploading}
         aria-label={triggerLabel}
-        className="flex size-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-primary/40 data-[popup-open]:text-foreground sm:size-32"
+        className={cn(
+          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-primary/40 data-[popup-open]:text-foreground",
+          tileClassName ?? "size-28 sm:size-32",
+        )}
       >
         {uploading ? (
           <LoaderCircle className="size-5 animate-spin" aria-hidden />
@@ -219,7 +197,7 @@ export function ImageLibrary({
         )}
       </Popover.Trigger>
       <Popover.Portal>
-        <Popover.Positioner side="bottom" align="start" sideOffset={8} collisionPadding={16} className="z-50">
+        <Popover.Positioner side={side} align="start" sideOffset={8} collisionPadding={16} className="z-50">
           <Popover.Popup className="w-[min(24rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-2xl border border-border bg-white p-3 shadow-lg outline-none transition-[opacity,scale] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
             <div className="flex items-baseline justify-between gap-3 px-1">
               <Popover.Title className="text-sm font-semibold">{TITLE[source]}</Popover.Title>

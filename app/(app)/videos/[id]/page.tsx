@@ -9,9 +9,12 @@ import { NewProjectButton } from "@/components/editor/new-project-button";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RetryVideoMenu } from "@/components/retry-video-menu";
+import { VideoJobProgress } from "@/components/video/job-progress";
 import { VideoPlayer } from "@/components/video/video-player";
 import { hasFootage } from "@/lib/video/footage";
-import { getMyVideo } from "@/lib/videos";
+import { countStoredSegments } from "@/lib/video/jobs";
+import { getMyVideo, getMyVideoJob } from "@/lib/videos";
 import { domainOf, fillPlaceholders, formatDate, formatFact, formatValue } from "@/lib/video/format";
 import { generationModelBySlug, generationModelLabel } from "@/lib/video/models";
 import type { SceneType, VideoRecord } from "@/lib/video/schema";
@@ -43,8 +46,14 @@ export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
 }
 
 async function VideoDetail({ id }: { id: string }) {
+  const job = await getMyVideoJob(id);
+  if (job && (job.status === "queued" || job.status === "running" || job.status === "paused")) {
+    return <VideoJobProgress job={job} createdLabel={formatDate(job.createdAt)} />;
+  }
   const video = await getMyVideo(id);
   if (!video) notFound();
+  const failed = video.status === "failed" || !video.plan;
+  const clipsReady = failed && job ? await countStoredSegments(video.id, job.clipTotal) : 0;
   const footageUrl = (await hasFootage(video.id)) ? `/api/videos/${video.id}/file` : undefined;
 
   return (
@@ -82,9 +91,7 @@ async function VideoDetail({ id }: { id: string }) {
         </div>
       </div>
 
-      {video.status === "failed" || !video.plan ? (
-        <FailedVideo video={video} />
-      ) : (
+      {video.plan && !failed ? (
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
           <div className="flex flex-col gap-3">
             <VideoPlayer
@@ -120,6 +127,8 @@ async function VideoDetail({ id }: { id: string }) {
             <Sources video={video} />
           </div>
         </div>
+      ) : (
+        <FailedVideo video={video} scratchHref={retryHref(video)} clipsReady={clipsReady} clipTotal={job?.clipTotal ?? 0} />
       )}
     </div>
   );
@@ -233,7 +242,17 @@ function retryHref(video: VideoRecord) {
   return `/create?${params.toString()}`;
 }
 
-function FailedVideo({ video }: { video: VideoRecord }) {
+function FailedVideo({
+  video,
+  scratchHref,
+  clipsReady,
+  clipTotal,
+}: {
+  video: VideoRecord;
+  scratchHref: string;
+  clipsReady: number;
+  clipTotal: number;
+}) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm" role="alert">
@@ -242,12 +261,7 @@ function FailedVideo({ video }: { video: VideoRecord }) {
           Couldn&apos;t make this video
         </span>
         <span className="text-muted-foreground">{video.error}</span>
-        <Link
-          href={retryHref(video)}
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "mt-2 w-fit rounded-xl bg-white")}
-        >
-          Try again
-        </Link>
+        <RetryVideoMenu videoId={video.id} scratchHref={scratchHref} clipsReady={clipsReady} clipTotal={clipTotal} />
       </div>
       {video.facts.length > 0 && <Sources video={video} />}
     </div>

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { apiErrorMessage } from "@/lib/store/api-errors";
+import { useCreateEditProjectMutation } from "@/lib/store/endpoints/editor";
 
 export function NewProjectButton({
   videoId,
@@ -12,29 +14,17 @@ export function NewProjectButton({
   label?: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createProject, { isLoading: busy }] = useCreateEditProjectMutation();
 
   const handleClick = async () => {
     if (busy) return;
-    setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/editor/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(videoId ? { videoId } : {}),
-      });
-      const body = (await response.json().catch(() => null)) as { id?: string; error?: string } | null;
-      if (!response.ok || !body?.id) {
-        setError(body?.error ?? "Couldn't start that edit.");
-        return;
-      }
-      router.push(`/editor/${body.id}`);
-    } catch {
-      setError("Couldn't start that edit.");
-    } finally {
-      setBusy(false);
+      const id = await createProject(videoId).unwrap();
+      router.push(`/editor/${id}`);
+    } catch (cause) {
+      setError(apiErrorMessage(cause, "Couldn't start that edit."));
     }
   };
 

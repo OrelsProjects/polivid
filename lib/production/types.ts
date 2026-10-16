@@ -38,6 +38,9 @@ export interface ProductionView {
   plannerProvider: PlannerProvider;
   format: string;
   targetDurationSec: number;
+  presetId: string | null;
+  visualDirection: string | null;
+  characterId: string | null;
   budgetUsd: number;
   spentUsd: number;
   error: string | null;

@@ -1,5 +1,7 @@
+import { isCharacterId } from "@/lib/voice/constants";
 import { GENERATION_MODEL_IDS, type GenerationModelId } from "./models";
 import { isVideoTier, type VideoTier } from "./modes";
+import { MAX_VISUAL_DIRECTION } from "./presets";
 import {
   isVideoLength,
   MAX_PROMPT_LENGTH,
@@ -24,6 +26,9 @@ export interface CreateDraft {
   mediaKey: string | null;
   referenceKeys: string[];
   showText: boolean;
+  presetId: string;
+  visualDirection: string;
+  characterId: string;
 }
 
 const isInputMode = (value: unknown): value is CreateDraftInputMode =>
@@ -56,7 +61,32 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       ? data.referenceKeys.filter(isUploadKey).slice(0, MAX_REFERENCE_IMAGES)
       : [];
     const showText = data.showText !== false;
-    return { prompt, inputMode, format, length, customLength, model, tier, mediaKey, referenceKeys, showText };
+    const presetId =
+      typeof data.presetId === "string" && data.presetId.trim() && data.presetId.length <= 80
+        ? data.presetId.trim()
+        : "auto";
+    const visualDirection =
+      typeof data.visualDirection === "string" ? data.visualDirection.slice(0, MAX_VISUAL_DIRECTION) : "";
+    const characterId = isCharacterId(data.characterId)
+      ? data.characterId
+      : isCharacterId(data.voiceSettingId)
+        ? data.voiceSettingId
+        : "";
+    return {
+      prompt,
+      inputMode,
+      format,
+      length,
+      customLength,
+      model,
+      tier,
+      mediaKey,
+      referenceKeys,
+      showText,
+      presetId,
+      visualDirection,
+      characterId,
+    };
   } catch {
     return null;
   }

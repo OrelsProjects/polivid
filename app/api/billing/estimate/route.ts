@@ -15,6 +15,7 @@ const Schema = z.discriminatedUnion("kind", [
     mode: z.enum(VIDEO_MODE_IDS).optional(),
     tier: z.enum(VIDEO_TIERS).optional(),
     resolution: z.string().optional(),
+    referenceCount: z.number().int().min(0).max(8).optional(),
   }),
   z.object({
     kind: z.literal("production"),
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       modelId: parsed.data.model,
       resolution: parsed.data.resolution,
       length: parsed.data.length,
+      referenceCount: parsed.data.referenceCount,
     });
     return Response.json({ credits });
   }

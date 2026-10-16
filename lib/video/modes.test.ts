@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveModeTier, videoModeById, VIDEO_MODES } from "./modes";
+import { modeAcceptsReferenceImages, resolveModeTier, videoModeById, VIDEO_MODES, VIDEO_TIERS } from "./modes";
 
 test("every catalog mode is live and resolves a Pro tier", () => {
   for (const mode of VIDEO_MODES) {
@@ -25,6 +25,16 @@ test("image and avatar share first-frame models", () => {
 test("motion graphics uses chat models", () => {
   assert.equal(resolveModeTier("motion-graphics", "low")?.chatModel, "anthropic/claude-sonnet-5.5");
   assert.equal(resolveModeTier("motion-graphics", "ultra")?.chatModel, "anthropic/claude-opus-5.5");
+});
+
+test("modes that take reference pictures only use models that accept them", () => {
+  const prompt = videoModeById("prompt");
+  assert.ok(prompt && modeAcceptsReferenceImages(prompt));
+  for (const mode of VIDEO_MODES.filter(modeAcceptsReferenceImages)) {
+    for (const tier of VIDEO_TIERS) {
+      assert.equal(resolveModeTier(mode.id, tier)?.model?.referenceImages, true, `${mode.id} ${tier}`);
+    }
+  }
 });
 
 test("unknown tiers do not resolve", () => {

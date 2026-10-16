@@ -8,6 +8,7 @@ export const formatDevelopInput = (args: {
   language: string;
   answers?: Record<string, string>;
   delegated: boolean;
+  styleLock?: string | null;
 }) => {
   const answers =
     args.answers && Object.keys(args.answers).length > 0
@@ -15,13 +16,16 @@ export const formatDevelopInput = (args: {
           .map(([id, answer]) => `- ${id}: ${answer}`)
           .join("\n")}`
       : "";
+  const lock = args.styleLock?.trim()
+    ? `\n\nSTYLE LOCK — reuse this wording in the creative brief and every shot:\n${args.styleLock.trim()}`
+    : "";
   return `Format: ${args.format}
 Target duration: ${args.durationSec} seconds
 Language: ${args.language}
 Creative delegation: ${args.delegated ? "yes — do not ask questions" : "no"}
 
 User request:
-${args.text}${answers}`;
+${args.text}${answers}${lock}`;
 };
 
 export const formatStructureInput = (args: { developJson: string; retryNotes?: string | null }) => {

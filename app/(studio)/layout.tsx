@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { StoreProvider } from "@/components/store-provider";
 
 /**
  * Full-screen studio chrome. The project editor leaves the signed-in app
@@ -7,7 +8,7 @@ import type { ReactNode } from "react";
 export default function StudioLayout({ children }: { children: ReactNode }) {
   return (
     <main id="main" className="h-svh overflow-hidden bg-background">
-      {children}
+      <StoreProvider>{children}</StoreProvider>
     </main>
   );
 }

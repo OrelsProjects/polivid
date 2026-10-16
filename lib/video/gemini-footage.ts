@@ -42,6 +42,19 @@ interface Interaction {
 
 const UNFINISHED = new Set(["in_progress", "queued"]);
 
+/** A free-tier key has a zero quota for Omni. Waiting will not change that. */
+const NO_QUOTA = /limit: 0\b/;
+
+/** Busy or rate-limited replies are retried. Everything else, and a zero quota, ends the job. */
+const failure = async (response: Response) => {
+  const message = await errorMessage(response);
+  if (!isRetryableStatus(response.status)) return new ModelDeclined(message);
+  if (NO_QUOTA.test(message)) {
+    return new ModelDeclined("Gemini Omni needs a paid-tier Gemini API key. This key is on the free tier.");
+  }
+  return new Error(message);
+};
+
 const headers = () => ({ "x-goog-api-key": geminiApiKey() });
 
 /** Starts a background interaction and returns its id. Retries until Google answers. */
@@ -66,8 +79,7 @@ export const submitGeminiVideo = async (request: GeminiVideoRequest) => {
         headers: { ...headers(), "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (isRetryableStatus(response.status)) throw new Error(`Video request failed (${response.status}).`);
-      if (!response.ok) throw new ModelDeclined(await errorMessage(response));
+      if (!response.ok) throw await failure(response);
       const interaction = (await response.json()) as Interaction;
       if (!interaction.id) throw new Error("Gemini Omni did not start a job.");
       return interaction.id;
@@ -89,7 +101,7 @@ export const finishGeminiVideo = async (interactionId: string, shouldContinue: (
       const response = await fetch(`${API}/interactions/${encodeURIComponent(interactionId)}`, {
         headers: headers(),
       });
-      if (!response.ok) throw new Error(await errorMessage(response));
+      if (!response.ok) throw await failure(response);
       const interaction = (await response.json()) as Interaction;
       const status = interaction.status ?? "";
       if (status === "completed") return await videoFrom(interaction);

@@ -85,6 +85,8 @@ export interface FootageRequest {
   imageDataUrl?: string;
   /** Audio or video references for models that accept them. */
   inputReferences?: Record<string, unknown>[];
+  /** When set, overrides the model's own audio default. Lyrics clips stay silent. */
+  generateAudio?: boolean;
 }
 
 export interface FootageClip {
@@ -141,7 +143,7 @@ export const renderFootage = async (
           duration,
           resolution,
           aspect_ratio: input.format,
-          generate_audio: model.audio,
+          generate_audio: input.generateAudio ?? model.audio,
           ...(input.imageDataUrl
             ? {
                 frame_images: [

@@ -7,9 +7,11 @@ import {
   Images,
   LayoutGrid,
   LayoutTemplate,
+  MessageCircle,
   Plus,
   Settings,
   Sparkles,
+  UserRound,
   Wrench,
 } from "lucide-react";
 import Link from "next/link";
@@ -34,6 +36,12 @@ const NAV: readonly NavItem[] = [
     activeFor: ["/dashboard"],
   },
   {
+    href: "/coach",
+    label: "Coach",
+    icon: MessageCircle,
+    activeFor: ["/coach"],
+  },
+  {
     href: "/tools",
     label: "Tools",
     icon: Wrench,
@@ -46,6 +54,7 @@ const NAV: readonly NavItem[] = [
     activeFor: ["/productions"],
   },
   { href: "/videos", label: "My videos", icon: Film, activeFor: ["/videos"] },
+  { href: "/characters", label: "Characters", icon: UserRound, activeFor: ["/characters"] },
   {
     href: "/editor",
     label: "Editor",

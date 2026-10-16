@@ -8,9 +8,12 @@ import { tickProductionJobs } from "@/lib/production/jobs/runner";
 import { plannerProvider } from "@/lib/production/planner";
 import { labelForPlanningStep } from "@/lib/production/progress";
 import { PRODUCTION_MODES } from "@/lib/production/schema";
+import { mergeCharacterImage } from "@/lib/characters/reference";
+import { resolveProductionCharacter } from "@/lib/production/create-request";
 import { ownedReferenceKeys, referenceAttachments } from "@/lib/production/references";
 import { createProductionForUser, listProductionsForUser, updateProduction } from "@/lib/production/store";
 import type { ProductionStreamEvent } from "@/lib/production/stream";
+import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_REFERENCE_IMAGES, VIDEO_FORMATS as FORMATS } from "@/lib/video/schema";
 
 export const maxDuration = 300;
@@ -23,6 +26,9 @@ const CreateSchema = z.object({
   creativeDelegation: z.boolean().optional().default(false),
   budgetUsd: z.number().positive().max(500).optional(),
   referenceKeys: z.array(z.string().min(1)).max(MAX_REFERENCE_IMAGES).optional().default([]),
+  presetId: z.string().trim().max(80).optional(),
+  visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
+  characterId: z.string().trim().max(80).optional().default(""),
 });
 
 export async function GET() {
@@ -46,6 +52,13 @@ export async function POST(request: Request) {
   if (referenceKeys.length !== new Set(parsed.data.referenceKeys).size) {
     return Response.json({ error: "Use pictures from your own library as references." }, { status: 400 });
   }
+  let character;
+  try {
+    character = await resolveProductionCharacter(userId, parsed.data.characterId);
+  } catch (error) {
+    return Response.json({ error: error instanceof Error ? error.message : "Pick a character that has a picture." }, { status: 400 });
+  }
+  const attachments = referenceAttachments(mergeCharacterImage(referenceKeys, character.imageKey));
   try {
     await requireCredits(userId, 1);
   } catch (error) {
@@ -64,7 +77,10 @@ export async function POST(request: Request) {
         creativeDelegation: parsed.data.creativeDelegation,
         plannerProvider: plannerProvider(),
         budgetUsd,
-        attachments: referenceAttachments(referenceKeys),
+        attachments,
+        presetId: parsed.data.presetId,
+        visualDirection: parsed.data.visualDirection,
+        characterId: character.characterId,
       });
       emit({
         type: "created",

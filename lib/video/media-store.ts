@@ -1,9 +1,9 @@
 import "server-only";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { rangedFileResponse, rangedStreamResponse, type RangedSource } from "@/lib/http/range";
-import { getObjectIfExists, hasS3Config, putUpload, statObject, streamObjectRange } from "@/lib/storage/s3";
+import { deleteUpload, getObjectIfExists, hasS3Config, putUpload, signedGetUrl, statObject, streamObjectRange } from "@/lib/storage/s3";
 
 /**
  * Filmed clips and what is derived from them (scrub stills, waveforms).
@@ -31,6 +31,12 @@ const localPath = (key: string) => {
   return path.join(LOCAL_DIR, ...parts);
 };
 
+/** HTTPS link for a stored video file. Null when files are only on this machine. */
+export const signedVideoMediaUrl = (key: string, expiresIn = 2 * 60 * 60) => {
+  if (!hasS3Config()) return Promise.resolve(null);
+  return signedGetUrl(objectKey(key), expiresIn);
+};
+
 export const putVideoMedia = async (key: string, bytes: Uint8Array, contentType: string) => {
   if (hasS3Config()) {
     await putUpload(objectKey(key), bytes, contentType);
@@ -51,6 +57,16 @@ export const readVideoMedia = async (key: string): Promise<Uint8Array | null> =>
 export const hasVideoMedia = async (key: string) => {
   if (hasS3Config()) return (await statObject(objectKey(key))) !== null;
   return existsSync(localPath(key));
+};
+
+export const deleteVideoMedia = async (key: string) => {
+  if (hasS3Config()) {
+    await deleteUpload(objectKey(key));
+    return;
+  }
+  const file = localPath(key);
+  if (!existsSync(file)) return;
+  await unlink(file);
 };
 
 /** Streams a stored file and honors Range. Null when the file doesn't exist. */

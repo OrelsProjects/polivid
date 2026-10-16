@@ -9,6 +9,8 @@ export interface CompileContext {
   locationNotes: string;
   /** What the reviewer found wrong with a rejected earlier take of this shot. */
   corrections?: string[];
+  /** Catalog or custom preset fragment, reused verbatim on every shot. */
+  styleLock?: string | null;
 }
 
 export const compileShotPrompt = (context: CompileContext) => {
@@ -51,8 +53,12 @@ export const compileShotPrompt = (context: CompileContext) => {
   if (corrections.length > 0) {
     parts.push(`A previous take was rejected. Avoid these problems: ${corrections.join("; ")}.`);
   }
+  if (context.styleLock?.trim()) parts.push(context.styleLock.trim());
   return parts.filter(Boolean).join(" ");
 };
 
-export const compileImagePrompt = (subject: string, brief: CreativeBrief) =>
-  `${subject}. ${brief.visualStyle}. ${brief.colorPalette}. ${brief.lighting}. ${brief.texture}. Still frame, no text.`;
+export const compileImagePrompt = (subject: string, brief: CreativeBrief, styleLock?: string | null) => {
+  const base = `${subject}. ${brief.visualStyle}. ${brief.colorPalette}. ${brief.lighting}. ${brief.texture}. Still frame, no text.`;
+  const lock = styleLock?.trim();
+  return lock && !base.includes(lock) ? `${lock} ${base}` : base;
+};

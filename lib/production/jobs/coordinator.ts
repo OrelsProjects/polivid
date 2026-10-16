@@ -88,6 +88,8 @@ const planFromInput = async (productionId: string, userId: string, options: Plan
   const planner = getPlanner();
   const existing = await currentEntityData<DevelopOutput["questions"]>(productionId, "questions", "questions");
   report("develop");
+  const { styleLockForProduction } = await import("@/lib/video/style-lock");
+  const styleLock = await styleLockForProduction(productionMode.presetId, productionMode.visualDirection, userId);
   let developResult = await runDevelopPass(planner, {
     text: input.text,
     format: productionMode.format,
@@ -95,6 +97,7 @@ const planFromInput = async (productionId: string, userId: string, options: Plan
     language: "en",
     answers: options.answers,
     delegated: productionMode.creativeDelegation,
+    styleLock,
   });
   if (options.answers) {
     developResult = {
@@ -252,6 +255,7 @@ export const cloneProductionPlan = async (sourceId: string, userId: string) => {
         budgetUsd: Number(source.budgetUsd),
         format: source.format,
         targetDurationSec: source.targetDurationSec,
+        characterId: source.characterId,
       }),
     },
   });

@@ -3,7 +3,7 @@
 import { deleteItem, setCrossfade } from "@/lib/editor/operations";
 import { findItem } from "@/lib/editor/schema";
 import { Button } from "@/components/ui/button";
-import { useEditorActions, useEditorState, useEditorTimeline } from "../editor-provider";
+import { useEditorActions, useEditorSelection, useEditorTimeline } from "../editor-provider";
 import { AudioInspector } from "./audio-inspector";
 import { ImageInspector } from "./image-inspector";
 import { TextInspector } from "./text-inspector";
@@ -12,7 +12,7 @@ import { VideoInspector } from "./video-inspector";
 
 export function InspectorPanel() {
   const timeline = useEditorTimeline();
-  const { selection } = useEditorState();
+  const selection = useEditorSelection();
   const actions = useEditorActions();
   const found = selection ? findItem(timeline, selection.itemId) : null;
 

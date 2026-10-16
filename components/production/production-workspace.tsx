@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { UpgradeDialog } from "@/components/billing/upgrade-dialog";
@@ -35,6 +35,22 @@ import {
   type Shot,
 } from "@/lib/production/schema";
 import { uploadFileUrl } from "@/lib/storage/upload-key";
+import { apiErrorMessage, insufficientCredits } from "@/lib/store/api-errors";
+import { useGetProductionEstimateQuery } from "@/lib/store/endpoints/billing";
+import {
+  productionsApi,
+  useApproveProductionMutation,
+  useCancelProductionMutation,
+  useGetProductionQuery,
+  useOpenProductionEditorMutation,
+  useRegenerateProductionMutation,
+  useRetryProductionMutation,
+  useSubmitProductionAnswersMutation,
+  useUpdateProductionEntityMutation,
+} from "@/lib/store/endpoints/productions";
+import { useAppSelector } from "@/lib/store/hooks";
+
+const POLL_MS = 1500;
 
 const statusLine = (production: ProductionView, estimatedCredits: number | null) => {
   const status = STATUS_LABEL[production.status] ?? production.status;
@@ -53,13 +69,22 @@ const statusLine = (production: ProductionView, estimatedCredits: number | null)
 
 export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const router = useRouter();
-  const [production, setProduction] = useState(initial);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [upgrade, setUpgrade] = useState<{ required: number; balance: number } | null>(null);
-  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const selectProduction = useMemo(() => productionsApi.endpoints.getProduction.select(initial.id), [initial.id]);
+  const production = useAppSelector(selectProduction).data ?? initial;
+  const [submitAnswers] = useSubmitProductionAnswersMutation();
+  const [approveProduction] = useApproveProductionMutation();
+  const [regenerateProduction] = useRegenerateProductionMutation();
+  const [cancelProduction] = useCancelProductionMutation();
+  const [openProductionEditor] = useOpenProductionEditorMutation();
+  const [retryProduction] = useRetryProductionMutation();
+  const [updateProductionEntity] = useUpdateProductionEntityMutation();
+  const hasEstimate = production.status === "preview" || production.status === "ready";
+  const { data: estimatedCredits = null } = useGetProductionEstimateQuery(production.id, { skip: !hasEstimate });
 
   const entity = (kind: string, key?: string) =>
     production.entities.find((entry) => entry.kind === kind && (!key || entry.stableKey === key))?.current?.data;
@@ -78,112 +103,63 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const runStartedAt = production.runStartedAt ? Date.parse(production.runStartedAt) : null;
   const elapsed = live && runStartedAt !== null ? formatElapsed(runStartedAt, now) : null;
 
-  /** True while a whole-production retry is in flight; polls may still return the stale failed snapshot. */
-  const restarting = useRef(false);
-
-  const refresh = async () => {
-    const response = await fetch(`/api/productions/${production.id}`);
-    const json = (await response.json()) as { production?: ProductionView };
-    if (!json.production) return;
-    if (restarting.current && !isLiveProductionStatus(json.production.status)) return;
-    setProduction(json.production);
-  };
+  // Polling pauses while an action is in flight so a stale poll can't undo its optimistic update.
+  useGetProductionQuery(initial.id, {
+    pollingInterval: live && !busy ? POLL_MS : 0,
+    refetchOnMountOrArgChange: true,
+  });
 
   useEffect(() => {
     if (!live) return;
-    const timer = setInterval(() => {
-      void refresh();
-      setNow(Date.now());
-    }, 1500);
+    const timer = setInterval(() => setNow(Date.now()), POLL_MS);
     return () => clearInterval(timer);
-  }, [live, production.id]);
+  }, [live]);
+
+  const showActionError = (error: unknown, fallback: string) => {
+    const shortfall = insufficientCredits(error);
+    if (shortfall) setUpgrade(shortfall);
+    else setMessage(apiErrorMessage(error, fallback));
+  };
 
   const handleAnswers = async () => {
     setBusy("answers");
     setMessage(null);
-    setProduction((current) => ({
-      ...current,
-      status: "drafting",
-      stage: "develop",
-      runStartedAt: new Date().toISOString(),
-    }));
-    const response = await fetch(`/api/productions/${production.id}/answers`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers }),
-    });
-    const json = (await response.json()) as { error?: string };
-    if (!response.ok) setMessage(json.error ?? "Couldn't save those answers.");
-    await refresh();
+    try {
+      await submitAnswers({ id: production.id, answers }).unwrap();
+    } catch (error) {
+      setMessage(apiErrorMessage(error, "Couldn't save those answers."));
+    }
     setBusy(null);
   };
 
-  useEffect(() => {
-    if (production.status !== "preview" && production.status !== "ready") return;
-    const loadEstimate = async () => {
-      const response = await fetch("/api/billing/estimate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind: "production", productionId: production.id }),
-      });
-      const json = (await response.json().catch(() => null)) as { credits?: number } | null;
-      if (response.ok && typeof json?.credits === "number") setEstimatedCredits(json.credits);
-    };
-    void loadEstimate();
-  }, [production.id, production.status]);
-
   const handleApprove = async () => {
     setBusy("approve");
-    const response = await fetch(`/api/productions/${production.id}/approve`, { method: "POST" });
-    if (!response.ok) {
-      const json = (await response.json()) as {
-        error?: string;
-        code?: string;
-        required?: number;
-        balance?: number;
-      };
-      if (response.status === 402 && json.code === "insufficient_credits") {
-        setUpgrade({ required: json.required ?? 0, balance: json.balance ?? 0 });
-      } else {
-        setMessage(json.error ?? "Couldn't start generation.");
-      }
+    try {
+      await approveProduction(production.id).unwrap();
+    } catch (error) {
+      showActionError(error, "Couldn't start generation.");
     }
-    await refresh();
     setBusy(null);
   };
 
   const handleRegenerate = async () => {
     setBusy("regenerate");
     setMessage(null);
-    const response = await fetch(`/api/productions/${production.id}/regenerate`, { method: "POST" });
-    const json = (await response.json()) as {
-      error?: string;
-      code?: string;
-      required?: number;
-      balance?: number;
-      id?: string;
-    };
-    if (!response.ok) {
-      if (response.status === 402 && json.code === "insufficient_credits") {
-        setUpgrade({ required: json.required ?? 0, balance: json.balance ?? 0 });
-      } else {
-        setMessage(json.error ?? "Couldn't regenerate this video.");
+    try {
+      const copyId = await regenerateProduction(production.id).unwrap();
+      if (copyId) {
+        router.push(`/productions/${copyId}`);
+        return;
       }
-      setBusy(null);
-      return;
+    } catch (error) {
+      showActionError(error, "Couldn't regenerate this video.");
     }
-    if (json.id) {
-      router.push(`/productions/${json.id}`);
-      return;
-    }
-    await refresh();
     setBusy(null);
   };
 
   const handleCancel = async () => {
     setBusy("cancel");
-    await fetch(`/api/productions/${production.id}/cancel`, { method: "POST" });
-    await refresh();
+    await cancelProduction(production.id);
     setBusy(null);
   };
 
@@ -194,40 +170,23 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
     }
     setBusy("editor");
     setMessage(null);
-    const response = await fetch(`/api/productions/${production.id}/editor`, { method: "POST" });
-    const json = (await response.json().catch(() => null)) as { project?: { id: string }; error?: string } | null;
-    if (!response.ok || !json?.project?.id) {
-      setMessage(json?.error ?? "Couldn't open this in the editor.");
-      setBusy(null);
-      return;
+    try {
+      const projectId = await openProductionEditor(production.id).unwrap();
+      router.push(`/editor/${projectId}`);
+    } catch (error) {
+      setMessage(apiErrorMessage(error, "Couldn't open this in the editor."));
     }
-    setProduction((current) => ({ ...current, editProjectId: json.project!.id }));
-    router.push(`/editor/${json.project.id}`);
     setBusy(null);
   };
 
   const handleRetry = async (stepId?: string) => {
     setBusy(stepId ?? "retry");
     setMessage(null);
-    if (!stepId) {
-      restarting.current = true;
-      setProduction((current) => ({
-        ...current,
-        status: current.steps.some((step) => step.status === "failed" || step.status === "canceled")
-          ? "generating"
-          : "drafting",
-        error: null,
-      }));
+    try {
+      await retryProduction({ id: production.id, stepId }).unwrap();
+    } catch (error) {
+      setMessage(apiErrorMessage(error, "Couldn't retry from the last step."));
     }
-    const response = await fetch(`/api/productions/${production.id}/retry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(stepId ? { stepId } : {}),
-    });
-    const json = (await response.json().catch(() => null)) as { error?: string } | null;
-    restarting.current = false;
-    if (!response.ok) setMessage(json?.error ?? "Couldn't retry from the last step.");
-    await refresh();
     setBusy(null);
   };
 
@@ -563,11 +522,7 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
               onBlur={(event) => {
                 try {
                   const data = JSON.parse(event.target.value) as Script;
-                  void fetch(`/api/productions/${production.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ kind: "script", stableKey: "script", data }),
-                  }).then(() => refresh());
+                  void updateProductionEntity({ id: production.id, kind: "script", stableKey: "script", data });
                 } catch {
                   setMessage("Script JSON is invalid.");
                 }

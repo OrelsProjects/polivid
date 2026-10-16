@@ -6,6 +6,7 @@ import { AppNav } from "@/components/app-nav";
 import { PlanCard } from "@/components/billing/plan-card";
 import { Logo } from "@/components/logo";
 import { MobileNav } from "@/components/mobile-nav";
+import { StoreProvider } from "@/components/store-provider";
 import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
 import { cn } from "@/lib/utils";
@@ -75,7 +76,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
         <main id="main" className="flex-1">
-          {children}
+          <StoreProvider>{children}</StoreProvider>
         </main>
       </div>
     </div>
