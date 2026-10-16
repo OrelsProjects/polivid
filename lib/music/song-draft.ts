@@ -9,7 +9,9 @@ import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { resolveCharacterVoice } from "@/lib/voice/speak";
 import { composeSong } from "./compose";
 import { singAs } from "./sing-as";
-import { planSongSections, readSongBrief, splitLyricSections, type SongSectionPlan, type SongWord } from "./song-plan";
+import { extractSongBrief } from "./song-brief";
+import { planSongSections, splitLyricSections, type SongSectionPlan, type SongWord } from "./song-plan";
+import type { SongProgress } from "./song-take";
 
 /** A song take made on the create page, before any video exists. */
 export interface SongDraft {
@@ -71,10 +73,12 @@ export const songDraftFits = (
 export const createSongDraft = async (
   userId: string,
   input: { prompt: string; length: number; model: string; characterId: string; hasSinger: boolean; demo: boolean },
+  onStatus?: (step: SongProgress) => void,
 ) => {
   const model = generationModelBySlug(input.model);
   if (!model) throw new Error("Pick a video model.");
-  const brief = readSongBrief(input.prompt);
+  onStatus?.("lyrics");
+  const brief = await extractSongBrief(input.prompt);
   if (!brief.lyrics) throw new Error("Add the lyrics first.");
   const voice = input.characterId ? await resolveCharacterVoice(userId, input.characterId) : null;
   const sections = planSongSections(splitLyricSections(brief.lyrics), input.length, lyricsClipDurations(model, input.hasSinger));
@@ -84,8 +88,13 @@ export const createSongDraft = async (
   const move = { reason: "song", refType: "song", refId: id, idempotencyKey: `song_hold:${id}` };
   await reserveCredits(userId, credits, move);
   try {
+    onStatus?.("compose");
     const composed = await composeSong({ sections, style: brief.style || "pop", idempotencyKey: `song:${id}` });
-    const audio = voice ? (await singAs(composed.bytes, voice.providerVoiceId)).mix : composed.bytes;
+    let audio = composed.bytes;
+    if (voice) {
+      onStatus?.("sing");
+      audio = (await singAs(composed.bytes, voice.providerVoiceId)).mix;
+    }
     const draft: SongDraft = {
       id,
       userId,

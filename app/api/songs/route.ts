@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
-import { InsufficientCreditsError, insufficientCreditsResponse } from "@/lib/billing/errors";
+import { InsufficientCreditsError } from "@/lib/billing/errors";
 import { getPickableCharacter } from "@/lib/characters/store";
+import { ndjsonResponse } from "@/lib/http/ndjson";
 import { createSongDraft, songCharacterId } from "@/lib/music/song-draft";
+import type { SongTakeStreamEvent } from "@/lib/music/song-take";
 import { resolveModeTier, VIDEO_TIERS } from "@/lib/video/modes";
 import { MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH } from "@/lib/video/schema";
 
@@ -24,34 +26,58 @@ export async function POST(request: Request) {
   if (!userId) return Response.json({ error: "Sign in to make a song." }, { status: 401 });
   const parsed = Schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Add the lyrics first." }, { status: 400 });
-  const resolved = resolveModeTier("lyrics", parsed.data.tier);
-  if (!resolved?.model) return Response.json({ error: "Pick a quality tier." }, { status: 400 });
+  const model = resolveModeTier("lyrics", parsed.data.tier)?.model;
+  if (!model) return Response.json({ error: "Pick a quality tier." }, { status: 400 });
   const characterId = songCharacterId(parsed.data.characterId);
 
+  let character: Awaited<ReturnType<typeof getPickableCharacter>> = null;
   try {
-    const character = characterId ? await getPickableCharacter(userId, characterId) : null;
-    if (characterId && !character) return Response.json({ error: "Pick a character from your library." }, { status: 400 });
-    const hasSinger = parsed.data.hasSinger || Boolean(character?.imageKey && resolved.model.referenceImages);
-    const { draft, credits } = await createSongDraft(userId, {
-      prompt: parsed.data.prompt,
-      length: parsed.data.length,
-      model: resolved.model.slug,
-      characterId,
-      hasSinger,
-      demo: !hasOpenRouterKey(),
-    });
-    return Response.json({
-      id: draft.id,
-      url: `/api/songs/${draft.id}`,
-      seconds: draft.seconds,
-      voiceName: draft.voiceName,
-      credits,
-    });
+    character = characterId ? await getPickableCharacter(userId, characterId) : null;
   } catch (error) {
-    if (error instanceof InsufficientCreditsError) return insufficientCreditsResponse(error);
     console.error("Song take failed", error);
-    const message =
-      error instanceof Error && error.constructor === Error ? error.message : "Couldn't make the song. Try again.";
-    return Response.json({ error: message }, { status: 500 });
+    return Response.json({ error: "Couldn't make the song. Try again." }, { status: 500 });
   }
+  if (characterId && !character) return Response.json({ error: "Pick a character from your library." }, { status: 400 });
+  const hasSinger = parsed.data.hasSinger || Boolean(character?.imageKey && model.referenceImages);
+
+  return ndjsonResponse(async (send) => {
+    const emit = (event: SongTakeStreamEvent) => send(event);
+    try {
+      const { draft, credits } = await createSongDraft(
+        userId,
+        {
+          prompt: parsed.data.prompt,
+          length: parsed.data.length,
+          model: model.slug,
+          characterId,
+          hasSinger,
+          demo: !hasOpenRouterKey(),
+        },
+        (step) => emit({ type: "status", step }),
+      );
+      emit({
+        type: "done",
+        id: draft.id,
+        url: `/api/songs/${draft.id}`,
+        seconds: draft.seconds,
+        voiceName: draft.voiceName,
+        credits,
+      });
+    } catch (error) {
+      if (error instanceof InsufficientCreditsError) {
+        emit({
+          type: "error",
+          error: error.message,
+          code: "insufficient_credits",
+          required: error.required,
+          balance: error.balance,
+        });
+        return;
+      }
+      console.error("Song take failed", error);
+      const message =
+        error instanceof Error && error.constructor === Error ? error.message : "Couldn't make the song. Try again.";
+      emit({ type: "error", error: message });
+    }
+  });
 }

@@ -16,11 +16,6 @@ export const videosApi = api.injectEndpoints({
       transformResponse: (body: { jobId: string }) => body.jobId,
       invalidatesTags: ["ActiveJobs", "Credits"],
     }),
-    /** One song take for a lyrics video, made before anything is filmed. */
-    makeSongTake: build.mutation<SongTake, SongTakeBody>({
-      query: (body) => ({ url: "songs", method: "POST", body }),
-      invalidatesTags: ["Credits"],
-    }),
     /** Resolves to a rewritten prompt. */
     improvePrompt: build.mutation<string, string>({
       query: (description) => ({ url: "improve", method: "POST", body: { description } }),
@@ -81,7 +76,6 @@ export const videosApi = api.injectEndpoints({
 
 export const {
   useCreateVideoMutation,
-  useMakeSongTakeMutation,
   useImprovePromptMutation,
   useGetVideoJobQuery,
   useGetActiveJobsQuery,

@@ -9,7 +9,8 @@ import { composeSong } from "@/lib/music/compose";
 import { signedGetUrl } from "@/lib/storage/s3";
 import { isImageKey } from "@/lib/storage/upload-key";
 import { songMediaKey, songSliceKey, readStoredSong, type StoredSong } from "@/lib/music/song";
-import { planShots, planSongSections, readSongBrief, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
+import { extractSongBrief } from "@/lib/music/song-brief";
+import { planShots, planSongSections, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
 import { readSongDraft, readSongDraftAudio } from "@/lib/music/song-draft";
 import { singAs } from "@/lib/music/sing-as";
 import { mixNarration, narrationAudio, resolveCharacterVoice } from "@/lib/voice/speak";
@@ -556,12 +557,15 @@ const songForJob = async (userId: string, jobId: string, input: JobInput, hasSin
   if (input.songId) {
     const draft = await readSongDraft(userId, input.songId);
     const audio = draft ? await readSongDraftAudio(draft.id) : null;
-    if (draft && audio) return { sections: draft.sections, words: draft.words, audio };
+    if (draft && audio) {
+      const lyrics = draft.sections.flatMap((section) => section.lines).join("\n");
+      return { sections: draft.sections, words: draft.words, audio, style: draft.style, lyrics };
+    }
     console.error("The approved song take is missing. Composing a new one.", { jobId, songId: input.songId });
   }
   const model = generationModelBySlug(input.model);
   if (!model) throw new Error("Pick a video model.");
-  const brief = readSongBrief(input.prompt);
+  const brief = await extractSongBrief(input.prompt);
   const sections = planSongSections(splitLyricSections(brief.lyrics), input.length, lyricsClipDurations(model, hasSinger));
   const composed = await composeSong({
     sections,
@@ -570,7 +574,7 @@ const songForJob = async (userId: string, jobId: string, input: JobInput, hasSin
   });
   const voice = await resolveCharacterVoice(userId, input.characterId).catch(() => null);
   const audio = voice ? (await singAs(composed.bytes, voice.providerVoiceId)).mix : composed.bytes;
-  return { sections, words: composed.words, audio };
+  return { sections, words: composed.words, audio, style: brief.style, lyrics: brief.lyrics };
 };
 
 const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => {
@@ -581,9 +585,8 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
   let songBytes = song ? await readVideoMedia(songMediaKey(jobId)) : null;
   if (!song || !songBytes) {
     if (!(await markVideoJobProgress(jobId, "script", 10))) return;
-    const brief = readSongBrief(input.prompt);
     const hasSinger = (input.referenceKeys?.length ?? 0) > 0;
-    const { sections, words, audio } = await songForJob(userId, jobId, input, hasSinger);
+    const { sections, words, audio, ...brief } = await songForJob(userId, jobId, input, hasSinger);
     const shots = planShots(sections, hasSinger);
     const composed = { bytes: audio, words };
     await putVideoMedia(songMediaKey(jobId), composed.bytes, "audio/mpeg");
