@@ -56,6 +56,22 @@ test("falls back when a field is missing", () => {
   assert.equal(draft?.presetId, "auto");
 });
 
+test("reads director notes and scene pictures", () => {
+  const draft = parseCreateDraft(
+    JSON.stringify({
+      prompt: "Hello",
+      direction: "Handheld close-ups",
+      scene: "A rooftop at night",
+      directionKeys: ["uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg"],
+      sceneKeys: ["not-an-upload", "uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png"],
+    }),
+  );
+  assert.equal(draft?.direction, "Handheld close-ups");
+  assert.equal(draft?.scene, "A rooftop at night");
+  assert.deepEqual(draft?.directionKeys, ["uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg"]);
+  assert.deepEqual(draft?.sceneKeys, ["uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png"]);
+});
+
 test("reads a saved preset and visual direction", () => {
   const draft = parseCreateDraft(
     JSON.stringify({ prompt: "Hello", presetId: "pixar", visualDirection: "Warm key light." }),

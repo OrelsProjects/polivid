@@ -14,7 +14,7 @@ import {
   resolveModeTier,
 } from "@/lib/video/modes";
 import { CreateVideoSchema } from "@/lib/video/create-schema";
-import { MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
+import { MAX_LYRICS_REFERENCES, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
 import { getPickableCharacter } from "@/lib/characters/store";
 import { mergeCharacterImage } from "@/lib/characters/reference";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
@@ -94,9 +94,24 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   if (referenceKeys.length > 0) {
     const invalid = referenceKeys.some((key) => !isOwnedUploadKey(userId, key) || !isImageKey(key));
     if (invalid) throw new CreateVideoError("Upload a reference picture.", 400);
-    if (!videoModel?.referenceImages) {
-      throw new CreateVideoError("This model can't use a reference picture.", 400);
+  }
+
+  const lyricsMode = resolved?.mode.id === "lyrics";
+  const ownedPictures = (keys: readonly string[], message: string) => {
+    const unique = [...new Set(keys.map((key) => key.trim()).filter(Boolean))].slice(0, MAX_LYRICS_REFERENCES);
+    if (unique.some((key) => !isOwnedUploadKey(userId, key) || !isImageKey(key))) {
+      throw new CreateVideoError(message, 400);
     }
+    return unique;
+  };
+  const direction = lyricsMode ? parsed.data.direction : "";
+  const scene = lyricsMode ? parsed.data.scene : "";
+  const directionKeys = lyricsMode
+    ? ownedPictures(parsed.data.directionKeys, "Upload a shot reference picture.")
+    : [];
+  const sceneKeys = lyricsMode ? ownedPictures(parsed.data.sceneKeys, "Upload a scene picture.") : [];
+  if ((referenceKeys.length > 0 || directionKeys.length > 0 || sceneKeys.length > 0) && !videoModel?.referenceImages) {
+    throw new CreateVideoError("This model can't use a reference picture.", 400);
   }
 
   let songId: string | undefined;
@@ -143,6 +158,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       presetId: parsed.data.presetId,
       visualDirection: parsed.data.visualDirection,
       characterId,
+      direction,
+      scene,
+      directionKeys,
+      sceneKeys,
       songId,
       creditsHeld: credits,
     });

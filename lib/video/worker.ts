@@ -10,7 +10,7 @@ import { signedGetUrl } from "@/lib/storage/s3";
 import { isImageKey } from "@/lib/storage/upload-key";
 import { songMediaKey, songSliceKey, readStoredSong, type StoredSong } from "@/lib/music/song";
 import { extractSongBrief } from "@/lib/music/song-brief";
-import { planShots, planSongSections, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
+import { planShots, planSongSections, songReferences, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
 import { readSongDraft, readSongDraftAudio } from "@/lib/music/song-draft";
 import { singAs } from "@/lib/music/sing-as";
 import { mixNarration, narrationAudio, resolveCharacterVoice } from "@/lib/voice/speak";
@@ -50,6 +50,10 @@ interface JobInput {
   projectId?: string;
   presetId?: string;
   visualDirection?: string;
+  direction?: string;
+  scene?: string;
+  directionKeys?: string[];
+  sceneKeys?: string[];
   characterId?: string;
   songId?: string;
 }
@@ -476,11 +480,16 @@ const songPrompt = (
   preset: Awaited<ReturnType<typeof resolveJobPreset>>,
   direction: string | undefined,
   hasPerformer: boolean,
+  scene: string | undefined,
+  referenceNote: string,
 ) => {
   const camera = hasPerformer
     ? `${PERFORMER_IMAGE}\n${shot.kind === "performance" ? PERFORMER_SINGS : PERFORMER_LISTENS}`
     : SCENE_ONLY;
-  return `${camera}\n${withVisualStyle(visual, preset, direction)}\n\n${NO_ON_SCREEN_TEXT}`;
+  const place = scene?.trim() ? `Scene: ${scene.trim()}` : "";
+  return [camera, place, referenceNote.trim(), withVisualStyle(visual, preset, direction), NO_ON_SCREEN_TEXT]
+    .filter((part) => part.trim().length > 0)
+    .join("\n");
 };
 
 const filmSongShot = async (
@@ -498,15 +507,34 @@ const filmSongShot = async (
     await finishSceneClip(jobId, shot.index, "completed", model);
     await putVideoMedia(key, bytes, "video/mp4");
   };
-  const imageKey = input.referenceKeys?.find((key) => isImageKey(key));
-  let image: Record<string, unknown> | null = null;
-  if (imageKey) {
+  const performerKey = input.referenceKeys?.find((item) => isImageKey(item));
+  const planned = songReferences({
+    performerKey,
+    sceneKeys: input.sceneKeys,
+    directionKeys: input.directionKeys,
+    lipSync: Boolean(performerKey) && shot.kind === "performance",
+  });
+  const imageRef = async (imageKey: string) => {
     const hosted = await signedGetUrl(imageKey).catch(() => "");
     const imageUrl = hosted || (await referenceImageDataUrl(userId, [imageKey]));
-    if (imageUrl) image = { type: "image_url", image_url: { url: imageUrl } };
-  }
+    if (!imageUrl) return null;
+    return { type: "image_url", image_url: { url: imageUrl } };
+  };
+  const performerImage = performerKey ? await imageRef(performerKey) : null;
+  const loadImages = async (keys: readonly string[]) => {
+    const images: Record<string, unknown>[] = [];
+    for (const imageKey of keys) {
+      if (imageKey === performerKey && performerImage) {
+        images.push(performerImage);
+        continue;
+      }
+      const image = await imageRef(imageKey);
+      if (image) images.push(image);
+    }
+    return images;
+  };
   let audio: Record<string, unknown> | null = null;
-  if (image && shot.kind === "performance") {
+  if (performerImage && shot.kind === "performance") {
     try {
       const slice = await sliceSong(songBytes, shot.startSec, shot.durationSec);
       const sliceKey = songSliceKey(jobId, shot.index);
@@ -536,18 +564,39 @@ const filmSongShot = async (
     );
     await save(clip.bytes, slug);
   };
-  if (image && audio) {
+  const referencesFor = async (keys: readonly string[], withAudio: boolean) => {
+    const images = await loadImages(keys);
+    return withAudio && audio ? [...images, audio] : images;
+  };
+  const performerKeys = performerKey ? [performerKey] : [];
+  const tryShot = async (slug: string, withAudio: boolean) => {
+    try {
+      await film(slug, await referencesFor(planned.keys, withAudio));
+      return true;
+    } catch (error) {
+      if (error instanceof FootageStopped) throw error;
+      if (planned.keys.length <= performerKeys.length) throw error;
+      console.error("Song clip could not use the extra pictures. Retrying with the performer only.", {
+        jobId,
+        sceneIdx: shot.index,
+        slug,
+        error,
+      });
+      await film(slug, await referencesFor(performerKeys, withAudio));
+      return true;
+    }
+  };
+  if (performerKey && audio) {
     for (const slug of singerModels(input.model)) {
       try {
-        await film(slug, [image, audio]);
-        return;
+        if (await tryShot(slug, true)) return;
       } catch (error) {
         if (error instanceof FootageStopped) throw error;
         console.error("Singer clip could not use this model", { jobId, sceneIdx: shot.index, slug, error });
       }
     }
   }
-  await film(input.model, image ? [image] : []);
+  await tryShot(input.model, false);
 };
 
 const singerModels = (chosen: string) => singerModelsFor(chosen).map((model) => model.slug);
@@ -569,7 +618,7 @@ const songForJob = async (userId: string, jobId: string, input: JobInput, hasSin
   const sections = planSongSections(splitLyricSections(brief.lyrics), input.length, lyricsClipDurations(model, hasSinger));
   const composed = await composeSong({
     sections,
-    style: brief.style || input.visualDirection || "pop",
+    style: brief.style || "pop",
     idempotencyKey: `song:${jobId}`,
   });
   const voice = await resolveCharacterVoice(userId, input.characterId).catch(() => null);
@@ -593,6 +642,8 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
     const visuals = await writeBeats({
       prompt: [
         brief.style ? `Music: ${brief.style}` : "",
+        input.direction?.trim() ? `Director notes: ${input.direction.trim()}` : "",
+        input.scene?.trim() ? `Scene: ${input.scene.trim()}` : "",
         ...shots.map((shot) => `Shot ${shot.index + 1} (${shot.durationSec}s): ${shot.lines.join(" / ") || shot.sectionName}`),
       ]
         .filter(Boolean)
@@ -609,15 +660,24 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
       visualDirection: input.visualDirection,
     });
     const styled = preset && preset.id !== AUTO_PRESET_ID ? preset : preset;
-    const prompts = shots.map((shot, index) =>
-      songPrompt(
+    const performerKey = input.referenceKeys?.find((item) => isImageKey(item));
+    const prompts = shots.map((shot, index) => {
+      const references = songReferences({
+        performerKey,
+        sceneKeys: input.sceneKeys,
+        directionKeys: input.directionKeys,
+        lipSync: Boolean(performerKey) && shot.kind === "performance",
+      });
+      return songPrompt(
         visuals[index] || shot.lines.join(". ") || shot.sectionName,
         shot,
         styled,
         input.visualDirection,
         hasSinger,
-      ),
-    );
+        input.scene,
+        references.note,
+      );
+    });
     song = { style: brief.style, sections, shots, words: composed.words, prompts };
     songBytes = composed.bytes;
     await rememberSong(jobId, row?.artifacts, song);
@@ -959,6 +1019,10 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   projectId: input.projectId || undefined,
   presetId: input.presetId || undefined,
   visualDirection: input.visualDirection || undefined,
+  direction: input.direction || undefined,
+  scene: input.scene || undefined,
+  directionKeys: input.directionKeys.length > 0 ? input.directionKeys : undefined,
+  sceneKeys: input.sceneKeys.length > 0 ? input.sceneKeys : undefined,
   characterId: input.characterId || undefined,
   songId: input.songId || undefined,
 });

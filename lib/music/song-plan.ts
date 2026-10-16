@@ -1,3 +1,4 @@
+import { MAX_LYRICS_REFERENCES, MAX_SONG_SHOT_IMAGES } from "@/lib/video/schema";
 import { clipDuration } from "@/lib/video/models";
 import { planSegments } from "@/lib/video/segments";
 
@@ -309,3 +310,71 @@ export const compositionChunks = (sections: readonly SongSectionPlan[], style: s
     negative_styles: ["fade to silence", "abrupt stop", "new song", "tempo change"],
     context_adherence: "high" as const,
   }));
+
+export type SongImageRole = "performer" | "scene" | "shot";
+
+export interface SongReferencePlan {
+  keys: string[];
+  note: string;
+}
+
+const referenceSpan = (start: number, end: number) => (start === end ? `Image ${start}` : `Images ${start}-${end}`);
+
+const referenceSentence = (role: SongImageRole, start: number, end: number) => {
+  const label = referenceSpan(start, end);
+  const plural = start !== end;
+  if (role === "performer") return `${label} ${plural ? "are" : "is"} the performer.`;
+  if (role === "scene") {
+    return `${label} ${plural ? "show" : "shows"} the location: match the set and light.`;
+  }
+  return `${label} ${plural ? "show" : "shows"} framing: copy the camera and composition, not the people.`;
+};
+
+const referenceNote = (images: readonly { role: SongImageRole }[]) => {
+  const parts: string[] = [];
+  let index = 0;
+  while (index < images.length) {
+    const role = images[index]!.role;
+    let end = index;
+    while (end + 1 < images.length && images[end + 1]!.role === role) end += 1;
+    parts.push(referenceSentence(role, index + 1, end + 1));
+    index = end + 1;
+  }
+  return parts.join(" ");
+};
+
+/**
+ * Pictures for one music-video clip: the performer, then the location, then framing.
+ * A lip-sync shot keeps the performer and at most one location picture, so the song audio still fits.
+ */
+export const songReferences = (input: {
+  performerKey?: string;
+  sceneKeys?: readonly string[];
+  directionKeys?: readonly string[];
+  lipSync?: boolean;
+}): SongReferencePlan => {
+  const seen = new Set<string>();
+  const images: { key: string; role: SongImageRole }[] = [];
+  const add = (key: string | undefined, role: SongImageRole) => {
+    const trimmed = key?.trim();
+    if (!trimmed || seen.has(trimmed) || images.length >= MAX_SONG_SHOT_IMAGES) return false;
+    seen.add(trimmed);
+    images.push({ key: trimmed, role });
+    return true;
+  };
+  add(input.performerKey, "performer");
+  let scenes = 0;
+  const sceneCap = input.lipSync ? 1 : MAX_LYRICS_REFERENCES;
+  for (const key of input.sceneKeys ?? []) {
+    if (scenes >= sceneCap) break;
+    if (add(key, "scene")) scenes += 1;
+  }
+  if (!input.lipSync) {
+    let shots = 0;
+    for (const key of input.directionKeys ?? []) {
+      if (shots >= MAX_LYRICS_REFERENCES) break;
+      if (add(key, "shot")) shots += 1;
+    }
+  }
+  return { keys: images.map((image) => image.key), note: referenceNote(images) };
+};

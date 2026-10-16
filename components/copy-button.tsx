@@ -5,13 +5,12 @@ import { useState } from "react";
 
 type CopyState = "idle" | "copied" | "failed";
 
-const LABEL: Record<CopyState, string> = {
-  idle: "Copy for description",
+const LABEL: Record<Exclude<CopyState, "idle">, string> = {
   copied: "Copied",
   failed: "Couldn't copy",
 };
 
-export function CopyButton({ text }: { text: string }) {
+export function CopyButton({ text, label = "Copy for description" }: { text: string; label?: string }) {
   const [state, setState] = useState<CopyState>("idle");
 
   const handleClick = async () => {
@@ -34,7 +33,7 @@ export function CopyButton({ text }: { text: string }) {
       className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-white px-3 text-xs font-medium transition-colors hover:bg-muted"
     >
       <Icon className="size-3.5" aria-hidden />
-      {LABEL[state]}
+      {state === "idle" ? label : LABEL[state]}
     </button>
   );
 }

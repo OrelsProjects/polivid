@@ -40,6 +40,10 @@ export interface VideoJobInput {
   presetId?: string;
   visualDirection?: string;
   characterId?: string;
+  direction?: string;
+  scene?: string;
+  directionKeys?: string[];
+  sceneKeys?: string[];
   songId?: string;
   creditsHeld?: number;
 }
@@ -85,6 +89,10 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           showText: input.showText !== false,
           projectId: input.projectId ?? "",
           characterId: input.characterId ?? "",
+          direction: input.direction ?? "",
+          scene: input.scene ?? "",
+          directionKeys: input.directionKeys ?? [],
+          sceneKeys: input.sceneKeys ?? [],
           songId: input.songId ?? "",
         },
         artifacts: {},

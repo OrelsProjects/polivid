@@ -28,6 +28,34 @@ test("CreateVideoSchema keeps a saved character id", () => {
   assert.equal(parsed.characterId, "11111111-2222-3333-4444-555555555555");
 });
 
+test("CreateVideoSchema keeps lyrics director notes and scene pictures", () => {
+  const parsed = CreateVideoSchema.parse({
+    prompt: "Style: pop\n[Verse]\nHello",
+    format: "9:16",
+    length: 15,
+    mode: "lyrics",
+    tier: "pro",
+    direction: "Handheld close-ups on the chorus.",
+    scene: "A rooftop after rain.",
+    directionKeys: ["uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg"],
+    sceneKeys: ["uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png"],
+  });
+  assert.equal(parsed.direction, "Handheld close-ups on the chorus.");
+  assert.equal(parsed.scene, "A rooftop after rain.");
+  assert.equal(parsed.directionKeys.length, 1);
+  assert.equal(parsed.sceneKeys.length, 1);
+});
+
+test("CreateVideoSchema rejects a too-long scene", () => {
+  const parsed = CreateVideoSchema.safeParse({
+    prompt: "Hello",
+    format: "9:16",
+    length: 15,
+    scene: "x".repeat(2001),
+  });
+  assert.equal(parsed.success, false);
+});
+
 test("CreateVideoSchema rejects a too-long visual direction", () => {
   const parsed = CreateVideoSchema.safeParse({
     prompt: "A fox",

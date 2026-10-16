@@ -4,6 +4,8 @@
  * paused → running resumes the clips that were not filmed.
  */
 
+import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES } from "./schema";
+
 export const JOB_STATUSES = ["queued", "running", "paused", "succeeded", "failed", "canceled"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
@@ -40,7 +42,6 @@ export const assertJobTransition = (from: JobStatus, to: JobStatus) => {
   if (!ALLOWED[from].includes(to)) throw new JobTransitionError(from, to);
 };
 
-/** One labeled fact in the job's More info panel. */
 export interface JobDetailRow {
   group: "Tool" | "This video";
   label: string;
@@ -105,6 +106,12 @@ export interface JobInputFields {
   presetId: string;
   visualDirection: string;
   characterId: string;
+  /** Camera, pacing, and performance notes. Empty outside lyrics videos. */
+  direction: string;
+  /** Location, set, and wardrobe. Empty outside lyrics videos. */
+  scene: string;
+  directionKeys: string[];
+  sceneKeys: string[];
   /** Song take approved on the create page. Empty when the job composes its own. */
   songId: string;
 }
@@ -125,6 +132,10 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   presetId: "",
   visualDirection: "",
   characterId: "",
+  direction: "",
+  scene: "",
+  directionKeys: [],
+  sceneKeys: [],
   songId: "",
 };
 
@@ -165,6 +176,13 @@ export const readJobInput = (input: unknown): JobInputFields => {
         ? record.voiceSettingId
         : "";
   const songId = typeof record.songId === "string" ? record.songId : "";
+  const note = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, MAX_LYRICS_NOTE) : "");
+  const pictureKeys = (value: unknown) =>
+    Array.isArray(value)
+      ? value
+          .filter((key): key is string => typeof key === "string" && key.trim().length > 0)
+          .slice(0, MAX_LYRICS_REFERENCES)
+      : [];
   return {
     prompt,
     format,
@@ -181,6 +199,10 @@ export const readJobInput = (input: unknown): JobInputFields => {
     presetId,
     visualDirection,
     characterId,
+    direction: note(record.direction),
+    scene: note(record.scene),
+    directionKeys: pictureKeys(record.directionKeys),
+    sceneKeys: pictureKeys(record.sceneKeys),
     songId,
   };
 };

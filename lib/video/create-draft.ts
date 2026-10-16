@@ -4,6 +4,8 @@ import { isVideoTier, type VideoTier } from "./modes";
 import { MAX_VISUAL_DIRECTION } from "./presets";
 import {
   isVideoLength,
+  MAX_LYRICS_NOTE,
+  MAX_LYRICS_REFERENCES,
   MAX_PROMPT_LENGTH,
   MAX_REFERENCE_IMAGES,
   VIDEO_FORMATS,
@@ -29,6 +31,10 @@ export interface CreateDraft {
   presetId: string;
   visualDirection: string;
   characterId: string;
+  direction: string;
+  scene: string;
+  directionKeys: string[];
+  sceneKeys: string[];
 }
 
 const isInputMode = (value: unknown): value is CreateDraftInputMode =>
@@ -72,6 +78,9 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       : isCharacterId(data.voiceSettingId)
         ? data.voiceSettingId
         : "";
+    const note = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_LYRICS_NOTE) : "");
+    const pictureKeys = (value: unknown) =>
+      Array.isArray(value) ? value.filter(isUploadKey).slice(0, MAX_LYRICS_REFERENCES) : [];
     return {
       prompt,
       inputMode,
@@ -86,6 +95,10 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       presetId,
       visualDirection,
       characterId,
+      direction: note(data.direction),
+      scene: note(data.scene),
+      directionKeys: pictureKeys(data.directionKeys),
+      sceneKeys: pictureKeys(data.sceneKeys),
     };
   } catch {
     return null;

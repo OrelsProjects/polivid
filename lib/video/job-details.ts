@@ -78,6 +78,8 @@ export const jobDetailRows = (
   push(rows, "This video", "Style", preset?.name || job.presetName || "");
   if (preset?.tagline) push(rows, "This video", "Style notes", preset.tagline);
   push(rows, "This video", "Visual direction", job.visualDirection);
+  push(rows, "This video", "Director", job.direction);
+  push(rows, "This video", "Scene", job.scene);
   push(rows, "This video", "Character", characterLabel(job.characterId, job.characterName ?? ""));
   push(rows, "This video", "On-screen words", job.showText ? "Shown" : "Hidden");
   if (job.mode === "lyrics") {

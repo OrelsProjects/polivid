@@ -60,6 +60,8 @@ type MediaUploadProps = {
   onBusyChange?: (busy: boolean) => void;
   librarySource?: LibrarySource;
   libraryLayout?: "popover" | "inline";
+  /** How many files a multi-upload can hold. Defaults to the reference-picture cap. */
+  max?: number;
 } & (
   | {
       multiple?: false;
@@ -87,6 +89,7 @@ export function MediaUpload({
   onBusyChange,
   librarySource,
   libraryLayout = "popover",
+  max = MAX_REFERENCE_IMAGES,
   ...props
 }: MediaUploadProps) {
   const inputId = useId();
@@ -107,7 +110,7 @@ export function MediaUpload({
   const multiple = props.multiple === true;
   const parentKeyList = multiple ? props.mediaKeys.join("\0") : "";
   const savedSingleKey = !multiple ? props.mediaKey : null;
-  const atLimit = multiple && items.length >= MAX_REFERENCE_IMAGES;
+  const atLimit = multiple && items.length >= max;
 
   const onBusyChangeRef = useRef(onBusyChange);
   onBusyChangeRef.current = onBusyChange;
@@ -170,7 +173,7 @@ export function MediaUpload({
         handleRemoveKey(key);
         return;
       }
-      if (itemsRef.current.length >= MAX_REFERENCE_IMAGES) return;
+      if (itemsRef.current.length >= max) return;
       commitItems([...itemsRef.current, { key, preview: url, kind: mediaKind, fileName: "Library item" }]);
       return;
     }
@@ -217,7 +220,7 @@ export function MediaUpload({
 
   const handleFiles = async (files: File[]) => {
     if (!multiple || disabled || uploading || files.length === 0) return;
-    const remaining = MAX_REFERENCE_IMAGES - itemsRef.current.length;
+    const remaining = max - itemsRef.current.length;
     if (remaining <= 0) return;
     const batch = files.slice(0, remaining);
     setUploading(true);
@@ -309,7 +312,7 @@ export function MediaUpload({
                 source={library}
                 layout={libraryLayout}
                 selectedKeys={items.map((item) => item.key)}
-                maxSelected={MAX_REFERENCE_IMAGES}
+                maxSelected={max}
                 disabled={disabled}
                 uploading={uploading}
                 triggerLabel={items.length ? "Add another" : namedLabel}

@@ -25,6 +25,15 @@ export const MAX_PROMPT_LENGTH = 10_000;
 /** Optional reference pictures on the Create page. */
 export const MAX_REFERENCE_IMAGES = 8;
 
+/** Director notes and scene description on a lyrics video. */
+export const MAX_LYRICS_NOTE = 2_000;
+
+/** Shot or scene pictures attached to one lyrics input. */
+export const MAX_LYRICS_REFERENCES = 3;
+
+/** Pictures sent with one music-video clip. */
+export const MAX_SONG_SHOT_IMAGES = 4;
+
 export const isVideoLength = (value: number) =>
   Number.isInteger(value) && value >= MIN_VIDEO_LENGTH && value <= MAX_VIDEO_LENGTH;
 

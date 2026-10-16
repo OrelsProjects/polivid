@@ -7,6 +7,7 @@ import {
   planShots,
   planSongSections,
   readSongBrief,
+  songReferences,
   splitLyricSections,
 } from "./song-plan";
 
@@ -78,4 +79,37 @@ test("composition chunks use the section length and the style", () => {
   assert.match(chunks[0]!.text, /Coffee's cold/);
   assert.equal(chunks[0]!.duration_ms, sections[0]!.durationSec * 1000);
   assert.ok(chunks[0]!.positive_styles.includes("indie pop"));
+});
+
+test("song references put the performer first, then the location, then the framing", () => {
+  const plan = songReferences({
+    performerKey: "singer",
+    sceneKeys: ["roof", "street"],
+    directionKeys: ["wide", "close"],
+  });
+  assert.deepEqual(plan.keys, ["singer", "roof", "street", "wide"]);
+  assert.equal(
+    plan.note,
+    "Image 1 is the performer. Images 2-3 show the location: match the set and light. Image 4 shows framing: copy the camera and composition, not the people.",
+  );
+});
+
+test("a lip-sync shot keeps the performer and one location picture", () => {
+  const plan = songReferences({
+    performerKey: "singer",
+    sceneKeys: ["roof", "street"],
+    directionKeys: ["wide"],
+    lipSync: true,
+  });
+  assert.deepEqual(plan.keys, ["singer", "roof"]);
+  assert.match(plan.note, /Image 1 is the performer/);
+  assert.match(plan.note, /Image 2 shows the location/);
+  assert.doesNotMatch(plan.note, /framing/);
+});
+
+test("scene pictures alone do not invent a performer", () => {
+  const plan = songReferences({ sceneKeys: ["roof", "roof", "street"] });
+  assert.deepEqual(plan.keys, ["roof", "street"]);
+  assert.equal(plan.note, "Images 1-2 show the location: match the set and light.");
+  assert.doesNotMatch(plan.note, /performer/);
 });

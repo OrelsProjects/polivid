@@ -20,6 +20,7 @@ import { PreviewSample, StylePoster } from "@/components/style-frame";
 import { VisualDirectionField } from "@/components/visual-direction-field";
 import { CharacterPicker } from "@/components/characters/character-picker";
 import { SongTakeStep } from "@/components/song-take-step";
+import { LyricsBriefCard } from "@/components/lyrics-brief-card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { videoJobCredits } from "@/lib/billing/estimate";
@@ -45,7 +46,8 @@ import {
   type VideoTier,
 } from "@/lib/video/modes";
 import { formatClipSplit, isStitchedMode, planSegments } from "@/lib/video/segments";
-import { isVideoLength, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
+import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
+import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
 import { AUTO_PRESET_ID, defaultPresetIdFor } from "@/lib/video/presets";
 import { defaultCharacterForMode, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 
@@ -123,6 +125,10 @@ export function Generator({
   const presetEngine = videoMode?.engine === "motion" ? "motion" : "footage";
   const [presetId, setPresetId] = useState(videoMode?.engine === "motion" ? defaultPresetIdFor("motion") : AUTO_PRESET_ID);
   const [visualDirection, setVisualDirection] = useState("");
+  const [direction, setDirection] = useState("");
+  const [scene, setScene] = useState("");
+  const [directionKeys, setDirectionKeys] = useState<string[]>([]);
+  const [sceneKeys, setSceneKeys] = useState<string[]>([]);
   const canNarrate = modeCanNarrate(videoMode?.id);
   const [characterId, setCharacterId] = useState(defaultCharacterForMode(videoMode?.id));
   const { data: customPresets } = useGetPresetsQuery();
@@ -211,6 +217,14 @@ export function Generator({
               showText,
               presetId,
               visualDirection,
+              ...(songFirst
+                ? {
+                    direction,
+                    scene,
+                    ...(directionKeys.length > 0 ? { directionKeys } : {}),
+                    ...(sceneKeys.length > 0 ? { sceneKeys } : {}),
+                  }
+                : {}),
               ...(canNarrate ? { characterId } : {}),
               ...(approvedTake ? { songId: approvedTake.id } : {}),
             }
@@ -260,6 +274,10 @@ export function Generator({
       setShowText(draft.showText);
       if (draft.presetId) setPresetId(draft.presetId);
       if (draft.visualDirection) setVisualDirection(draft.visualDirection);
+      if (draft.direction) setDirection(draft.direction);
+      if (draft.scene) setScene(draft.scene);
+      if (draft.directionKeys.length > 0) setDirectionKeys(draft.directionKeys);
+      if (draft.sceneKeys.length > 0) setSceneKeys(draft.sceneKeys);
       if (draft.characterId) setCharacterId(draft.characterId);
     }
     setDraftReady(true);
@@ -284,6 +302,10 @@ export function Generator({
         showText,
         presetId,
         visualDirection,
+        direction,
+        scene,
+        directionKeys,
+        sceneKeys,
         characterId,
       },
       videoMode?.id,
@@ -303,6 +325,10 @@ export function Generator({
     showText,
     presetId,
     visualDirection,
+    direction,
+    scene,
+    directionKeys,
+    sceneKeys,
     characterId,
     videoMode?.id,
   ]);
@@ -391,6 +417,53 @@ export function Generator({
               <MediaUpload kind={uploadKind} mediaKey={mediaKey} onChange={setMediaKey} disabled={busy} />
             </div>
           )}
+          {songFirst ? (
+            <div className="mt-3 flex flex-col gap-3">
+              <LyricsBriefCard
+                label={LYRICS_INPUTS.lyrics.label}
+                placeholder={LYRICS_INPUTS.lyrics.placeholder}
+                template={LYRICS_INPUTS.lyrics.template}
+                value={prompt}
+                onChange={setPrompt}
+                maxLength={MAX_PROMPT_LENGTH}
+                rows={6}
+                disabled={busy}
+              />
+              <LyricsBriefCard
+                label={LYRICS_INPUTS.director.label}
+                placeholder={LYRICS_INPUTS.director.placeholder}
+                template={LYRICS_INPUTS.director.template}
+                value={direction}
+                onChange={setDirection}
+                maxLength={MAX_LYRICS_NOTE}
+                rows={4}
+                disabled={busy}
+                images={{
+                  label: "Shot references",
+                  hint: "Optional. A frame you want the camera to match. Up to 3.",
+                  keys: directionKeys,
+                  onChange: setDirectionKeys,
+                }}
+              />
+              <LyricsBriefCard
+                label={LYRICS_INPUTS.scene.label}
+                placeholder={LYRICS_INPUTS.scene.placeholder}
+                template={LYRICS_INPUTS.scene.template}
+                value={scene}
+                onChange={setScene}
+                maxLength={MAX_LYRICS_NOTE}
+                rows={4}
+                disabled={busy}
+                images={{
+                  label: "Scene references",
+                  hint: "Optional. The place, set, or wardrobe to match. Up to 3.",
+                  keys: sceneKeys,
+                  onChange: setSceneKeys,
+                }}
+              />
+            </div>
+          ) : (
+            <>
           <Textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
@@ -415,12 +488,8 @@ export function Generator({
                 mediaKeys={referenceKeys}
                 onChangeKeys={setReferenceKeys}
                 disabled={busy}
-                label={videoMode?.id === "lyrics" ? "Singer or look" : "Reference pictures"}
-                hint={
-                  videoMode?.id === "lyrics"
-                    ? "Optional. A photo of the singer, or a look to match."
-                    : "Optional. JPEG, PNG, or WebP · under 4 MB each"
-                }
+                label="Reference pictures"
+                hint="Optional. JPEG, PNG, or WebP · under 4 MB each"
               />
             </div>
           )}
@@ -451,6 +520,8 @@ export function Generator({
             <p className="mt-2 text-xs text-destructive" role="alert">
               {improveError}
             </p>
+          )}
+            </>
           )}
         </section>
 
@@ -486,7 +557,9 @@ export function Generator({
               <p className="text-xs text-muted-foreground">Turn off titles and on-screen letters. Captions still appear after you add them.</p>
             </div>
           )}
-          <VisualDirectionField value={visualDirection} onChange={setVisualDirection} disabled={busy} />
+          {!songFirst ? (
+            <VisualDirectionField value={visualDirection} onChange={setVisualDirection} disabled={busy} />
+          ) : null}
         </section>
 
         <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
@@ -610,6 +683,19 @@ export function Generator({
             ) : (
               <p className="text-sm text-muted-foreground">This video keeps its own audio.</p>
             )}
+            {songFirst && acceptsReferences ? (
+              <div className="mt-4">
+                <MediaUpload
+                  kind="image"
+                  multiple
+                  mediaKeys={referenceKeys}
+                  onChangeKeys={setReferenceKeys}
+                  disabled={busy}
+                  label="Singer photo"
+                  hint="Optional. A photo of the person who sings. The first picture is the performer."
+                />
+              </div>
+            ) : null}
           </div>
           <div className="mt-4 flex flex-wrap gap-2" aria-label="Media">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
