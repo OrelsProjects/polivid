@@ -2,34 +2,42 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { rangedBytesResponse } from "@/lib/http/range";
 import { deleteUpload, getObjectIfExists, hasS3Config } from "@/lib/storage/s3";
-import { ownedUploadKey } from "@/lib/storage/upload-key";
+import { uploadKeysForName } from "@/lib/storage/upload-key";
 import { readJobInput } from "@/lib/video/job-status";
 
-const resolveKey = async (context: { params: Promise<{ name: string }> }) => {
+const resolveKeys = async (context: { params: Promise<{ name: string }> }) => {
   const { name } = await context.params;
   const session = await auth();
   const userId = session?.user?.id;
-  if (!userId) return { userId: null, key: null };
-  return { userId, key: ownedUploadKey(userId, name) };
+  if (!userId) return { userId: null, keys: [] as string[] };
+  return { userId, keys: uploadKeysForName(userId, name) };
+};
+
+const firstExisting = async (keys: readonly string[]) => {
+  for (const key of keys) {
+    const upload = await getObjectIfExists(key);
+    if (upload) return { key, upload };
+  }
+  return null;
 };
 
 /** Streams one of the signed-in user's pictures. Keys are unique, so the bytes never change. */
 export async function GET(request: Request, context: { params: Promise<{ name: string }> }) {
-  const { userId, key } = await resolveKey(context);
+  const { userId, keys } = await resolveKeys(context);
   if (!userId) return new Response("Sign in to see this picture.", { status: 401 });
-  if (!key || !hasS3Config()) return new Response("Not found.", { status: 404 });
+  if (keys.length === 0 || !hasS3Config()) return new Response("Not found.", { status: 404 });
 
   try {
-    const upload = await getObjectIfExists(key);
-    if (!upload) return new Response("Not found.", { status: 404 });
+    const found = await firstExisting(keys);
+    if (!found) return new Response("Not found.", { status: 404 });
     return rangedBytesResponse(
-      upload.bytes,
-      upload.contentType,
+      found.upload.bytes,
+      found.upload.contentType,
       request.headers.get("range"),
       "private, max-age=31536000, immutable",
     );
   } catch (error) {
-    console.error("Could not read the upload", { key, error });
+    console.error("Could not read the upload", { keys, error });
     return new Response("Couldn't load this picture.", { status: 500 });
   }
 }
@@ -48,11 +56,14 @@ const isUploadInActiveJob = async (userId: string, key: string) => {
 
 /** Removes a picture from the library. Videos that are still being made keep theirs. */
 export async function DELETE(_request: Request, context: { params: Promise<{ name: string }> }) {
-  const { userId, key } = await resolveKey(context);
+  const { userId, keys } = await resolveKeys(context);
   if (!userId) return Response.json({ error: "Sign in to delete a picture." }, { status: 401 });
-  if (!key || !hasS3Config()) return Response.json({ error: "That picture is not available." }, { status: 404 });
+  if (keys.length === 0 || !hasS3Config()) return Response.json({ error: "That picture is not available." }, { status: 404 });
 
   try {
+    const found = await firstExisting(keys);
+    if (!found) return Response.json({ error: "That picture is not available." }, { status: 404 });
+    const key = found.key;
     if (await isUploadInActiveJob(userId, key)) {
       return Response.json(
         { error: "A video that's still being made uses this picture. Delete it after the video finishes." },

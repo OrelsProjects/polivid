@@ -11,7 +11,7 @@ export function CoachPresetCard({
   const preset = presetById(presetId);
   if (!preset) return null;
   return (
-    <aside className="mt-3 flex gap-3 rounded-2xl border border-border bg-white p-3">
+    <aside className="mt-3 flex gap-3 rounded-2xl border border-border bg-card p-3">
       <div className="w-16 shrink-0">
         <PresetPoster preset={preset} />
       </div>

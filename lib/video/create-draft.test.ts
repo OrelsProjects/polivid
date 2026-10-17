@@ -6,7 +6,6 @@ test("reads a saved create draft", () => {
   const draft = parseCreateDraft(
     JSON.stringify({
       prompt: "Why sleep matters for memory",
-      inputMode: "topic",
       format: "9:16",
       length: 5,
       customLength: "5",

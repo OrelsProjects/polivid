@@ -2,6 +2,7 @@
 
 import { useRef, type PointerEvent } from "react";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
+import { cn } from "@/lib/utils";
 import { useEditorActions, useEditorPlayback, useEditorTimeline, useEditorZoom } from "../editor-provider";
 import { HoverLine, Playhead, TRACK_HEADER_WIDTH } from "./playhead";
 import { TimelineRuler } from "./timeline-ruler";
@@ -29,7 +30,7 @@ const PlaybackNeedle = ({ zoom }: { zoom: number }) => {
   return <Playhead frame={playheadFrame} zoom={zoom} />;
 };
 
-export function TimelinePanel() {
+export function TimelinePanel({ className }: { className?: string } = {}) {
   const timeline = useEditorTimeline();
   const zoom = useEditorZoom();
   const actions = useEditorActions();
@@ -55,7 +56,7 @@ export function TimelinePanel() {
   const handlePointerLeave = () => setHoverFrame(null);
 
   return (
-    <section className="flex h-72 shrink-0 flex-col border-t border-neutral-200 bg-[#F7F7F8]">
+    <section className={cn("flex h-72 shrink-0 flex-col border-t border-border bg-surface", className)}>
       <TimelineTransport />
       <div
         className="min-h-0 flex-1 overflow-auto"
@@ -67,7 +68,7 @@ export function TimelinePanel() {
           className="relative min-w-full"
           style={{ width: TRACK_HEADER_WIDTH + durationInFrames * zoom }}
         >
-          <div className="sticky top-0 z-20 flex bg-[#F7F7F8]">
+          <div className="sticky top-0 z-20 flex bg-surface">
             <div className="shrink-0" style={{ width: TRACK_HEADER_WIDTH }} />
             <div className="relative min-w-0 flex-1 overflow-hidden">
               <PlaybackRuler durationInFrames={durationInFrames} zoom={zoom} />

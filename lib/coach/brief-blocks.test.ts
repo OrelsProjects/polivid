@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hasApprovableBrief, splitCoachContent } from "./brief-blocks";
+import { BRIEF_APPROVAL_TEXT, briefNeedsApproval, hasApprovableBrief, isBriefApprovalMessage, splitCoachContent } from "./brief-blocks";
 
 test("splitCoachContent extracts a fenced brief", () => {
   const { prose, brief } = splitCoachContent(`Here's a plan.
@@ -44,6 +44,29 @@ test("Approve shows only under an assistant brief that nothing has queued yet", 
   assert.equal(hasApprovableBrief({ role: "user", parts: [brief] }), false);
   assert.equal(hasApprovableBrief({ role: "assistant", parts: [{ type: "text", text: "No brief here." }] }), false);
   assert.equal(hasApprovableBrief({ role: "assistant", parts: [brief, { type: "tool-create_video" }] }), false);
+  assert.equal(hasApprovableBrief({ role: "assistant", parts: [brief, { type: "tool-make_prompt_video" }] }), false);
+  assert.equal(hasApprovableBrief({ role: "assistant", parts: [brief, { type: "tool-generate_image" }] }), false);
+});
+
+test("a short brief does not need approval and a 30 second pro brief does", () => {
+  const { brief: short } = splitCoachContent("```brief\nmode: prompt\nlength: 5\ntier: pro\n```");
+  const { brief: full } = splitCoachContent("```brief\nmode: prompt\nlength: 30\ntier: pro\n```");
+  const { brief: graphics } = splitCoachContent("```brief\nmode: motion-graphics\nlength: 30\ntier: ultra\n```");
+  assert.ok(short && full && graphics);
+  assert.equal(briefNeedsApproval(short), false);
+  assert.equal(briefNeedsApproval(full), true);
+  assert.equal(briefNeedsApproval(graphics), false);
+});
+
+test("the approval line is hidden from the chat", () => {
+  assert.equal(
+    isBriefApprovalMessage({
+      role: "user",
+      parts: [{ type: "text", text: BRIEF_APPROVAL_TEXT }, { type: "text", text: "Attached character: off" }],
+    }),
+    true,
+  );
+  assert.equal(isBriefApprovalMessage({ role: "user", parts: [{ type: "text", text: "Make it shorter." }] }), false);
 });
 
 test("splitCoachContent returns prose only when there is no fence", () => {

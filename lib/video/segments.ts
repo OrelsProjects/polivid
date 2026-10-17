@@ -3,9 +3,6 @@ import { clipDuration } from "./models";
 export const STITCHED_MODES = ["prompt", "voiceover", "lyrics", "image"] as const;
 export type StitchedMode = (typeof STITCHED_MODES)[number];
 
-const TARGET_CLIP_SECONDS = 7;
-const MIN_CLIP_SECONDS = 5;
-
 /** Prompt, Voiceover, Lyrics, Image, and older jobs that never stored a mode. */
 export const isStitchedMode = (mode?: string | null) =>
   !mode || (STITCHED_MODES as readonly string[]).includes(mode);
@@ -16,22 +13,18 @@ export interface StitchPlan {
 }
 
 /**
- * Fewest clips that cover `length`, each 5–7 seconds when that fits.
- * 13 → [7, 6], 16 → [6, 5, 5], 8 → [8]. Each part is then snapped to a
- * duration the model accepts, so a 2s request on a 5s-minimum model becomes [5].
+ * One clip for the whole length when the model can film it.
+ * A longer request is split into the fewest clips that fit the model's maximum.
+ * Each part is snapped to a duration the model accepts, so a 2s request on a
+ * 5s-minimum model becomes [5].
  */
 export const planSegments = (length: number, allowedDurations: readonly number[]) => {
   const seconds = Math.max(0, Math.round(length));
   if (seconds <= 0) return [];
-  if (seconds < MIN_CLIP_SECONDS) return [clipDuration(seconds, allowedDurations)];
-
-  let count = Math.ceil(seconds / TARGET_CLIP_SECONDS);
-  let parts = splitNearEqual(seconds, count);
-  if (Math.min(...parts) < MIN_CLIP_SECONDS) {
-    count = Math.max(1, count - 1);
-    parts = count === 1 ? [seconds] : splitNearEqual(seconds, count);
-  }
-  return parts.map((part) => clipDuration(part, allowedDurations));
+  const max = allowedDurations.length > 0 ? Math.max(...allowedDurations) : seconds;
+  if (seconds <= max) return [clipDuration(seconds, allowedDurations)];
+  const count = Math.ceil(seconds / max);
+  return splitNearEqual(seconds, count).map((part) => clipDuration(part, allowedDurations));
 };
 
 export const filmedSeconds = (length: number, allowedDurations: readonly number[]) =>

@@ -1,9 +1,9 @@
 import "server-only";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { rangedFileResponse, rangedStreamResponse, type RangedSource } from "@/lib/http/range";
-import { deleteUpload, getObjectIfExists, hasS3Config, putUpload, signedGetUrl, statObject, streamObjectRange } from "@/lib/storage/s3";
+import { deleteUpload, getObjectIfExists, hasS3Config, listObjectKeys, putUpload, signedGetUrl, statObject, streamObjectRange } from "@/lib/storage/s3";
 
 /**
  * Filmed clips and what is derived from them (scrub stills, waveforms).
@@ -52,6 +52,29 @@ export const readVideoMedia = async (key: string): Promise<Uint8Array | null> =>
   const file = localPath(key);
   if (!existsSync(file)) return null;
   return new Uint8Array(await readFile(file));
+};
+
+/** Every stored key under a relative prefix, e.g. `songs/` lists all song drafts and audio. */
+export const listVideoMediaKeys = async (prefix: string): Promise<string[]> => {
+  if (hasS3Config()) {
+    const keys = await listObjectKeys(objectKey(prefix));
+    return keys.map((key) => key.slice(VIDEO_MEDIA_PREFIX.length));
+  }
+  const parts = prefix.split("/").filter(Boolean);
+  const root = path.join(LOCAL_DIR, ...parts);
+  const walk = async (dir: string, base: string): Promise<string[]> => {
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => null);
+    if (!entries) return [];
+    const found: string[] = [];
+    for (const entry of entries) {
+      const relative = base ? `${base}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) found.push(...(await walk(path.join(dir, entry.name), relative)));
+      else if (entry.isFile()) found.push(relative);
+    }
+    return found;
+  };
+  const found = await walk(root, parts.join("/"));
+  return found.sort();
 };
 
 export const hasVideoMedia = async (key: string) => {

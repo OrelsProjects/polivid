@@ -61,7 +61,7 @@ export function CharacterImageField({
             aria-selected={tab === id}
             className={cn(
               "flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-sm",
-              tab === id ? "bg-white font-medium shadow-sm" : "text-muted-foreground",
+              tab === id ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
             )}
             disabled={disabled}
             onClick={() => setTab(id)}

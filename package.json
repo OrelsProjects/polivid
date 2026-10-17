@@ -15,6 +15,7 @@
     "postinstall": "prisma generate",
     "try": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/try-pipeline.ts",
     "test": "tsx --test --test-reporter=spec 'lib/**/*.test.ts'",
+    "tools:docs": "tsx scripts/tools-docs.ts",
     "verify:capabilities": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/verify-capabilities.ts",
     "media:upload": "tsx --conditions=react-server --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/upload-local-media.ts",
     "eval:planners": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/eval-planners.ts"
@@ -39,6 +40,7 @@
     "dotenv": "^18.0.7",
     "fflate": "^0.8.3",
     "lucide-react": "^1.57.0",
+    "motion": "^14.3.0",
     "next": "16.4.0",
     "next-auth": "^5.0.0-beta.32",
     "pg": "^8.23.1",

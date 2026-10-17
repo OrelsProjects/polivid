@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       { pathname: "/api/editor/assets/**" },
       { pathname: "/api/productions/assets/**" },
       { pathname: "/presets/**", search: "" },
+      { pathname: "/brand/**", search: "" },
     ],
     remotePatterns: [
       {

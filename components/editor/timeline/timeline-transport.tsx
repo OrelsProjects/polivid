@@ -25,12 +25,12 @@ export function TimelineTransport() {
   };
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-neutral-200 bg-white px-2">
+    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border bg-card px-2">
       <button
         type="button"
         aria-label="Split clip at playhead"
         disabled={!canSplit}
-        className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 disabled:cursor-not-allowed disabled:text-neutral-300"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:text-muted-foreground/50"
         onClick={() => {
           if (!selected) return;
           actions.applyTimeline(splitItem(timeline, selected.item.id, playheadFrame));
@@ -41,21 +41,21 @@ export function TimelineTransport() {
       </button>
       <button
         type="button"
-        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         onClick={() => actions.applyTimeline(addTrack(timeline, "visual"))}
       >
         + Video
       </button>
       <button
         type="button"
-        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         onClick={() => actions.applyTimeline(addTrack(timeline, "text"))}
       >
         + Text
       </button>
       <button
         type="button"
-        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+        className="inline-flex h-8 items-center rounded-md px-2 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
         onClick={() => actions.applyTimeline(addTrack(timeline, "audio"))}
       >
         + Audio
@@ -65,7 +65,7 @@ export function TimelineTransport() {
         <button
           type="button"
           aria-label="Go to start"
-          className="inline-flex size-8 items-center justify-center rounded-md text-neutral-700 hover:bg-neutral-100"
+          className="inline-flex size-8 items-center justify-center rounded-md text-foreground hover:bg-muted"
           onClick={() => {
             actions.setPlaying(false);
             actions.setPlayhead(0);
@@ -81,9 +81,9 @@ export function TimelineTransport() {
         >
           {isPlaying ? <Pause className="size-3.5 fill-current" /> : <Play className="size-3.5 fill-current" />}
         </button>
-        <span className="font-mono text-[11px] tabular-nums text-neutral-600">
+        <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
           {formatClock(playheadFrame)}
-          <span className="text-neutral-400"> / {formatClock(durationInFrames)}</span>
+          <span className="text-muted-foreground/50"> / {formatClock(durationInFrames)}</span>
         </span>
       </div>
 

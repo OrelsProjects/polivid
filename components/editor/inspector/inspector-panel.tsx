@@ -18,7 +18,7 @@ export function InspectorPanel() {
 
   if (!found) {
     return (
-      <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-white p-4 text-sm text-muted-foreground">
+      <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-card p-4 text-sm text-muted-foreground">
         Select a clip on the timeline to edit it.
       </aside>
     );
@@ -29,7 +29,7 @@ export function InspectorPanel() {
   const neighbor = neighbors.find((entry) => entry.from >= item.from) ?? neighbors.at(-1);
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border bg-white p-4">
+    <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border bg-card p-4">
       <div>
         <h2 className="text-sm font-semibold capitalize">{item.kind}</h2>
         <p className="text-xs text-muted-foreground">{track.name}</p>

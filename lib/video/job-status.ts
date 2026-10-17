@@ -4,7 +4,16 @@
  * paused → running resumes the clips that were not filmed.
  */
 
-import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES } from "./schema";
+import type { ClipPreviewSlot } from "./clip-preview";
+import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES, MAX_REFERENCE_IMAGES } from "./schema";
+import { MAX_CUTS, type SongCut } from "@/lib/music/song-plan";
+import {
+  emptyPromptBrief,
+  isAttachmentRole,
+  sanitizePromptBrief,
+  type AttachmentAssignment,
+  type PromptBrief,
+} from "./shot-plan";
 
 export const JOB_STATUSES = ["queued", "running", "paused", "succeeded", "failed", "canceled"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -85,6 +94,8 @@ export interface VideoJobView {
   stopping: boolean;
   /** The composed song of a lyrics video, playable once it is written. */
   songUrl: string | null;
+  /** Shots already stored while filming. Empty before then, and for a single clip. */
+  clips: ClipPreviewSlot[];
   details: JobDetailRow[];
 }
 
@@ -114,6 +125,11 @@ export interface JobInputFields {
   sceneKeys: string[];
   /** Song take approved on the create page. Empty when the job composes its own. */
   songId: string;
+  /** On-screen cuts. Empty for modes that do not plan shots, and for older jobs. */
+  cuts: SongCut[];
+  /** How a prompt video was divided. Empty outside prompt videos. */
+  brief: PromptBrief;
+  attachmentRoles: AttachmentAssignment[];
 }
 
 const EMPTY_JOB_INPUT: JobInputFields = {
@@ -137,6 +153,9 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   directionKeys: [],
   sceneKeys: [],
   songId: "",
+  cuts: [],
+  brief: emptyPromptBrief(),
+  attachmentRoles: [],
 };
 
 /** Prompt and settings stored on the job, with safe fallbacks for a bad payload. */
@@ -183,6 +202,22 @@ export const readJobInput = (input: unknown): JobInputFields => {
           .filter((key): key is string => typeof key === "string" && key.trim().length > 0)
           .slice(0, MAX_LYRICS_REFERENCES)
       : [];
+  const cuts = (value: unknown): SongCut[] => {
+    if (!Array.isArray(value)) return [];
+    const parsed: SongCut[] = [];
+    for (const item of value) {
+      if (!item || typeof item !== "object") continue;
+      const cut = item as Record<string, unknown>;
+      if (typeof cut.seconds !== "number" || !Number.isInteger(cut.seconds) || cut.seconds < 1) continue;
+      parsed.push({
+        seconds: cut.seconds,
+        camera: typeof cut.camera === "string" ? cut.camera.trim().slice(0, 200) : "",
+        ...readCutImages(cut.images),
+      });
+      if (parsed.length >= MAX_CUTS) break;
+    }
+    return parsed;
+  };
   return {
     prompt,
     format,
@@ -204,7 +239,45 @@ export const readJobInput = (input: unknown): JobInputFields => {
     directionKeys: pictureKeys(record.directionKeys),
     sceneKeys: pictureKeys(record.sceneKeys),
     songId,
+    cuts: cuts(record.cuts),
+    brief: readBrief(record.brief),
+    attachmentRoles: readAttachmentRoles(record.attachmentRoles),
   };
+};
+
+const readCutImages = (value: unknown) => {
+  if (!Array.isArray(value)) return {};
+  const images = value
+    .filter((index): index is number => typeof index === "number" && Number.isInteger(index) && index >= 1)
+    .slice(0, MAX_REFERENCE_IMAGES);
+  return images.length > 0 ? { images } : {};
+};
+
+const readBrief = (value: unknown): PromptBrief => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return emptyPromptBrief();
+  const brief = value as Record<string, unknown>;
+  return sanitizePromptBrief({
+    subject: typeof brief.subject === "string" ? brief.subject : "",
+    setting: typeof brief.setting === "string" ? brief.setting : "",
+    director: typeof brief.director === "string" ? brief.director : "",
+    style: typeof brief.style === "string" ? brief.style : "",
+    mustKeep: typeof brief.mustKeep === "string" ? brief.mustKeep : "",
+    mustAvoid: typeof brief.mustAvoid === "string" ? brief.mustAvoid : "",
+  });
+};
+
+const readAttachmentRoles = (value: unknown): AttachmentAssignment[] => {
+  if (!Array.isArray(value)) return [];
+  const roles: AttachmentAssignment[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const role = item as Record<string, unknown>;
+    if (typeof role.index !== "number" || !Number.isInteger(role.index) || role.index < 1) continue;
+    if (typeof role.role !== "string" || !isAttachmentRole(role.role)) continue;
+    roles.push({ index: role.index, role: role.role });
+    if (roles.length >= MAX_REFERENCE_IMAGES) break;
+  }
+  return roles;
 };
 
 /**

@@ -43,7 +43,7 @@ const beatInstructions = (mode: string | undefined, count: number) => {
     return `You split lyrics across consecutive music-video clips. Keep the lyric order. Each beat is the lines sung during that clip. ${shared}`;
   }
   if (mode === "song") {
-    return `You write one visual shot for each clip of a music video. The song already exists, so do not mention singing, lyrics, captions, or on-screen words. When director notes are given, every beat follows them. When a scene is given, every beat stays in that place. Each beat is only what the camera shows. ${shared}`;
+    return `You write one visual shot for each clip of a music video. The song already exists, so do not mention singing, lyrics, captions, or on-screen words. Each beat is a separate shot after a hard cut. Follow the camera note and the director notes for framing and angle. Keep the same location and performer. When a scene is given, every beat stays in that place. Each beat is only what the camera shows. Return exactly ${count} beats. Each beat is one short prompt for one clip. Do not number the beats. No titles or labels.`;
   }
   return `You split one video request into consecutive clips that will be filmed in order. Each beat is one action. ${shared}`;
 };

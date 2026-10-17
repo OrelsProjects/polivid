@@ -36,7 +36,7 @@ export function UpgradeDialog({
       aria-labelledby="upgrade-title"
       onClose={onClose}
       onClick={handleBackdropClick}
-      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-white p-0 text-foreground shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-in open:fade-in-0 open:zoom-in-95"
+      className="m-auto w-[calc(100%-2rem)] max-w-md rounded-2xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-in open:fade-in-0 open:zoom-in-95"
     >
       <div className="relative p-6">
         <button

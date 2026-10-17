@@ -24,6 +24,14 @@ export const getCoachThread = async (userId: string, threadId: string) => {
   });
 };
 
+export const linkThreadVideo = async (userId: string, threadId: string, videoJobId: string) => {
+  await db.coachThread.updateMany({ where: { id: threadId, userId }, data: { videoJobId } });
+};
+
+export const linkThreadProject = async (userId: string, threadId: string, editProjectId: string) => {
+  await db.coachThread.updateMany({ where: { id: threadId, userId }, data: { editProjectId } });
+};
+
 export const deleteCoachThread = async (userId: string, threadId: string) => {
   const result = await db.coachThread.deleteMany({ where: { id: threadId, userId } });
   return result.count === 1;

@@ -20,6 +20,15 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
       return rangedBytesResponse(bytes, contentType, range, "private, max-age=300");
     }
 
+    if (payload.source.type === "song") {
+      const { readSongDraft, readSongDraftAudio } = await import("@/lib/music/song-draft");
+      const draft = await readSongDraft(payload.userId, payload.source.songId);
+      if (!draft) return new Response("Not found.", { status: 404 });
+      const bytes = await readSongDraftAudio(draft.id);
+      if (!bytes) return new Response("Not found.", { status: 404 });
+      return rangedBytesResponse(bytes, "audio/mpeg", range, "private, max-age=300");
+    }
+
     if (payload.source.type === "production") {
       const { getAssetForUser } = await import("@/lib/production/store");
       const { readProductionBytes } = await import("@/lib/production/assets");

@@ -43,6 +43,22 @@ test("lyrics prices one song plus the filmed clips", () => {
   assert.ok(singer > song);
 });
 
+test("a cut every second costs more than one long shot", () => {
+  const cuts = Array.from({ length: 10 }, () => ({ seconds: 1, camera: "new angle" }));
+  const steady = videoJobCredits({ mode: "lyrics", modelId: "hailuo", length: 10, songReady: true });
+  const quick = videoJobCredits({
+    mode: "lyrics",
+    modelId: "hailuo",
+    length: 10,
+    songReady: true,
+    cuts,
+  });
+  assert.ok(quick > steady);
+  const promptSteady = videoJobCredits({ mode: "prompt", modelId: "hailuo", length: 10 });
+  const promptQuick = videoJobCredits({ mode: "prompt", modelId: "hailuo", length: 10, cuts });
+  assert.ok(promptQuick > promptSteady);
+});
+
 test("mode and tier pick the model when one is not passed", () => {
   assert.equal(
     videoJobCredits({ mode: "prompt", tier: "low", length: 13 }),

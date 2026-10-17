@@ -2,6 +2,7 @@
 
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
+import { AudioPlayer } from "@/components/audio-player";
 import { emptyTakes, VoiceRecorder, type VoiceTake } from "@/components/voice/voice-recorder";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -92,7 +93,7 @@ export function CharacterVoiceField({
             aria-selected={voiceMode === id}
             className={cn(
               "flex-1 cursor-pointer rounded-lg px-3 py-1.5 text-sm",
-              voiceMode === id ? "bg-white font-medium shadow-sm" : "text-muted-foreground",
+              voiceMode === id ? "bg-card font-medium shadow-sm" : "text-muted-foreground",
             )}
             disabled={disabled}
             onClick={() => handleTab(id)}
@@ -151,12 +152,7 @@ export function CharacterVoiceField({
             <ul className="flex flex-col gap-2">
               {previews.map((preview, index) => (
                 <li key={preview.generatedVoiceId} className="flex flex-col gap-2 rounded-xl border border-border bg-background p-3">
-                  <audio
-                    controls
-                    className="h-8 w-full"
-                    src={`data:audio/mpeg;base64,${preview.audioBase64}`}
-                    aria-label={`Voice preview ${index + 1}`}
-                  />
+                  <AudioPlayer src={`data:audio/mpeg;base64,${preview.audioBase64}`} title={`Voice ${index + 1}`} />
                   <Button
                     type="button"
                     variant={generatedVoiceId === preview.generatedVoiceId ? "default" : "outline"}

@@ -1,13 +1,17 @@
 "use client";
 
 import { LoaderCircle } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ExpandableText } from "@/components/expandable-text";
+import { ProgressFill } from "@/components/motion/motion";
 import { JobHoldControls } from "@/components/job-hold-controls";
 import { JobMoreMenu } from "@/components/job-more-menu";
 import { JobStageList } from "@/components/job-stage-list";
-import { Button } from "@/components/ui/button";
+import { VideoStage } from "@/components/video/video-stage";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
 import { useCancelVideoMutation, useGetActiveJobsQuery } from "@/lib/store/endpoints/videos";
 import { isJobStep, type VideoJobView } from "@/lib/video/job-status";
@@ -120,20 +124,18 @@ const ActiveJobCard = ({
 
   return (
     <article className="col-span-2 flex flex-col gap-2.5 sm:col-span-1" aria-label={`${stepLabel}: ${title}`}>
-      <div className="relative flex flex-col gap-3 rounded-2xl border border-border bg-white px-4 pt-14 pb-4 shadow-sm">
+      <div className="relative flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 pt-14 pb-4 shadow-sm">
         <JobMoreMenu title={title} rows={job.details ?? []} />
         <span className="absolute top-3.5 right-3 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
           {paused ? "PAUSED" : job.status === "queued" ? "STARTING" : "IN PROGRESS"}
         </span>
         <div className="flex flex-col items-center gap-3">
           {paused && job.outputUrl ? (
-            <video
+            <VideoStage
               src={`${job.outputUrl}?v=${encodeURIComponent(job.updatedAt)}`}
-              controls
-              playsInline
-              preload="metadata"
-              className="aspect-[9/16] w-full rounded-xl bg-black"
-              aria-label={`Clips filmed so far for ${title}`}
+              fit="contain"
+              className="aspect-[9/16] w-full rounded-2xl"
+              title={`Clips filmed so far for ${title}`}
             />
           ) : (
             <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
@@ -162,7 +164,7 @@ const ActiveJobCard = ({
             aria-valuemax={100}
             aria-label={`${title} progress`}
           >
-            <div className="h-full rounded-full bg-primary" style={{ width: `${job.progressPct}%` }} />
+            <ProgressFill value={job.progressPct} />
           </div>
           <span className="text-xs text-muted-foreground tabular-nums">{job.progressPct}%</span>
           {elapsed ? (
@@ -191,7 +193,14 @@ const ActiveJobCard = ({
               {job.stopping ? "" : "This often takes 20–30 minutes, and sometimes longer."}
             </p>
           ) : null}
-          <JobHoldControls job={job} />
+          <Link
+            href={`/videos/${job.id}`}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            aria-label={`See progress for ${title}`}
+          >
+            See progress
+          </Link>
+          {paused ? <JobHoldControls job={job} /> : null}
           <Button
             type="button"
             variant="outline"

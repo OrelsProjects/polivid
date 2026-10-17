@@ -1,38 +1,31 @@
+import { z } from "zod";
 import { auth } from "@/auth";
-import { getProjectForUser } from "@/lib/editor/projects";
-import { timelineDurationInFrames } from "@/lib/editor/schema";
-import { createQueuedVideoJob, EDITOR_EXPORT_MODEL } from "@/lib/video/jobs";
-import { FPS } from "@/lib/video/schema";
-import { startVideoJob } from "@/lib/video/worker";
+import { exportProjectFromInput } from "@/lib/editor/export";
+import { rememberProjectExport } from "@/lib/editor/projects";
 
-const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
+const RememberSchema = z.object({
+  videoId: z.string().regex(ID),
+  version: z.number().int().min(1),
+});
+
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return Response.json({ error: "Sign in to export this edit." }, { status: 401 });
   const { id } = await context.params;
-  if (!PROJECT_ID.test(id)) return Response.json({ error: "Not found." }, { status: 404 });
-
-  const project = await getProjectForUser(userId, id);
-  if (!project) return Response.json({ error: "Not found." }, { status: 404 });
-
-  const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / FPS));
-  try {
-    const job = await createQueuedVideoJob(userId, {
-      prompt: project.title,
-      format: project.format,
-      length,
-      model: EDITOR_EXPORT_MODEL,
-      mode: "editor-export",
-      projectId: project.id,
-    });
-    void startVideoJob(userId, job.id).catch((error) => {
-      console.error("Edit export stopped", error);
-    });
-    return Response.json({ jobId: job.id }, { status: 202 });
-  } catch (error) {
-    console.error("Could not start the edit export", error);
-    return Response.json({ error: "Couldn't start the export. Try again." }, { status: 500 });
+  const body = await request.json().catch(() => null);
+  const remembered = RememberSchema.safeParse(body);
+  if (remembered.success) {
+    const mark = await rememberProjectExport(userId, id, remembered.data.videoId, remembered.data.version);
+    if (!mark) return Response.json({ error: "Not found." }, { status: 404 });
+    return Response.json(mark);
   }
+  const result = await exportProjectFromInput(userId, id);
+  if ("error" in result && result.error === "Not found.") {
+    return Response.json({ error: "Not found." }, { status: 404 });
+  }
+  if ("error" in result) return Response.json({ error: result.error }, { status: 500 });
+  return Response.json({ jobId: result.jobId, resumed: result.resumed }, { status: result.resumed ? 200 : 202 });
 }

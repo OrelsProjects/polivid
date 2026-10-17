@@ -1,7 +1,6 @@
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { videoJobCredits } from "@/lib/billing/estimate";
-import type { CoachBrief } from "@/lib/coach/brief-blocks";
+import { briefCredits, type CoachBrief } from "@/lib/coach/brief-blocks";
 import { videoModeById } from "@/lib/video/modes";
 import { presetById } from "@/lib/video/presets";
 
@@ -17,12 +16,6 @@ const settingsFor = (brief: CoachBrief) => [
   { label: "Tier", value: TIER_LABEL[brief.tier] ?? brief.tier },
 ];
 
-const creditsFor = (brief: CoachBrief) => {
-  const length = Number.parseInt(brief.length, 10);
-  if (!Number.isFinite(length) || length <= 0) return 0;
-  return videoJobCredits({ mode: brief.mode, tier: brief.tier, length });
-};
-
 export function CoachBriefCard({
   brief,
   approval,
@@ -32,7 +25,7 @@ export function CoachBriefCard({
   approval?: BriefApproval;
   onApprove?: () => void;
 }) {
-  const credits = creditsFor(brief);
+  const credits = briefCredits(brief);
 
   return (
     <article className="mt-3 overflow-hidden rounded-2xl border border-border bg-muted/40 text-sm" aria-label="Proposed brief">
@@ -40,8 +33,8 @@ export function CoachBriefCard({
         <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Proposed brief</p>
         <dl className="mt-3 flex flex-wrap gap-2">
           {settingsFor(brief).map((setting) => (
-            <div key={setting.label} className="rounded-xl border border-border bg-white px-3 py-1.5">
-              <dt className="text-[11px] text-muted-foreground">{setting.label}</dt>
+            <div key={setting.label} className="rounded-xl border border-border bg-card px-3 py-1.5">
+              <dt className="text-xs text-muted-foreground">{setting.label}</dt>
               <dd className="font-medium">{setting.value}</dd>
             </div>
           ))}
@@ -68,7 +61,7 @@ export function CoachBriefCard({
         )}
       </div>
       {approval ? (
-        <div className="flex flex-col gap-2 border-t border-border bg-white px-4 py-3">
+        <div className="flex flex-col gap-2 border-t border-border bg-card px-4 py-3">
           {approval === "sent" ? (
             <p className="flex items-center gap-2 text-sm font-medium" role="status">
               <Check className="size-4 text-primary" aria-hidden />

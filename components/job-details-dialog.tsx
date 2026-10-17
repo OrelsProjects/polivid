@@ -22,7 +22,7 @@ export const JobDetailsDialog = ({
     <Dialog.Portal>
       <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40" />
       <Dialog.Viewport className="fixed inset-0 z-50 grid place-items-center p-4">
-        <Dialog.Popup className="relative max-h-[min(36rem,calc(100vh-2rem))] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-border bg-white p-5 pt-12 shadow-lg outline-none">
+        <Dialog.Popup className="relative max-h-[min(36rem,calc(100vh-2rem))] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-border bg-card p-5 pt-12 shadow-lg outline-none">
           <Dialog.Close
             aria-label="Close"
             className="absolute top-3 right-3 inline-flex size-11 cursor-pointer items-center justify-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"

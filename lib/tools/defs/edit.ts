@@ -1,0 +1,183 @@
+import { z } from "zod";
+import { defineTool } from "@/lib/tools/define";
+import { idField } from "@/lib/tools/fields";
+
+const projectField = () =>
+  idField("Editor project id. Omit it in this chat; the open project is used.").optional();
+
+const positionField = () =>
+  z.enum(["top", "center", "bottom"]).optional().describe("Where the words sit: top, center, or bottom.");
+
+const oneClip =
+  "The finished video is one clip. Split it, then remove the piece you do not want.";
+
+const free = { readOnly: false, spendsCredits: false, destructive: false, longRunning: false } as const;
+
+export const timelineEditTools = [
+  defineTool({
+    name: "edit_read_timeline",
+    title: "Read the timeline",
+    category: "editor",
+    summary: "List the tracks and clips in the open project, with ids and times in seconds.",
+    whenToUse: ["Before any edit, so you use real clip ids.", "When they ask what is on the timeline."],
+    inputSchema: z.object({ projectId: projectField() }),
+    effects: { readOnly: true, spendsCredits: false, destructive: false, longRunning: false },
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_add_text",
+    title: "Add text",
+    category: "editor",
+    summary: "Add a title or caption on the text track. Free.",
+    whenToUse: ["They want words on screen, such as a title at the start."],
+    avoidWhen: ["They want spoken captions for the whole video. Use edit_add_captions."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      text: z.string().trim().min(1).max(200).describe("The words on screen."),
+      startSec: z.number().min(0).optional().describe("When the words appear, in seconds. Defaults to 0."),
+      endSec: z.number().min(0).optional().describe("When the words leave, in seconds. Defaults to 3 seconds later."),
+      position: positionField(),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_update_text",
+    title: "Update text",
+    category: "editor",
+    summary: "Change the words or the position of a text clip. Free.",
+    whenToUse: ["A title is already on the timeline and they want different words or placement."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Text clip id from edit_read_timeline."),
+      text: z.string().trim().min(1).max(200).optional().describe("Replacement words."),
+      position: positionField(),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_trim",
+    title: "Trim a clip",
+    category: "editor",
+    summary: `Move a clip's start or end. Free. ${oneClip}`,
+    whenToUse: ["They want the video shorter, or a title to end sooner."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Clip id from edit_read_timeline."),
+      startSec: z.number().min(0).optional().describe("New start, in seconds."),
+      endSec: z.number().min(0).optional().describe("New end, in seconds."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_split",
+    title: "Split a clip",
+    category: "editor",
+    summary: `Cut one clip into two at a time. Free. ${oneClip}`,
+    whenToUse: ["They want to drop or move part of the video, not the whole clip."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Clip id from edit_read_timeline."),
+      atSec: z.number().min(0).describe("Where to cut, in seconds, inside the clip."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_remove",
+    title: "Remove a clip",
+    category: "editor",
+    summary: `Delete a clip. Free. ${oneClip}`,
+    whenToUse: ["They want a title, a song, or a split piece gone."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Clip id from edit_read_timeline."),
+      ripple: z.boolean().optional().describe("When true, later clips on that track slide left to close the gap."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_move",
+    title: "Move a clip",
+    category: "editor",
+    summary: "Slide a clip to a new start time. Free.",
+    whenToUse: ["They want a title or song to start later or earlier."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Clip id from edit_read_timeline."),
+      startSec: z.number().min(0).describe("New start, in seconds."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_add_music",
+    title: "Add music",
+    category: "editor",
+    summary: "Lay a song or an attached audio file under the video. Free.",
+    whenToUse: ["They want music under the cut. Use a song id, an upload key, or the attached audio."],
+    avoidWhen: ["They want a new music video from scratch. Use make_music_video."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      songId: idField("Song id from list_songs or compose_song.").optional(),
+      mediaKey: z.string().trim().min(1).optional().describe("Upload key for an audio file. Omit to use the attached audio."),
+      startSec: z.number().min(0).optional().describe("When the song starts, in seconds. Defaults to 0."),
+      volume: z.number().min(0).max(2).optional().describe("Loudness from 0 to 2. Defaults to 0.35."),
+      fadeInSec: z.number().min(0).optional().describe("Fade in, in seconds."),
+      fadeOutSec: z.number().min(0).optional().describe("Fade out, in seconds."),
+      seconds: z.number().positive().optional().describe("Length when the file's length is unknown."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_set_volume",
+    title: "Set volume",
+    category: "editor",
+    summary: "Change a clip's volume, or mute a track. Free.",
+    whenToUse: ["The song is too loud, or they want a track silent."],
+    inputSchema: z.object({
+      projectId: projectField(),
+      itemId: idField("Audio or video clip id.").optional(),
+      trackId: idField("Track id to mute or unmute.").optional(),
+      volume: z.number().min(0).max(2).optional().describe("Loudness from 0 to 2."),
+      muted: z.boolean().optional().describe("Mute the track when true."),
+    }),
+    effects: free,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "edit_add_captions",
+    title: "Add captions",
+    category: "editor",
+    summary: "Put the spoken words on screen as timed text. Uses the video's script, or a transcript. Free.",
+    whenToUse: ["They want captions on the open project."],
+    avoidWhen: ["There is no project yet. add_captions makes a new captioned video and spends credits."],
+    inputSchema: z.object({ projectId: projectField() }),
+    effects: { readOnly: false, spendsCredits: false, destructive: false, longRunning: true },
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+];

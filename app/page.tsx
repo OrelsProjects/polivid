@@ -1,13 +1,16 @@
 import { ArrowRight, BarChart3, FileText, Mic, Sparkles } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { CreditExamples } from "@/components/billing/credit-examples";
 import { PricingCards } from "@/components/billing/pricing-cards";
 import { TopupPacks } from "@/components/billing/topup-packs";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { CardLink, Reveal, Rise, Stagger } from "@/components/motion/motion";
 import { HeroStyles, StylePoster } from "@/components/style-frame";
 import { buttonVariants } from "@/components/ui/button";
 import { SHOWCASE, showcaseHref, showcaseMeta } from "@/lib/showcase";
+import { GENERATION_MODELS } from "@/lib/video/models";
 import { cn } from "@/lib/utils";
 
 const TOOLS = [
@@ -21,7 +24,7 @@ const TOOLS = [
   },
   {
     icon: FileText,
-    tint: "bg-emerald-50 text-emerald-700",
+    tint: "bg-glow/15 text-indigo-300",
     title: "Article to video",
     body: "Paste a newsletter or post. PoliVid writes a 30, 60, or 90-second script from it.",
     href: "/create?input=article",
@@ -29,7 +32,7 @@ const TOOLS = [
   },
   {
     icon: BarChart3,
-    tint: "bg-amber-50 text-amber-700",
+    tint: "bg-hot/15 text-pink-300",
     title: "Data story",
     body: "Charts drawn from sourced numbers, with a source footer on every data scene.",
     href: "/create?input=data",
@@ -94,61 +97,100 @@ const FAQ = [
   },
 ] as const;
 
+function SectionHeading({
+  eyebrow,
+  title,
+  center = false,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  center?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <Reveal className={cn("flex flex-col gap-3", center && "items-center text-center")}>
+      <p className="font-label text-[11px] font-bold tracking-[0.22em] text-primary uppercase">{eyebrow}</p>
+      <h2 className="text-3xl font-bold text-balance sm:text-5xl">{title}</h2>
+      {children}
+    </Reveal>
+  );
+}
+
+const TILE =
+  "rounded-2xl border border-white/[0.06] bg-card/60 p-5 transition hover:border-white/15 hover:bg-card";
+
 export default function LandingPage() {
   return (
-    <div className="flex flex-1 flex-col bg-white">
+    <div className="relative flex flex-1 flex-col overflow-x-clip bg-background">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[760px] bg-grid" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-56 left-1/2 h-[560px] w-[min(980px,140vw)] -translate-x-1/2 bg-[radial-gradient(closest-side,oklch(0.38_0.18_294/0.55),transparent)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute top-[420px] left-1/2 h-[360px] w-[min(720px,120vw)] -translate-x-1/2 bg-[radial-gradient(closest-side,oklch(0.42_0.2_300/0.22),transparent)]"
+      />
       <SiteHeader />
 
-      <main id="main">
-        <section className="px-4 pt-16 pb-20 text-center sm:px-6 sm:pt-24">
-          <div className="mx-auto flex max-w-2xl flex-col items-center gap-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="flex -space-x-1.5" aria-hidden>
-                {["bg-amber-300", "bg-sky-300", "bg-rose-300", "bg-violet-300"].map((color) => (
-                  <span key={color} className={cn("size-6 rounded-full ring-2 ring-white", color)} />
-                ))}
-              </span>
+      <main id="main" className="relative">
+        <section className="px-4 pt-16 pb-16 text-center sm:px-6 sm:pt-24">
+          <Rise className="mx-auto flex max-w-3xl flex-col items-center gap-7">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 font-label text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+              <span className="size-1.5 rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/60" aria-hidden />
               Built for people who explain things
-            </div>
-            <h1 className="text-4xl font-semibold tracking-[-0.03em] text-balance sm:text-6xl">
-              Turn any idea into a polished short video.
+            </span>
+            <h1 className="text-5xl leading-[0.98] font-bold text-balance sm:text-7xl">
+              Turn any idea into a <span className="text-primary">polished short video.</span>
             </h1>
             <p className="max-w-xl text-base text-pretty text-muted-foreground sm:text-lg">
               Type a prompt or paste an article. PoliVid writes the script, plans the scenes, and renders a
               captioned preview with crisp motion graphics. Every scene is on screen before you post.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link href="/create" className={cn(buttonVariants({ size: "lg" }), "h-11 rounded-xl px-5")}>
+              <Link href="/create" className={cn(buttonVariants({ size: "lg" }), "h-12 rounded-full px-6 text-base glow-accent")}>
                 Try for free
                 <ArrowRight data-icon="inline-end" />
               </Link>
               <a
                 href="#showcase"
-                className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-11 rounded-xl bg-white px-5")}
+                className={cn(
+                  buttonVariants({ variant: "ghost", size: "lg" }),
+                  "h-12 rounded-full px-6 text-base glow-ring hover:bg-glow/15",
+                )}
               >
                 Watch examples
               </a>
             </div>
-            <p className="text-xs text-muted-foreground">No credit card required · 100 free credits</p>
-          </div>
+            <p className="font-label text-[11px] tracking-[0.16em] text-muted-foreground uppercase">
+              No credit card required · 100 free credits
+            </p>
+          </Rise>
           <HeroStyles />
           <p className="mt-8 text-sm text-muted-foreground">
             Three built-in styles. Bold is what videos look like today. Minimal and Editorial are next.
           </p>
         </section>
 
-        <section id="tools" className="scroll-mt-20 bg-background px-4 py-20 sm:px-6">
+        <section aria-label="Video models" className="border-y border-white/[0.06] bg-white/[0.015] px-4 py-7 sm:px-6">
+          <p className="text-center text-xs text-muted-foreground">Generation models available in PoliVid</p>
+          <ul className="mx-auto mt-4 flex max-w-4xl flex-wrap items-center justify-center gap-x-10 gap-y-3">
+            {GENERATION_MODELS.map((model) => (
+              <li key={model.id} className="font-label text-lg font-medium tracking-tight text-foreground/45">
+                {model.name}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section id="tools" className="scroll-mt-24 px-4 py-24 sm:px-6">
           <div className="mx-auto max-w-6xl">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">START FROM A TOOL</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Pick the input you have.</h2>
-            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SectionHeading eyebrow="Start from a tool" title="Pick the input you have." />
+            <Stagger inView className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {TOOLS.map(({ icon: Icon, tint, title, body, href, example }) => (
-                <Link
-                  key={title}
-                  href={href}
-                  className="group flex flex-col gap-3 rounded-2xl border border-border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
-                >
-                  <span className={cn("grid size-9 place-items-center rounded-xl", tint)}>
+                <CardLink key={title} href={href} className={cn(TILE, "group flex h-full flex-col gap-3")}>
+                  <span className={cn("grid size-10 place-items-center rounded-xl", tint)}>
                     <Icon className="size-4" aria-hidden />
                   </span>
                   <span className="font-semibold">{title}</span>
@@ -158,71 +200,81 @@ export default function LandingPage() {
                     Try it
                     <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden />
                   </span>
-                </Link>
+                </CardLink>
               ))}
-              <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border bg-white/60 p-5">
-                <span className="grid size-9 place-items-center rounded-xl bg-muted text-muted-foreground">
+              <div key="script" className="flex flex-col gap-3 rounded-2xl border border-dashed border-white/10 p-5">
+                <span className="grid size-10 place-items-center rounded-xl bg-muted text-muted-foreground">
                   <Mic className="size-4" aria-hidden />
                 </span>
                 <span className="flex items-center gap-2 font-semibold">
                   Script to video
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
-                    SOON
+                  <span className="rounded-md bg-hot px-1.5 py-0.5 font-label text-[10px] font-bold tracking-wide text-white uppercase">
+                    Soon
                   </span>
                 </span>
                 <span className="text-sm leading-relaxed text-muted-foreground">
                   Bring your own narration, used word for word. Record it or upload it.
                 </span>
               </div>
-            </div>
+            </Stagger>
           </div>
         </section>
 
-        <section id="showcase" className="scroll-mt-20 bg-white px-4 py-20 sm:px-6">
+        <section id="showcase" className="scroll-mt-24 px-4 py-24 sm:px-6">
           <div className="mx-auto max-w-6xl">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">SHOWCASE</p>
-                <h2 className="mt-2 text-3xl font-semibold tracking-tight">Made with PoliVid.</h2>
-              </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <SectionHeading eyebrow="Showcase" title="Made with PoliVid." />
               <p className="max-w-xs text-sm text-muted-foreground">
                 Each one opens Create with the prompt and settings prefilled.
               </p>
             </div>
-            <ul className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <Stagger
+              as="ul"
+              item="li"
+              inView
+              className="mt-10 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"
+              itemClassName="flex flex-col gap-3"
+            >
               {SHOWCASE.map((video) => (
-                <li key={video.title} className="flex flex-col gap-3">
-                  <StylePoster style={video.style} title={video.title} />
+                <div key={video.title} className="flex flex-col gap-3">
+                  <StylePoster style={video.style} title={video.title} className="ring-1 ring-white/[0.06]" />
                   <p className="text-xs text-muted-foreground">{showcaseMeta(video)}</p>
                   <Link
                     href={showcaseHref(video)}
-                    className={cn(buttonVariants({ variant: "outline" }), "h-9 rounded-xl bg-white")}
+                    className={cn(buttonVariants({ variant: "outline" }), "h-9 rounded-full")}
                   >
                     Create similar
                   </Link>
-                </li>
+                </div>
               ))}
-            </ul>
+            </Stagger>
           </div>
         </section>
 
-        <section id="how" className="scroll-mt-20 bg-background px-4 py-20 sm:px-6">
+        <section id="how" className="scroll-mt-24 px-4 py-24 sm:px-6">
           <div className="mx-auto max-w-6xl">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">HOW IT WORKS</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Prompt to preview in four steps.</h2>
-            <ol className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <SectionHeading eyebrow="How it works" title="Prompt to preview in four steps." />
+            <Stagger
+              as="ol"
+              item="li"
+              inView
+              className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              itemClassName={TILE}
+            >
               {STEPS.map((step) => (
-                <li key={step.n} className="rounded-2xl border border-border bg-white p-5 shadow-sm">
-                  <span className="text-xs font-semibold text-primary">{step.n}</span>
-                  <p className="mt-3 font-semibold">{step.title}</p>
+                <div key={step.n}>
+                  <span className="font-heading text-4xl font-extrabold text-transparent [-webkit-text-stroke:1px_var(--primary)]">
+                    {step.n}
+                  </span>
+                  <p className="mt-4 font-semibold">{step.title}</p>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
-                </li>
+                </div>
               ))}
-            </ol>
-            <dl className="mt-10 grid gap-6 border-t border-border pt-8 sm:grid-cols-4">
+            </Stagger>
+            <dl className="mt-12 grid gap-6 border-t border-white/[0.06] pt-10 sm:grid-cols-4">
               {STATS.map((stat) => (
                 <div key={stat.label} className="border-l-2 border-primary pl-4">
-                  <dt className="text-3xl font-semibold tracking-tight">{stat.value}</dt>
+                  <dt className="font-heading text-4xl font-bold">{stat.value}</dt>
                   <dd className="mt-1 text-sm text-muted-foreground">{stat.label}</dd>
                 </div>
               ))}
@@ -230,58 +282,57 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="pricing" className="scroll-mt-20 bg-white px-4 py-20 sm:px-6">
+        <section id="pricing" className="scroll-mt-24 px-4 py-24 sm:px-6">
           <div className="mx-auto flex max-w-6xl flex-col gap-10">
-            <div className="text-center">
-              <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">PRICING</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-                Credits for the videos you actually make.
-              </h2>
-              <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
+            <SectionHeading eyebrow="Pricing" title="Credits for the videos you actually make." center>
+              <p className="mx-auto max-w-xl text-sm text-muted-foreground">
                 Start with 100 free credits. Subscribe when you need more. Unused boost credits never expire.
               </p>
-            </div>
+            </SectionHeading>
             <PricingCards mode="marketing" />
             <TopupPacks />
             <CreditExamples />
           </div>
         </section>
 
-        <section id="faq" className="scroll-mt-20 bg-background px-4 py-20 sm:px-6">
+        <section id="faq" className="scroll-mt-24 px-4 py-24 sm:px-6">
           <div className="mx-auto max-w-6xl">
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-primary">FAQ</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">Questions, answered.</h2>
-            <dl className="mt-8 grid gap-4 sm:grid-cols-2">
+            <SectionHeading eyebrow="FAQ" title="Questions, answered." />
+            <Stagger as="dl" inView className="mt-10 grid gap-3 sm:grid-cols-2" itemClassName={TILE}>
               {FAQ.map((item) => (
-                <div key={item.q} className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+                <div key={item.q}>
                   <dt className="font-semibold">{item.q}</dt>
                   <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</dd>
                 </div>
               ))}
-            </dl>
+            </Stagger>
           </div>
         </section>
 
-        <section className="bg-white px-4 py-20 sm:px-6">
-          <div className="mx-auto flex max-w-4xl flex-col items-center gap-5 rounded-3xl bg-[#0C1222] px-6 py-14 text-center text-white sm:px-12">
-            <span className="h-0.5 w-10 rounded-full bg-[#F5B942]" aria-hidden />
-            <h2 className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Your next explainer is one prompt away.
+        <section className="px-4 pt-8 pb-24 sm:px-6">
+          <Reveal className="relative mx-auto flex max-w-5xl flex-col items-center gap-6 overflow-hidden rounded-3xl border border-white/10 bg-card px-6 py-16 text-center sm:px-12">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_15%_100%,oklch(0.36_0.18_294/0.6),transparent),radial-gradient(50%_70%_at_90%_0%,oklch(0.42_0.2_310/0.35),transparent)]"
+            />
+            <span className="relative rounded-md bg-primary/15 px-2 py-0.5 font-label text-[11px] font-bold tracking-[0.16em] text-primary uppercase">
+              100 free credits
+            </span>
+            <h2 className="relative font-label text-4xl leading-none font-bold tracking-tight text-balance uppercase sm:text-6xl">
+              Your next explainer
+              <span className="block text-foreground/50">is one prompt away</span>
             </h2>
-            <p className="max-w-md text-sm text-pretty text-white/70 sm:text-base">
-              Start with 100 free credits. Preview every scene before anything leaves the app.
+            <p className="relative max-w-md text-sm text-pretty text-muted-foreground sm:text-base">
+              Preview every scene before anything leaves the app.
             </p>
             <Link
               href="/create"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "h-11 rounded-xl bg-[#F5B942] px-5 text-[#0C1222] hover:bg-[#F5B942]/90",
-              )}
+              className={cn(buttonVariants({ size: "lg" }), "relative h-12 rounded-full px-6 text-base glow-accent")}
             >
               Try for free
               <ArrowRight data-icon="inline-end" />
             </Link>
-          </div>
+          </Reveal>
         </section>
       </main>
 

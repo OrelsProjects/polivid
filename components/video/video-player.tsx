@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { VideoStage } from "@/components/video/video-stage";
 import { cn } from "@/lib/utils";
 import type { VideoFormat } from "@/lib/video/schema";
 import type { RemotionVideoProps } from "./remotion-players";
@@ -32,13 +33,11 @@ export function VideoPlayer({
       style={{ aspectRatio: aspect[video.format] }}
     >
       {footageUrl ? (
-        <video
-          src={footageUrl}
-          controls={controls}
-          autoPlay={autoPlay}
-          playsInline
-          className="size-full bg-black object-cover"
-        />
+        controls ? (
+          <VideoStage src={footageUrl} autoPlay={autoPlay} className="size-full" title="Your video" />
+        ) : (
+          <video src={footageUrl} autoPlay={autoPlay} muted loop playsInline className="size-full bg-black object-cover" aria-hidden />
+        )
       ) : (
         <RemotionPlayer {...video} autoPlay={autoPlay} controls={controls} />
       )}

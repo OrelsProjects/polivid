@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { refundCredits, reserveCredits } from "@/lib/billing/credits";
 import { songCredits } from "@/lib/billing/estimate";
-import { putVideoMedia, readVideoMedia } from "@/lib/video/media-store";
+import { listVideoMediaKeys, putVideoMedia, readVideoMedia } from "@/lib/video/media-store";
 import { generationModelBySlug } from "@/lib/video/models";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
@@ -54,6 +54,27 @@ export const readSongDraft = async (userId: string, id: string): Promise<SongDra
 };
 
 export const readSongDraftAudio = (id: string) => readVideoMedia(songDraftAudioKey(id));
+
+/** How many past takes one user can browse at once. */
+const MAX_LISTED_SONG_DRAFTS = 50;
+
+/**
+ * Every take the user has made, newest first. Takes are never deleted when a
+ * new one is made, so this is how an earlier take stays reachable after the
+ * user tries another one.
+ */
+export const listSongDrafts = async (userId: string): Promise<SongDraft[]> => {
+  const keys = await listVideoMediaKeys("songs/");
+  const ids = keys
+    .filter((key) => key.startsWith("songs/") && key.endsWith(".json"))
+    .map((key) => key.slice("songs/".length, -".json".length))
+    .filter(isSongId);
+  const drafts = await Promise.all(ids.map((id) => readSongDraft(userId, id)));
+  return drafts
+    .filter((draft): draft is SongDraft => draft !== null)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id))
+    .slice(0, MAX_LISTED_SONG_DRAFTS);
+};
 
 /** True when the video settings still match the take, so its timings fit the clips. */
 export const songDraftFits = (

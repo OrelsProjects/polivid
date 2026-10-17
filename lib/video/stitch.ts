@@ -11,10 +11,10 @@ import { captionLines, captionPng } from "./lyric-captions";
 const execFileAsync = promisify(execFile);
 const TIMEOUT_MS = 300_000;
 
-/** Joins clips in order. Size and fps follow the first clip. Silent clips get silent audio. */
-export const stitchClips = async (clips: Uint8Array[]) => {
+/** Joins clips in order. Size and fps follow the first clip. Silent clips get silent audio. `showFor` trims a shot that was filmed longer than it stays on screen. */
+export const stitchClips = async (clips: Uint8Array[], showFor?: readonly number[]) => {
   if (clips.length === 0) throw new Error("Nothing to stitch.");
-  if (clips.length === 1) return clips[0]!;
+  if (clips.length === 1 && !showFor?.[0]) return clips[0]!;
 
   const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-stitch-"));
   try {
@@ -27,7 +27,7 @@ export const stitchClips = async (clips: Uint8Array[]) => {
     );
     const probes = await Promise.all(files.map((file) => probeFile(file)));
     const output = path.join(dir, "stitched.mp4");
-    await execFileAsync("ffmpeg", stitchArgs(files, probes, output), { timeout: TIMEOUT_MS });
+    await execFileAsync("ffmpeg", stitchArgs(files, probes, output, showFor), { timeout: TIMEOUT_MS });
     return new Uint8Array(await readFile(output));
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);
@@ -175,13 +175,18 @@ export const lastFrameDataUrl = async (video: Uint8Array) => {
   return `data:${frame.mime};base64,${Buffer.from(frame.bytes).toString("base64")}`;
 };
 
-const stitchArgs = (files: string[], probes: MediaProbe[], output: string) => {
+const stitchArgs = (files: string[], probes: MediaProbe[], output: string, showFor?: readonly number[]) => {
   const first = probes[0];
   if (!first?.hasVideo) throw new Error("The first clip has no video.");
   const width = first.width ?? 1280;
   const height = first.height ?? 720;
   const fps = first.fps && first.fps > 0 ? first.fps : 24;
   const fpsLabel = Number.isInteger(fps) ? String(fps) : fps.toFixed(3);
+  const playable = probes.map((probe, index) => {
+    const shown = showFor?.[index];
+    if (!shown || shown <= 0) return Math.max(probe.durationSec, 0.1);
+    return Math.max(0.1, Math.min(probe.durationSec, shown));
+  });
 
   const args: string[] = ["-y"];
   for (const file of files) args.push("-i", file);
@@ -189,19 +194,23 @@ const stitchArgs = (files: string[], probes: MediaProbe[], output: string) => {
   const silentIndexes: number[] = [];
   for (const [index, probe] of probes.entries()) {
     if (probe.hasAudio) continue;
-    args.push("-f", "lavfi", "-t", String(Math.max(probe.durationSec, 0.1)), "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
+    args.push("-f", "lavfi", "-t", String(playable[index] ?? 0.1), "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
     silentIndexes.push(index);
   }
 
   const filters: string[] = [];
   const concatParts: string[] = [];
   for (const [index, probe] of probes.entries()) {
+    const shown = showFor?.[index];
+    const trimTo = shown && shown > 0 && shown < probe.durationSec - 0.04 ? shown : null;
+    const videoTrim = trimTo ? `trim=duration=${trimTo.toFixed(3)},setpts=PTS-STARTPTS,` : "";
+    const audioTrim = trimTo ? `atrim=duration=${trimTo.toFixed(3)},asetpts=PTS-STARTPTS,` : "";
     filters.push(
-      `[${index}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,fps=${fpsLabel},setsar=1,format=yuv420p[v${index}]`,
+      `[${index}:v]${videoTrim}scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,fps=${fpsLabel},setsar=1,format=yuv420p[v${index}]`,
     );
     const audioInput = probe.hasAudio ? index : files.length + silentIndexes.indexOf(index);
     filters.push(
-      `[${audioInput}:a]aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,aresample=48000[a${index}]`,
+      `[${audioInput}:a]${audioTrim}aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,aresample=48000[a${index}]`,
     );
     concatParts.push(`[v${index}][a${index}]`);
   }

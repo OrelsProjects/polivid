@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { refundCredits, reserveCredits } from "@/lib/billing/credits";
 import { db } from "@/lib/db";
 import { videoJobCredits } from "@/lib/billing/estimate";
+import { clipPreviewSlots } from "./clip-preview";
 import { hasVideoMedia, deleteVideoMedia } from "./media-store";
 import { jobDetailRows } from "./job-details";
 import { clipCountForJob, completedClipCount, filmingClipIndex } from "./job-stages";
@@ -20,6 +21,7 @@ import {
   type VideoJobView,
 } from "./job-status";
 import { presetById } from "./presets";
+import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
 
 /** Model slug stamped on edit exports, so they can be kept out of the video library. */
 export const EDITOR_EXPORT_MODEL = "editor";
@@ -45,6 +47,9 @@ export interface VideoJobInput {
   directionKeys?: string[];
   sceneKeys?: string[];
   songId?: string;
+  cuts?: { seconds: number; camera: string; images?: number[] }[];
+  brief?: PromptBrief;
+  attachmentRoles?: AttachmentAssignment[];
   creditsHeld?: number;
 }
 
@@ -94,6 +99,18 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           directionKeys: input.directionKeys ?? [],
           sceneKeys: input.sceneKeys ?? [],
           songId: input.songId ?? "",
+          cuts: input.cuts ?? [],
+          brief: input.brief
+            ? {
+                subject: input.brief.subject,
+                setting: input.brief.setting,
+                director: input.brief.director,
+                style: input.brief.style,
+                mustKeep: input.brief.mustKeep,
+                mustAvoid: input.brief.mustAvoid,
+              }
+            : null,
+          attachmentRoles: (input.attachmentRoles ?? []).map((role) => ({ index: role.index, role: role.role })),
         },
         artifacts: {},
       },
@@ -213,6 +230,9 @@ export const resumeFailedVideoJob = async (userId: string, jobId: string) => {
     modelSlug: input.model,
     resolution: input.resolution,
     length: input.length,
+    referenceCount: input.referenceKeys.length,
+    songReady: Boolean(input.songId),
+    cuts: input.cuts,
   });
   const nextAttempt = job.attempt + 1;
   await db.$transaction(async (tx) => {
@@ -304,7 +324,7 @@ const loadJobLabels = async (userId: string, inputs: JobInputFields[]) => {
   };
 };
 
-const viewsFor = async (userId: string, jobs: JobRow[]) => {
+const viewsFor = async (userId: string, jobs: JobRow[], readyByJob?: Map<string, readonly number[]>) => {
   const inputs = jobs.map((job) => readJobInput(job.input));
   const labels = await loadJobLabels(userId, inputs);
   const providerJobs = jobs.length
@@ -319,13 +339,40 @@ const viewsFor = async (userId: string, jobs: JobRow[]) => {
     list.push(clip);
     clipsByJob.set(clip.jobId, list);
   }
-  return jobs.map((job, index) => toView(job, inputs[index]!, labels, clipsByJob.get(job.id) ?? []));
+  return jobs.map((job, index) =>
+    toView(job, inputs[index]!, labels, clipsByJob.get(job.id) ?? [], readyByJob?.get(job.id)),
+  );
+};
+
+/**
+ * Indexes whose shot files exist. Null when this job is not filming a multi-clip video,
+ * so the library list does not stat every shot on each poll.
+ */
+const filmingPreviewIndexes = async (job: JobRow): Promise<readonly number[] | null> => {
+  if (job.status !== "running") return null;
+  if (job.currentStep !== "videos" && job.currentStep !== "render") return null;
+  const input = readJobInput(job.input);
+  const slots = clipPreviewSlots(job.artifacts, input, new Set());
+  if (slots.length < 2) return null;
+  const stored = await Promise.all(
+    slots.map(async (slot) => {
+      try {
+        return (await hasVideoMedia(segmentMediaKey(job.id, slot.index))) ? slot.index : null;
+      } catch (error) {
+        console.error("Could not check a filmed shot", { jobId: job.id, index: slot.index, error });
+        return null;
+      }
+    }),
+  );
+  return stored.filter((index): index is number => index != null);
 };
 
 export const getVideoJobForUser = async (userId: string, jobId: string): Promise<VideoJobView | null> => {
   const job = await db.videoJob.findFirst({ where: { id: jobId, userId } });
   if (!job) return null;
-  const [view] = await viewsFor(userId, [job]);
+  const ready = await filmingPreviewIndexes(job);
+  const readyByJob = ready ? new Map<string, readonly number[]>([[job.id, ready]]) : undefined;
+  const [view] = await viewsFor(userId, [job], readyByJob);
   return view ?? null;
 };
 
@@ -344,6 +391,7 @@ const toView = (
   input: JobInputFields,
   labels: { characters: Map<string, string>; presets: Map<string, string> },
   clips: { sceneIdx: number; status: string }[],
+  readyIndexes?: readonly number[],
 ): VideoJobView => {
   if (!isJobStatus(job.status)) throw new Error(`Video job ${job.id} has an unknown status.`);
   const presetName = presetById(input.presetId)?.name ?? labels.presets.get(input.presetId) ?? "";
@@ -380,6 +428,7 @@ const toView = (
     clipsDone,
     stopping: job.stopAfterClip,
     songUrl: readStoredSong(job.artifacts) ? `/api/videos/${job.id}/song` : null,
+    clips: readyIndexes ? clipPreviewSlots(job.artifacts, input, new Set(readyIndexes)) : [],
     details: jobDetailRows({ ...input, presetName, characterName }),
   };
 };

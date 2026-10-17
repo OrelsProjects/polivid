@@ -33,6 +33,7 @@ export const AssetSourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("upload"), key: z.string().min(1) }),
   z.object({ type: z.literal("video"), videoId: z.string().min(1) }),
   z.object({ type: z.literal("production"), assetId: z.string().min(1) }),
+  z.object({ type: z.literal("song"), songId: z.string().min(1) }),
 ]);
 export type AssetSource = z.infer<typeof AssetSourceSchema>;
 

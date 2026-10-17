@@ -3,6 +3,7 @@
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { SlidingPill, Stagger, SwapText } from "@/components/motion/motion";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   formatUsdFromCents,
@@ -56,12 +57,17 @@ export function PricingCards({
             aria-pressed={interval === value}
             onClick={() => setInterval(value)}
             className={cn(
-              "min-h-9 cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition",
-              interval === value ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              "relative min-h-9 cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium",
+              interval === value ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {value === "month" ? "Monthly" : "Yearly"}
-            {value === "year" && <span className="ml-1.5 text-xs text-primary">save ~16%</span>}
+            {interval === value ? (
+              <SlidingPill layoutId="billing-interval" className="rounded-lg bg-card shadow-sm" />
+            ) : null}
+            <span className="relative z-10">
+              {value === "month" ? "Monthly" : "Yearly"}
+              {value === "year" && <span className="ml-1.5 text-xs text-primary">save ~16%</span>}
+            </span>
           </button>
         ))}
       </div>
@@ -70,7 +76,12 @@ export function PricingCards({
           {error}
         </p>
       )}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Stagger
+        enter={mode === "marketing"}
+        inView={mode === "marketing"}
+        className="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+        itemClassName="h-full"
+      >
         {PLANS.map((plan) => {
           const current = plan.id === currentPlan;
           const highlight = plan.popular || plan.id === highlightedPlan;
@@ -91,7 +102,7 @@ export function PricingCards({
             <article
               key={plan.id}
               className={cn(
-                "flex flex-col gap-4 rounded-2xl border bg-white p-5 shadow-sm",
+                "flex h-full flex-col gap-4 rounded-2xl border bg-card p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md",
                 highlight ? "border-primary ring-1 ring-primary/20" : "border-border",
               )}
             >
@@ -107,7 +118,7 @@ export function PricingCards({
                 )}
               </div>
               <p>
-                <span className="text-3xl font-semibold tracking-tight tabular-nums">{price}</span>
+                <SwapText value={price} className="text-3xl font-semibold tracking-tight tabular-nums" />
                 {plan.id !== "free" && interval === "year" && (
                   <span className="ml-1 text-sm text-muted-foreground">equivalent</span>
                 )}
@@ -153,7 +164,7 @@ export function PricingCards({
             </article>
           );
         })}
-      </div>
+      </Stagger>
     </div>
   );
 }

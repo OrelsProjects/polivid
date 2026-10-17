@@ -1,4 +1,5 @@
 import { lyricsCreditBreakdown } from "@/lib/music/song-plan";
+import { filmedSecondsForCuts } from "@/lib/video/shot-plan";
 import { clipResolution, generationModelById, generationModelBySlug, priceForResolution } from "@/lib/video/models";
 import { lyricsClipDurations, singerModelsFor } from "@/lib/video/singer-models";
 import { isVideoTier, resolveModeTier } from "@/lib/video/modes";
@@ -21,6 +22,8 @@ export interface VideoCreditEstimateInput {
   referenceCount?: number;
   /** The song was already made and paid for on the create page. */
   songReady?: boolean;
+  /** On-screen cuts. Each one is filmed at least as long as the model allows. */
+  cuts?: readonly { seconds: number; camera?: string }[];
 }
 
 /** Credits for one song take: music by the second, plus a small charge when a character re-sings it. */
@@ -50,7 +53,12 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
   if (input.mode === "lyrics") {
     const hasSinger = (input.referenceCount ?? 0) > 0;
     const singer = hasSinger ? (singerModelsFor(model.slug)[0] ?? null) : null;
-    const credits = lyricsCreditBreakdown(input.length, lyricsClipDurations(model, hasSinger), Boolean(singer));
+    const credits = lyricsCreditBreakdown(
+      input.length,
+      lyricsClipDurations(model, hasSinger),
+      Boolean(singer),
+      input.cuts,
+    );
     const singerResolution = singer
       ? singer.resolutions.includes(resolution)
         ? resolution
@@ -60,6 +68,9 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
     const picture =
       credits.brollSeconds * usd + (typeof singerUsd === "number" ? credits.singerSeconds * singerUsd : 0);
     return jobCreditsFromUsd(picture + (input.songReady ? 0 : credits.songSeconds * SONG_USD_PER_SECOND));
+  }
+  if (input.mode === "prompt" && input.cuts && input.cuts.length > 0) {
+    return jobCreditsFromUsd(usd * filmedSecondsForCuts(input.length, model.durations, input.cuts));
   }
   const seconds = isStitchedMode(input.mode)
     ? filmedSeconds(input.length, model.durations)

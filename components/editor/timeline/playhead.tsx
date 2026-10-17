@@ -10,7 +10,7 @@ export function HoverLine({ zoom }: { zoom: number }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute top-0 bottom-0 z-[25] w-px -translate-x-1/2 bg-neutral-400/80"
+      className="pointer-events-none absolute top-0 bottom-0 z-[25] w-px -translate-x-1/2 bg-primary"
       style={{ left: TRACK_HEADER_WIDTH + hoverFrame * zoom }}
     />
   );

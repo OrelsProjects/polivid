@@ -1,3 +1,4 @@
+import { Reveal } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 import type { VisualStyle } from "@/lib/showcase";
 
@@ -73,7 +74,7 @@ export function StylePoster({
 /** The three hero samples. Bold is the style videos render in today. */
 export function HeroStyles() {
   return (
-    <div className="mx-auto mt-16 flex max-w-4xl items-end justify-center px-4">
+    <Reveal y={16} delay={0.08} className="mx-auto mt-16 flex max-w-4xl items-end justify-center px-4">
       <SampleCard className="hidden w-60 translate-y-8 pr-10 sm:flex" style="minimal">
         <span className={cn("text-[10px] font-semibold tracking-[0.16em]", KICKER.minimal)}>MINIMAL</span>
         <p className="mt-auto text-4xl font-semibold tracking-tight">40%</p>
@@ -105,7 +106,7 @@ export function HeroStyles() {
         <p className="mt-3 text-xs text-[#6B5E52]">— Sample researcher</p>
         <p className="mt-auto pt-6 text-[10px] text-[#8A7B6E]">Sample data</p>
       </SampleCard>
-    </div>
+    </Reveal>
   );
 }
 

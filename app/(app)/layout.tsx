@@ -6,6 +6,7 @@ import { AppNav } from "@/components/app-nav";
 import { PlanCard } from "@/components/billing/plan-card";
 import { Logo } from "@/components/logo";
 import { MobileNav } from "@/components/mobile-nav";
+import { PageTransition } from "@/components/motion/motion";
 import { StoreProvider } from "@/components/store-provider";
 import { buttonVariants } from "@/components/ui/button";
 import { UserMenu } from "@/components/user-menu";
@@ -31,7 +32,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <div className="mt-auto flex flex-col gap-3">
           <Suspense
             fallback={
-              <div className="h-16 rounded-2xl border border-border bg-white" />
+              <div className="h-16 rounded-2xl border border-border bg-card" />
             }
           >
             <PlanCard />
@@ -63,7 +64,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <MobileNav>
                 <Suspense
                   fallback={
-                    <div className="h-16 rounded-2xl border border-border bg-white" />
+                    <div className="h-16 rounded-2xl border border-border bg-card" />
                   }
                 >
                   <PlanCard />
@@ -75,8 +76,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             </Suspense>
           </div>
         </header>
-        <main id="main" className="flex-1">
-          <StoreProvider>{children}</StoreProvider>
+        <main id="main" className="flex min-w-0 flex-1 flex-col">
+          <StoreProvider>
+            <PageTransition>{children}</PageTransition>
+          </StoreProvider>
         </main>
       </div>
     </div>

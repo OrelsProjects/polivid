@@ -1,5 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
+import { RevealPanel } from "@/components/motion/motion";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
@@ -32,8 +33,7 @@ export function VisualDirectionField({
         </span>
         <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", open && "rotate-180")} />
       </button>
-      {open && (
-        <div id={id} className="mt-2">
+      <RevealPanel open={open} id={id} className="mt-2">
           <Textarea
             value={value}
             onChange={(event) => onChange(event.target.value.slice(0, MAX_VISUAL_DIRECTION))}
@@ -47,8 +47,7 @@ export function VisualDirectionField({
           <p className="mt-1 text-xs text-muted-foreground">
             Style, mood, camera, and rules for every scene. The story stays in your prompt.
           </p>
-        </div>
-      )}
+      </RevealPanel>
     </div>
   );
 }

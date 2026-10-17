@@ -37,7 +37,7 @@ export function PromptBox({
         event.preventDefault();
         go(prompt);
       }}
-      className={cn("rounded-2xl border border-border bg-white p-3 shadow-sm", className)}
+      className={cn("rounded-2xl border border-border bg-card p-3 shadow-sm", className)}
     >
       <Textarea
         value={prompt}

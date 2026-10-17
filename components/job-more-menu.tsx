@@ -24,7 +24,7 @@ export const JobMoreMenu = ({ title, rows, className }: { title: string; rows: J
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner side="bottom" align="start" sideOffset={4} className="z-50">
-            <Menu.Popup className="min-w-36 origin-(--transform-origin) rounded-xl border border-border bg-white p-1 shadow-lg outline-none">
+            <Menu.Popup className="min-w-36 origin-(--transform-origin) rounded-xl border border-border bg-card p-1 shadow-lg outline-none">
               <Menu.Item
                 label="More info"
                 className="cursor-pointer rounded-lg px-3 py-2 text-sm outline-none data-[highlighted]:bg-muted"

@@ -1,6 +1,16 @@
 import { MAX_LYRICS_REFERENCES, MAX_SONG_SHOT_IMAGES } from "@/lib/video/schema";
+import { filmSecondsFor, normalizeCuts, type ShotCut } from "@/lib/video/shot-plan";
 import { clipDuration } from "@/lib/video/models";
 import { planSegments } from "@/lib/video/segments";
+
+export {
+  filmSecondsFor,
+  MAX_CUT_CAMERA,
+  MAX_CUTS,
+  normalizeCuts,
+  retimeCut,
+  type ShotCut as SongCut,
+} from "@/lib/video/shot-plan";
 
 const MIN_CHUNK_SECONDS = 3;
 const MAX_CHUNK_SECONDS = 120;
@@ -19,10 +29,15 @@ export interface SongSectionPlan extends LyricSection {
 export interface SongShot {
   index: number;
   startSec: number;
+  /** Seconds this shot stays on screen. */
   durationSec: number;
+  /** Seconds sent to the video model. Longer than `durationSec` when the cut is shorter than the model allows. */
+  filmSec?: number;
   lines: string[];
   kind: "performance" | "broll";
   sectionName: string;
+  /** Framing for this cut, such as "close-up on hands". Empty when the planner did not name one. */
+  camera?: string;
 }
 
 export interface SongWord {
@@ -247,9 +262,11 @@ export const planShots = (sections: readonly SongSectionPlan[], hasSinger: boole
         index,
         startSec: start,
         durationSec: duration,
+        filmSec: duration,
         lines: lines[clipIndex] ?? [],
         kind: hasSinger && index % 2 === 0 ? "performance" : "broll",
         sectionName: section.name,
+        camera: "",
       });
       start += duration;
     });
@@ -264,11 +281,82 @@ export const durationsForLyrics = (modelDurations: readonly number[], singerDura
   return both.length > 0 ? both : modelDurations;
 };
 
-export const lyricsCreditBreakdown = (length: number, modelDurations: readonly number[], hasSinger: boolean) => {
-  const shots = planShots(planSongSections([{ name: "Song", lines: ["line"] }], length, modelDurations), hasSinger);
-  const singerSeconds = sum(shots.filter((shot) => shot.kind === "performance").map((shot) => shot.durationSec));
-  const brollSeconds = sum(shots.filter((shot) => shot.kind === "broll").map((shot) => shot.durationSec));
-  return { singerSeconds, brollSeconds, songSeconds: singerSeconds + brollSeconds };
+/**
+ * One shot per cut. A cut belongs to the section that holds most of it, and that section's
+ * lines are spread across its cuts. A singer photo still alternates performance and b-roll.
+ */
+export const planShotsFromCuts = (
+  sections: readonly SongSectionPlan[],
+  cuts: readonly ShotCut[],
+  hasSinger: boolean,
+  durations: readonly number[],
+): SongShot[] => {
+  const covered = sum(cuts.map((cut) => cut.seconds));
+  const source: SongSectionPlan[] =
+    sections.length > 0
+      ? sections.map((section) => ({ ...section, lines: [...section.lines], clips: [...section.clips] }))
+      : [{ name: "Song", lines: ["Instrumental"], clips: [], durationSec: covered }];
+  let cursor = 0;
+  const ranges = source.map((section) => {
+    const start = cursor;
+    cursor += Math.max(0, section.durationSec);
+    return { start, end: cursor };
+  });
+  const placed: { cut: ShotCut; start: number }[] = [];
+  let start = 0;
+  for (const cut of cuts) {
+    placed.push({ cut, start });
+    start += cut.seconds;
+  }
+  const ownerOf = (from: number, seconds: number) => {
+    let best = Math.max(0, ranges.length - 1);
+    let bestOverlap = Number.NEGATIVE_INFINITY;
+    ranges.forEach((range, index) => {
+      const overlap = Math.min(from + seconds, range.end) - Math.max(from, range.start);
+      if (overlap > bestOverlap) {
+        bestOverlap = overlap;
+        best = index;
+      }
+    });
+    return best;
+  };
+  const owners = placed.map((item) => ownerOf(item.start, item.cut.seconds));
+  const buckets = source.map((section, index) => spreadLines(section.lines, owners.filter((owner) => owner === index).length));
+  const used = source.map(() => 0);
+  return placed.map((item, index) => {
+    const owner = owners[index] ?? 0;
+    const lineIndex = used[owner] ?? 0;
+    used[owner] = lineIndex + 1;
+    return {
+      index,
+      startSec: item.start,
+      durationSec: item.cut.seconds,
+      filmSec: filmSecondsFor(item.cut.seconds, durations),
+      lines: buckets[owner]?.[lineIndex] ?? [],
+      kind: hasSinger && index % 2 === 0 ? "performance" : "broll",
+      sectionName: source[owner]?.name ?? "Song",
+      camera: item.cut.camera,
+    };
+  });
+};
+
+export const lyricsCreditBreakdown = (
+  length: number,
+  modelDurations: readonly number[],
+  hasSinger: boolean,
+  cuts?: readonly { seconds: number; camera?: string }[],
+) => {
+  const sections = planSongSections([{ name: "Song", lines: ["line"] }], length, modelDurations);
+  const limit = modelDurations.length > 0 ? Math.max(...modelDurations) : undefined;
+  const shots =
+    cuts && cuts.length > 0
+      ? planShotsFromCuts(sections, normalizeCuts(cuts, length, limit), hasSinger, modelDurations)
+      : planShots(sections, hasSinger);
+  const billed = (shot: SongShot) => shot.filmSec ?? shot.durationSec;
+  const singerSeconds = sum(shots.filter((shot) => shot.kind === "performance").map(billed));
+  const brollSeconds = sum(shots.filter((shot) => shot.kind === "broll").map(billed));
+  const songSeconds = sum(sections.map((section) => section.durationSec));
+  return { singerSeconds, brollSeconds, songSeconds };
 };
 
 /** Styles for one composition chunk. The first chunk carries the whole-song direction. */

@@ -137,7 +137,7 @@ async function VideoDetail({ id }: { id: string }) {
 function Script({ video }: { video: VideoRecord }) {
   const scenes = video.plan?.scenes ?? [];
   return (
-    <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex flex-col gap-0.5">
         <h2 className="font-semibold">Scenes · {scenes.length}</h2>
         <p className="text-xs text-muted-foreground">In order. Open the editor to change clips, text, and audio.</p>
@@ -180,7 +180,7 @@ function Sources({ video }: { video: VideoRecord }) {
     .join("\n\n");
 
   return (
-    <section className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold">
           Sources · {video.facts.length} {video.facts.length === 1 ? "fact" : "facts"}
@@ -219,7 +219,7 @@ function Sources({ video }: { video: VideoRecord }) {
               </a>
               <span className="text-muted-foreground">{fact.asOf}</span>
               {unverified.has(fact.id) && (
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-900">
+                <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-200">
                   Check it · source not in search results
                 </span>
               )}
@@ -255,7 +255,7 @@ function FailedVideo({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2 rounded-2xl border border-red-200 bg-red-50 p-5 text-sm" role="alert">
+      <div className="flex flex-col gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 p-5 text-sm" role="alert">
         <span className="flex items-center gap-2 font-medium text-destructive">
           <TriangleAlert className="size-4" aria-hidden />
           Couldn&apos;t make this video

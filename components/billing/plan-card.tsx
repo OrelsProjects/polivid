@@ -10,7 +10,7 @@ export async function PlanCard() {
   const balance = await getBalance(user.id);
   const plan = planById(balance.plan);
   return (
-    <div className="rounded-2xl border border-border bg-white p-3">
+    <div className="rounded-2xl border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold">{plan.name} plan</span>
         <Link

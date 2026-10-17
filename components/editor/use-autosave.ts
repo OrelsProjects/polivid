@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import { apiErrorStatus } from "@/lib/store/api-errors";
 import { useSaveEditProjectMutation } from "@/lib/store/endpoints/editor";
+import { selectEditorDocument } from "@/lib/store/editor-slice";
+import { useAppStore } from "@/lib/store/hooks";
 import {
   useEditorActions,
   useEditorProjectId,
@@ -13,14 +15,42 @@ import {
 
 const DEBOUNCE_MS = 1000;
 
-export const useAutosave = () => {
+export const useAutosave = (flushRef?: RefObject<(() => Promise<void>) | null>) => {
   const projectId = useEditorProjectId();
   const version = useEditorVersion();
   const saveStatus = useEditorSaveStatus();
   const snapshot = useEditorSnapshot();
   const { setSaveStatus, saved } = useEditorActions();
   const [saveProject] = useSaveEditProjectMutation();
+  const store = useAppStore();
   const timer = useRef<number | null>(null);
+
+  const flush = useCallback(async () => {
+    const document = selectEditorDocument(store.getState());
+    if (!document || document.saveStatus !== "dirty") return;
+    if (timer.current) window.clearTimeout(timer.current);
+    setSaveStatus("saving");
+    try {
+      const project = await saveProject({
+        id: document.projectId,
+        title: document.history.present.title,
+        version: document.version,
+        timeline: document.history.present.timeline,
+      }).unwrap();
+      saved(project.version);
+    } catch (error) {
+      setSaveStatus(apiErrorStatus(error) === 409 ? "conflict" : "error");
+      throw error;
+    }
+  }, [saveProject, saved, setSaveStatus, store]);
+
+  useEffect(() => {
+    if (!flushRef) return;
+    flushRef.current = flush;
+    return () => {
+      flushRef.current = null;
+    };
+  }, [flush, flushRef]);
 
   useEffect(() => {
     if (saveStatus !== "dirty") return;

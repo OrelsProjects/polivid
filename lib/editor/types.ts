@@ -8,6 +8,10 @@ export interface EditProjectView {
   timeline: Timeline;
   version: number;
   sourceVideoId: string | null;
+  /** Finished MP4 for this timeline version, when one exists. */
+  exportVideoId: string | null;
+  /** Project version that exportVideoId was rendered from. */
+  exportVersion: number | null;
   createdAt: string;
   updatedAt: string;
 }

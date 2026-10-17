@@ -10,6 +10,7 @@ import { FPS } from "@/lib/video/schema";
 import { cn } from "@/lib/utils";
 import {
   useEditorActions,
+  useEditorHighlights,
   useEditorSelection,
   useEditorZoom,
   useGetEditorPlayback,
@@ -38,6 +39,7 @@ export function TimelineItemView({
   const selection = useEditorSelection();
   const getPlayback = useGetEditorPlayback();
   const actions = useEditorActions();
+  const highlighted = useEditorHighlights().includes(item.id);
   const selected = selection?.itemId === item.id;
   const width = Math.max(8, item.durationInFrames * zoom);
   const asset = "assetId" in item ? assetById(timeline, item.assetId) : null;
@@ -97,6 +99,7 @@ export function TimelineItemView({
         item.kind === "audio" && "bg-primary",
         item.kind === "scene" && "bg-primary/80",
         selected && "ring-2 ring-primary",
+        highlighted && "ring-2 ring-primary motion-safe:animate-pulse",
         track.locked && "opacity-60",
       )}
       style={{ left: item.from * zoom, width }}

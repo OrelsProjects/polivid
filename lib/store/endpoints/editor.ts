@@ -17,11 +17,21 @@ export const editorApi = api.injectEndpoints({
     revertEditProject: build.mutation<EditProjectView, string>({
       query: (id) => ({ url: `editor/projects/${id}/revert`, method: "POST" }),
     }),
-    /** Starts an MP4 render and resolves to the new video job id. */
-    exportEditProject: build.mutation<string, string>({
+    /** Starts an MP4 render. Resolves to the new job, or the one already running for this edit. */
+    exportEditProject: build.mutation<{ jobId: string; resumed: boolean }, string>({
       query: (id) => ({ url: `editor/projects/${id}/export`, method: "POST" }),
-      transformResponse: (body: { jobId: string }) => body.jobId,
+      transformResponse: (body: { jobId: string; resumed?: boolean }) => ({
+        jobId: body.jobId,
+        resumed: body.resumed === true,
+      }),
       invalidatesTags: ["ActiveJobs", "Credits"],
+    }),
+    /** Remembers a finished render so the next Export click can download it. */
+    rememberEditExport: build.mutation<
+      { videoId: string; version: number },
+      { id: string; videoId: string; version: number }
+    >({
+      query: ({ id, ...body }) => ({ url: `editor/projects/${id}/export`, method: "POST", body }),
     }),
   }),
 });
@@ -31,4 +41,5 @@ export const {
   useSaveEditProjectMutation,
   useRevertEditProjectMutation,
   useExportEditProjectMutation,
+  useRememberEditExportMutation,
 } = editorApi;

@@ -68,7 +68,7 @@ export function CreatePresetDialog({
       aria-labelledby="create-preset-title"
       onClose={onClose}
       onClick={handleBackdropClick}
-      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border bg-white p-0 text-foreground shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px]"
+      className="m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-border bg-card p-0 text-foreground shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur-[2px]"
     >
       <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div>

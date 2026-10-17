@@ -136,18 +136,31 @@ export function CharacterPicker({
         id={compact ? undefined : `${labelId}-trigger`}
         aria-label={`Character: ${current.title}`}
         className={cn(
-          "flex cursor-pointer items-center gap-2.5 rounded-xl text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex cursor-pointer items-center text-left outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
           compact
-            ? "h-14 w-64 max-w-full shrink-0 border border-dashed border-border bg-muted/40 px-2 hover:bg-muted/70 data-popup-open:border-primary/40"
-            : "h-14 w-full border border-input bg-background px-2 hover:bg-muted/40 data-popup-open:border-ring",
+            ? "h-10 w-auto max-w-full shrink-0 gap-2 rounded-xl border border-dashed border-border px-3 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground data-popup-open:border-primary/40"
+            : "h-14 w-full gap-2.5 rounded-xl border border-input bg-background px-2 hover:bg-muted/40 data-popup-open:border-ring",
         )}
       >
-        {current.visual}
-        <span className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm font-medium">{current.title}</span>
-          <span className="truncate text-xs text-muted-foreground">{current.detail}</span>
+        {compact ? (
+          selected?.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- character thumbnail from the upload library
+            <img src={selected.imageUrl} alt="" className="size-5 shrink-0 rounded-md object-cover" />
+          ) : value === STUDIO_VOICE_ID ? (
+            <Mic className="size-4 shrink-0" aria-hidden />
+          ) : value === OFF_VOICE_ID ? (
+            <CircleOff className="size-4 shrink-0" aria-hidden />
+          ) : (
+            <UserRound className="size-4 shrink-0" aria-hidden />
+          )
+        ) : (
+          current.visual
+        )}
+        <span className={cn("flex min-w-0", compact ? "max-w-36 truncate" : "flex-1 flex-col")}>
+          <span className={cn("truncate", compact ? undefined : "text-sm font-medium")}>{current.title}</span>
+          {compact ? null : <span className="truncate text-xs text-muted-foreground">{current.detail}</span>}
         </span>
-        <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        {compact ? null : <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-80 max-w-[calc(100vw-2rem)] p-1.5" side={compact ? "top" : "bottom"}>
         <DropdownMenuRadioGroup value={value} onValueChange={(next) => handleChange(String(next))}>

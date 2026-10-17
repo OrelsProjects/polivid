@@ -20,6 +20,7 @@ export const useEditorShortcuts = () => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // The project chat's textarea lives in the same window, so typing there must not trim or delete clips.
       if (typingTarget(event.target)) return;
       const state = store.getState();
       const current = selectEditorDocument(state);

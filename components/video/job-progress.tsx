@@ -4,10 +4,13 @@ import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BackLink } from "@/components/back-link";
+import { ProgressFill } from "@/components/motion/motion";
 import { ExpandableText } from "@/components/expandable-text";
 import { JobHoldControls } from "@/components/job-hold-controls";
 import { JobMoreMenu } from "@/components/job-more-menu";
 import { JobStageList } from "@/components/job-stage-list";
+import { ClipPreview } from "@/components/video/clip-preview";
+import { VideoStage } from "@/components/video/video-stage";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
 import { useCancelVideoMutation, useGetVideoJobQuery, videosApi } from "@/lib/store/endpoints/videos";
@@ -93,6 +96,7 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
 
   const title = jobTitle(job.prompt);
   const paused = job.status === "paused";
+  const showPreview = job.status === "running" && (job.clips ?? []).some((clip) => clip.ready);
   const stepLabel = paused ? "Paused" : isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Starting";
   const elapsed = now !== null && job.status === "running" && job.startedAt ? formatElapsed(job.startedAt, now) : null;
   const meta = [job.format, job.length > 0 ? `${job.length}s` : null, createdLabel].filter(Boolean).join(" · ");
@@ -108,7 +112,7 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
       </div>
 
       {job.status === "failed" || job.status === "canceled" ? (
-        <div className="relative flex flex-col gap-2 rounded-2xl border border-red-200 bg-red-50 px-5 pt-14 pb-5 text-sm" role="alert">
+        <div className="relative flex flex-col gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-5 pt-14 pb-5 text-sm" role="alert">
           <JobMoreMenu title={title} rows={job.details ?? []} />
           <span className="flex items-center gap-2 font-medium text-destructive">
             <TriangleAlert className="size-4" aria-hidden />
@@ -121,20 +125,26 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
           ) : null}
         </div>
       ) : (
-        <section className="relative flex max-w-md flex-col gap-3 rounded-2xl border border-border bg-white px-6 pt-14 pb-8 shadow-sm">
+        <section className="relative flex max-w-md flex-col gap-3 rounded-2xl border border-border bg-card px-6 pt-14 pb-8 shadow-sm">
           <JobMoreMenu title={title} rows={job.details ?? []} />
           <span className="absolute top-3.5 right-3 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
             {paused ? "PAUSED" : job.status === "queued" ? "STARTING" : job.status === "succeeded" ? "FINISHING" : "IN PROGRESS"}
           </span>
           <div className="flex flex-col items-center gap-3 text-center">
             {paused && job.outputUrl ? (
-              <video
+              <VideoStage
                 src={`${job.outputUrl}?v=${encodeURIComponent(job.updatedAt)}`}
-                controls
-                playsInline
-                preload="metadata"
-                className="aspect-[9/16] w-full rounded-xl bg-black"
-                aria-label={`Clips filmed so far for ${title}`}
+                fit="contain"
+                className="aspect-[9/16] w-full rounded-2xl"
+                title={`Clips filmed so far for ${title}`}
+              />
+            ) : showPreview ? (
+              <ClipPreview
+                jobId={job.id}
+                title={title}
+                format={job.format}
+                clips={job.clips}
+                songUrl={job.songUrl}
               />
             ) : (
               <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
@@ -153,7 +163,7 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
               clipIndex={job.clipIndex ?? null}
               clipTotal={job.clipTotal ?? 1}
               clipsDone={job.clipsDone}
-              songUrl={job.songUrl}
+              songUrl={showPreview ? null : job.songUrl}
             />
             <div
               className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
@@ -163,7 +173,7 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
               aria-valuemax={100}
               aria-label={`${title} progress`}
             >
-              <div className="h-full rounded-full bg-primary" style={{ width: `${job.progressPct}%` }} />
+              <ProgressFill value={job.progressPct} />
             </div>
             <span className="text-xs text-muted-foreground tabular-nums">{job.progressPct}%</span>
             {elapsed ? (

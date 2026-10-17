@@ -7,6 +7,7 @@ import {
   editorActions,
   selectEditorDocument,
   selectEditorPlayback,
+  selectHighlightIds,
   selectHoverFrame,
   type EditorDocument,
 } from "@/lib/store/editor-slice";
@@ -46,6 +47,8 @@ const useEditorSelector = <T,>(select: (document: EditorDocument) => T) =>
 export const useEditorProjectId = () => useEditorSelector((document) => document.projectId);
 export const useEditorSourceVideoId = () => useEditorSelector((document) => document.sourceVideoId);
 export const useEditorVersion = () => useEditorSelector((document) => document.version);
+export const useEditorExportVideoId = () => useEditorSelector((document) => document.exportVideoId);
+export const useEditorExportVersion = () => useEditorSelector((document) => document.exportVersion);
 export const useEditorSaveStatus = () => useEditorSelector((document) => document.saveStatus);
 export const useEditorSelection = () => useEditorSelector((document) => document.selection);
 export const useEditorZoom = () => useEditorSelector((document) => document.zoom);
@@ -59,6 +62,9 @@ export const useEditorPlayback = () => useAppSelector(selectEditorPlayback);
 
 /** Frame under the mouse on the timeline, or null when the mouse is elsewhere. */
 export const useHoverFrame = () => useAppSelector(selectHoverFrame);
+
+/** Clips the latest Coach edit changed. */
+export const useEditorHighlights = () => useAppSelector(selectHighlightIds);
 
 /** Reads playback at call time without re-rendering on every frame, for event handlers. */
 export const useGetEditorPlayback = () => {

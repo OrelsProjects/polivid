@@ -4,10 +4,10 @@ import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { InsufficientCreditsError } from "@/lib/billing/errors";
 import { getPickableCharacter } from "@/lib/characters/store";
 import { ndjsonResponse } from "@/lib/http/ndjson";
-import { createSongDraft, songCharacterId } from "@/lib/music/song-draft";
+import { createSongDraft, listSongDrafts, songCharacterId, songDraftFits, type SongDraft } from "@/lib/music/song-draft";
 import type { SongTakeStreamEvent } from "@/lib/music/song-take";
-import { resolveModeTier, VIDEO_TIERS } from "@/lib/video/modes";
-import { MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH } from "@/lib/video/schema";
+import { isVideoTier, resolveModeTier, VIDEO_TIERS } from "@/lib/video/modes";
+import { isVideoLength, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH } from "@/lib/video/schema";
 
 export const maxDuration = 300;
 
@@ -18,6 +18,44 @@ const Schema = z.object({
   characterId: z.string().trim().max(80).optional().default(""),
   hasSinger: z.boolean().optional().default(false),
 });
+
+const takeView = (draft: SongDraft) => ({
+  id: draft.id,
+  url: `/api/songs/${draft.id}`,
+  seconds: draft.seconds,
+  voiceName: draft.voiceName,
+  credits: 0,
+  createdAt: draft.createdAt,
+});
+
+/**
+ * Lists the takes the user can still pick from. With the current lyrics and
+ * settings in the query, only takes that still fit them come back, so an old
+ * take reappears when the user returns to the settings it was made with.
+ */
+export async function GET(request: Request) {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return Response.json({ error: "Sign in to hear your songs." }, { status: 401 });
+  const params = new URL(request.url).searchParams;
+  const prompt = params.get("prompt") ?? "";
+  const length = Number(params.get("length"));
+  const tier = params.get("tier") ?? "";
+  const drafts = await listSongDrafts(userId);
+  const model = prompt && isVideoLength(length) && isVideoTier(tier) ? resolveModeTier("lyrics", tier)?.model : null;
+  const takes = model
+    ? drafts.filter((draft) =>
+        songDraftFits(draft, {
+          prompt,
+          length,
+          model: model.slug,
+          characterId: songCharacterId(params.get("characterId") ?? ""),
+          hasSinger: params.get("hasSinger") === "true",
+        }),
+      )
+    : drafts;
+  return Response.json({ takes: takes.map(takeView) });
+}
 
 /** Makes one song take for a lyrics video. Nothing is filmed yet. */
 export async function POST(request: Request) {
@@ -62,6 +100,7 @@ export async function POST(request: Request) {
         seconds: draft.seconds,
         voiceName: draft.voiceName,
         credits,
+        createdAt: draft.createdAt,
       });
     } catch (error) {
       if (error instanceof InsufficientCreditsError) {

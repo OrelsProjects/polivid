@@ -94,7 +94,7 @@ export function CharacterEditor({
   };
 
   return (
-    <section className="flex flex-col gap-5 rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <section className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-1">
         <h2 className="text-sm font-semibold">{character ? "Edit character" : "New character"}</h2>
         <p className="text-sm text-muted-foreground">A name and a picture are required. A voice is optional.</p>

@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
+import { SlidingPill } from "@/components/motion/motion";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -88,7 +89,14 @@ const isActive = (pathname: string | null, item: NavItem) =>
       pathname.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`),
   );
 
-export function AppNav({ showCreate = true }: { showCreate?: boolean }) {
+export function AppNav({
+  showCreate = true,
+  scope = "sidebar",
+}: {
+  showCreate?: boolean;
+  /** Keeps the sliding highlight separate when two navs are mounted. */
+  scope?: "sidebar" | "drawer";
+}) {
   return (
     <div className="flex flex-col gap-1">
       {showCreate && (
@@ -96,7 +104,7 @@ export function AppNav({ showCreate = true }: { showCreate?: boolean }) {
           href="/create"
           className={cn(
             buttonVariants({ size: "lg" }),
-            "mb-3 h-10 w-full rounded-xl",
+            "mb-3 h-10 w-full rounded-xl glow-accent",
           )}
         >
           <Plus data-icon="inline-start" />
@@ -104,16 +112,18 @@ export function AppNav({ showCreate = true }: { showCreate?: boolean }) {
         </Link>
       )}
       {/* On routes with request-time params the pathname is unknown while prerendering, so links render unhighlighted until it resolves. */}
-      <Suspense fallback={<NavLinks pathname={null} />}>
-        <CurrentNavLinks />
+      <Suspense fallback={<NavLinks pathname={null} scope={scope} />}>
+        <CurrentNavLinks scope={scope} />
       </Suspense>
     </div>
   );
 }
 
-const CurrentNavLinks = () => <NavLinks pathname={usePathname()} />;
+const CurrentNavLinks = ({ scope }: { scope: "sidebar" | "drawer" }) => (
+  <NavLinks pathname={usePathname()} scope={scope} />
+);
 
-const NavLinks = ({ pathname }: { pathname: string | null }) => (
+const NavLinks = ({ pathname, scope }: { pathname: string | null; scope: "sidebar" | "drawer" }) => (
   <nav className="flex flex-col gap-1" aria-label="App">
     {NAV.map((item) => {
       const active = isActive(pathname, item);
@@ -124,17 +134,20 @@ const NavLinks = ({ pathname }: { pathname: string | null }) => (
           href={item.href}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors",
+            "relative flex min-h-10 cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-sm transition-colors",
             active
-              ? "bg-white font-medium text-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-white/70 hover:text-foreground",
+              ? "font-medium text-foreground"
+              : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
           )}
         >
+          {active ? (
+            <SlidingPill layoutId={`app-nav-${scope}`} className="rounded-xl bg-sidebar-accent ring-1 ring-white/[0.06]" />
+          ) : null}
           <Icon
-            className={cn("size-4", active && "text-primary")}
+            className={cn("relative z-10 size-4", active && "text-primary")}
             aria-hidden
           />
-          {item.label}
+          <span className="relative z-10">{item.label}</span>
         </Link>
       );
     })}
@@ -145,8 +158,8 @@ const NavLinks = ({ pathname }: { pathname: string | null }) => (
       >
         <Icon className="size-4" aria-hidden />
         {label}
-        <span className="ml-auto rounded-full bg-white px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
-          SOON
+        <span className="ml-auto rounded-md bg-white/[0.06] px-1.5 py-0.5 font-label text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+          Soon
         </span>
       </span>
     ))}

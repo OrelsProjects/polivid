@@ -45,7 +45,7 @@ export function EditorToolbar() {
   };
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-white px-3">
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
       <Link
         href="/editor"
         aria-label="Back to edits"

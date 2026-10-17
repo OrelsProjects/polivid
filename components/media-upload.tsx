@@ -1,10 +1,11 @@
 "use client";
 
-import { FileAudio, FileVideo, ImagePlus, LoaderCircle, X } from "lucide-react";
+import { FileAudio, FileVideo, Image, ImagePlus, LoaderCircle, Music, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { ImageLibrary, type LibrarySource } from "@/components/image-library";
+import { VideoStage } from "@/components/video/video-stage";
 import { Button } from "@/components/ui/button";
-import { uploadFileUrl } from "@/lib/storage/upload-key";
+import { isAudioKey, isImageKey, uploadFileUrl } from "@/lib/storage/upload-key";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import { useUploadFileMutation } from "@/lib/store/endpoints/uploads";
 import { cn } from "@/lib/utils";
@@ -23,6 +24,14 @@ const HINT: Record<Exclude<ModeUpload, "none">, string> = {
   audio: "MP3 or WAV · under 20 MB",
   video: "MP4 or WebM · under 20 MB",
   media: "Audio or video · under 20 MB",
+};
+
+/** Short name on a compact chip. */
+const SHORT_LABEL: Record<Exclude<ModeUpload, "none">, string> = {
+  image: "Photo",
+  audio: "Song",
+  video: "Video",
+  media: "Song/clip",
 };
 
 const LABEL: Record<Exclude<ModeUpload, "none">, string> = {
@@ -56,6 +65,8 @@ type MediaUploadProps = {
   label?: string;
   hint?: string;
   compact?: boolean;
+  /** Visible name on the compact chip. Defaults to a short kind label. */
+  compactLabel?: string;
   librarySide?: "top" | "bottom";
   onBusyChange?: (busy: boolean) => void;
   librarySource?: LibrarySource;
@@ -85,6 +96,7 @@ export function MediaUpload({
   label,
   hint,
   compact = false,
+  compactLabel,
   librarySide = "bottom",
   onBusyChange,
   librarySource,
@@ -111,9 +123,14 @@ export function MediaUpload({
   const parentKeyList = multiple ? props.mediaKeys.join("\0") : "";
   const savedSingleKey = !multiple ? props.mediaKey : null;
   const atLimit = multiple && items.length >= max;
+  const singleIsAudio = preview ? previewKind === "audio" : Boolean(savedSingleKey && isAudioKey(savedSingleKey));
+  const SingleIcon = singleIsAudio ? FileAudio : kind === "image" ? ImagePlus : FileVideo;
+  const singleKindLabel = singleIsAudio ? "Audio" : kind === "image" ? "Photo" : "Video";
 
   const onBusyChangeRef = useRef(onBusyChange);
-  onBusyChangeRef.current = onBusyChange;
+  useEffect(() => {
+    onBusyChangeRef.current = onBusyChange;
+  }, [onBusyChange]);
 
   useEffect(() => {
     return () => {
@@ -149,6 +166,7 @@ export function MediaUpload({
   }, [kind, multiple, parentKeyList]);
 
   const handlePick = () => {
+    if (inputRef.current) inputRef.current.value = "";
     inputRef.current?.click();
   };
 
@@ -249,10 +267,20 @@ export function MediaUpload({
 
   const namedLabel = label ?? LABEL[kind];
   const namedHint = hint ?? HINT[kind];
-  const tileClass = compact ? "size-14" : "size-28 sm:size-32";
+  const chipLabel = compactLabel ?? SHORT_LABEL[kind];
+  const ChipIcon = kind === "image" ? Image : kind === "video" ? FileVideo : Music;
+  const tileClass = compact ? "size-10 min-h-10 min-w-10 max-w-10 shrink-0" : "size-28 shrink-0 sm:size-32";
+  const chipClass =
+    "inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-border px-3 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50";
+  const imageSrc =
+    preview && previewKind === "image"
+      ? preview
+      : savedSingleKey && isImageKey(savedSingleKey)
+        ? uploadFileUrl(savedSingleKey)
+        : null;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn("flex flex-col gap-2", compact && "w-max shrink-0")}>
       <span id={`${inputId}-label`} className={libraryLayout === "inline" || compact ? "sr-only" : "text-sm font-medium"}>
         {namedLabel}
       </span>
@@ -276,7 +304,7 @@ export function MediaUpload({
       />
       {multiple ? (
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-2">
+          <div className={cn("flex gap-2", compact ? "flex-nowrap" : "flex-wrap")}>
             {items.map((item, index) => (
               <div
                 key={item.key}
@@ -284,7 +312,7 @@ export function MediaUpload({
               >
                 {item.preview && item.kind === "image" ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={item.preview} alt={`Reference picture ${index + 1}`} className="size-full object-cover" />
+                  <img src={item.preview} alt={`Reference picture ${index + 1}`} className="absolute inset-0 size-full object-cover" />
                 ) : (
                   <div className="flex size-full flex-col items-center justify-center gap-1 bg-muted/40 px-2 text-muted-foreground">
                     <Icon className="size-5" aria-hidden />
@@ -298,7 +326,7 @@ export function MediaUpload({
                   disabled={disabled || uploading}
                   aria-label={`Remove picture ${index + 1}`}
                   className={cn(
-                    "absolute rounded-full bg-white p-0",
+                    "absolute rounded-full bg-card p-0",
                     compact ? "top-0.5 right-0.5 size-5" : "top-1.5 right-1.5 size-8",
                   )}
                   onClick={() => handleRemoveKey(item.key)}
@@ -315,8 +343,16 @@ export function MediaUpload({
                 maxSelected={max}
                 disabled={disabled}
                 uploading={uploading}
-                triggerLabel={items.length ? "Add another" : namedLabel}
-                tileClassName={compact ? tileClass : undefined}
+                triggerLabel={compact ? (items.length ? "Add" : chipLabel) : items.length ? "Add another" : namedLabel}
+                ariaLabel={
+                  compact
+                    ? items.length
+                      ? "Add another reference picture"
+                      : `${namedLabel}. ${namedHint}`
+                    : undefined
+                }
+                title={compact ? namedHint : undefined}
+                chip={compact}
                 side={librarySide}
                 onToggle={handleToggleLibraryPicture}
                 onUploadNew={handlePick}
@@ -336,23 +372,71 @@ export function MediaUpload({
                   }
                 }}
                 className={cn(
-                  "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
-                  tileClass,
+                  compact
+                    ? chipClass
+                    : "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                  compact ? undefined : tileClass,
                 )}
               >
                 {uploading ? (
-                  <LoaderCircle className="size-5 animate-spin" aria-hidden />
+                  <LoaderCircle className={cn("animate-spin", compact ? "size-4" : "size-5")} aria-hidden />
                 ) : (
                   <>
-                    <Icon className="size-5" aria-hidden />
-                    <span>Add</span>
+                    {compact ? <ChipIcon className="size-4" aria-hidden /> : <Icon className="size-5" aria-hidden />}
+                    <span>{compact ? (items.length ? "Add" : chipLabel) : "Add"}</span>
                   </>
                 )}
               </button>
             )}
           </div>
-          {!compact && <p className="text-xs text-muted-foreground">{namedHint}</p>}
+            {!compact && <p className="text-xs text-muted-foreground">{namedHint}</p>}
         </div>
+      ) : compact ? (
+        preview || savedSingleKey ? (
+          <div
+            title={(preview && fileName) || namedLabel}
+            className="inline-flex h-10 max-w-full items-center gap-2 rounded-xl border border-dashed border-border pr-1 pl-2 text-xs text-muted-foreground"
+          >
+            {imageSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- private upload, served from the app
+              <img src={imageSrc} alt="" className="size-6 rounded-md object-cover" />
+            ) : uploading ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <SingleIcon className="size-4 text-primary" aria-hidden />
+            )}
+            <span className="truncate">{uploading ? "Saving" : singleKindLabel}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled || uploading}
+              aria-label={`Remove ${namedLabel.toLowerCase()}`}
+              className="size-8 shrink-0 rounded-lg p-0"
+              onClick={handleClear}
+            >
+              <X />
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled || uploading}
+            aria-label={`${namedLabel}. ${namedHint}`}
+            title={namedHint}
+            onClick={handlePick}
+            className={chipClass}
+          >
+            {uploading ? (
+              <LoaderCircle className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <>
+                <ChipIcon className="size-4" aria-hidden />
+                <span>{chipLabel}</span>
+              </>
+            )}
+          </button>
+        )
       ) : library && (libraryLayout === "inline" || (!savedSingleKey && !preview)) ? (
         <ImageLibrary
           source={library}
@@ -366,13 +450,44 @@ export function MediaUpload({
           onUploadNew={handlePick}
           onDeleted={() => props.onChange(null)}
         />
+      ) : imageSrc ? (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            disabled={disabled || uploading}
+            onClick={handlePick}
+            aria-label={`Replace ${namedLabel}`}
+            className="relative size-28 shrink-0 cursor-pointer overflow-hidden rounded-2xl border border-border focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-50 sm:size-32"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- private upload, served from the app */}
+            <img src={imageSrc} alt="" className="size-full object-cover" />
+            {uploading && (
+              <span className="absolute inset-0 grid place-items-center bg-background/80">
+                <LoaderCircle className="size-5 animate-spin" aria-hidden />
+                <span className="sr-only">Uploading</span>
+              </span>
+            )}
+          </button>
+          <div className="flex min-w-0 flex-col items-start gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled || uploading}
+              aria-label="Remove upload"
+              className="rounded-lg bg-card"
+              onClick={handleClear}
+            >
+              <X data-icon="inline-start" />
+              Remove
+            </Button>
+            <p className="text-xs text-muted-foreground">Click the picture to replace it.</p>
+          </div>
+        </div>
       ) : preview || savedSingleKey ? (
         <div className="relative overflow-hidden rounded-xl border border-border">
-          {preview && previewKind === "image" ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={preview} alt="Upload preview" className="max-h-56 w-full object-cover" />
-          ) : preview && previewKind === "video" ? (
-            <video src={preview} controls className="max-h-56 w-full bg-black" />
+          {preview && previewKind === "video" ? (
+            <VideoStage src={preview} fit="contain" className="aspect-video max-h-56 w-full" title={fileName || "Uploaded video"} />
           ) : (
             <div className="flex items-center gap-3 px-4 py-6">
               <Icon className="size-5 text-muted-foreground" aria-hidden />
@@ -380,7 +495,7 @@ export function MediaUpload({
             </div>
           )}
           {uploading && (
-            <div className="absolute inset-0 grid place-items-center bg-white/70 text-sm font-medium">
+            <div className="absolute inset-0 grid place-items-center bg-background/80 text-sm font-medium">
               <span className="flex items-center gap-2">
                 <LoaderCircle className="size-4 animate-spin" aria-hidden />
                 Uploading…
@@ -393,7 +508,7 @@ export function MediaUpload({
             size="sm"
             disabled={disabled || uploading}
             aria-label="Remove upload"
-            className="absolute top-2 right-2 rounded-lg bg-white"
+            className="absolute top-2 right-2 rounded-lg bg-card"
             onClick={handleClear}
           >
             <X data-icon="inline-start" />
@@ -425,7 +540,7 @@ export function MediaUpload({
           {error}
         </p>
       )}
-      {!multiple && props.mediaKey && !uploading && !error && (
+      {!multiple && !compact && props.mediaKey && !uploading && !error && !imageSrc && (
         <p className="text-xs text-muted-foreground">Saved. Ready to generate.</p>
       )}
       {multiple && !compact && items.length > 0 && !uploading && !error && (

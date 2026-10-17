@@ -11,6 +11,13 @@ import { withOnScreenText } from "./on-screen-text";
 import { AUTO_PRESET_ID, withVisualStyle, type GenerationPreset } from "./presets";
 import { suggestPreset } from "./suggest-preset";
 import { resolvePreset } from "./style-lock";
+import {
+  emptyPromptBrief,
+  promptShotPrompt,
+  promptShotReferences,
+  type AttachmentAssignment,
+  type PromptBrief,
+} from "./shot-plan";
 import type { VideoFormat } from "./schema";
 
 export interface PreparedJob {
@@ -26,6 +33,8 @@ export interface PreparedJob {
   reuseUploadAsFootage?: boolean;
   mediaBytes?: Uint8Array;
   spoken?: string;
+  /** One reference list per shot. When set, later shots are not left without their pictures. */
+  shotReferences?: Record<string, unknown>[][];
 }
 
 export const prepareModeJob = async (
@@ -46,6 +55,9 @@ export const prepareModeJob = async (
     segments?: number[];
     existingBeats?: string[];
     existingSpoken?: string;
+    cuts?: { seconds: number; camera: string; images?: number[] }[];
+    brief?: PromptBrief;
+    attachmentRoles?: AttachmentAssignment[];
   },
 ): Promise<PreparedJob> => {
   const mode = input.mode ? videoModeById(input.mode) : null;
@@ -64,6 +76,17 @@ export const prepareModeJob = async (
           presetId: input.presetId,
           visualDirection: input.visualDirection,
         });
+  const promptPlanned = mode?.id === "prompt" && (input.cuts?.length ?? 0) > 0;
+  const brief = input.brief ?? emptyPromptBrief();
+  const referencePlan = promptPlanned
+    ? (input.cuts ?? []).map((cut) =>
+        promptShotReferences({
+          keys: input.referenceKeys ?? [],
+          roles: input.attachmentRoles ?? [],
+          images: cut.images,
+        }),
+      )
+    : [];
   const content =
     savedBeats.length > 0
       ? rawPrompt
@@ -73,9 +96,19 @@ export const prepareModeJob = async (
   const actions =
     savedBeats.length > 0
       ? savedBeats
-      : split
-        ? await writeBeats({ prompt: content, segments: input.segments ?? [], mode: mode?.id })
-        : [content];
+      : promptPlanned
+        ? (input.cuts ?? []).map((cut, index) =>
+            promptShotPrompt({
+              brief,
+              camera: cut.camera,
+              referenceNote: referencePlan[index]?.note ?? "",
+              fallbackAction: content,
+              continued: index > 0,
+            }),
+          )
+        : split
+          ? await writeBeats({ prompt: content, segments: input.segments ?? [], mode: mode?.id })
+          : [content];
   const lockSinger = mode?.id === "lyrics" && (input.referenceKeys?.length ?? 0) > 0;
   const beats =
     savedBeats.length > 0
@@ -103,6 +136,16 @@ export const prepareModeJob = async (
     resolution: input.resolution,
     spoken,
   };
+
+  if (promptPlanned) {
+    return {
+      ...base,
+      shotReferences: await loadShotReferences(
+        userId,
+        referencePlan.map((plan) => plan.keys),
+      ),
+    };
+  }
 
   if (!mode || mode.id === "prompt" || mode.id === "lyrics") {
     return withReferencePictures(userId, mode, input.referenceKeys, base);
@@ -174,6 +217,26 @@ const readOwnedMedia = async (userId: string, key: string) => {
   if (!isOwnedUploadKey(userId, key)) throw new Error("That upload is not available.");
   const { bytes, contentType } = await getUpload(key);
   return { bytes, contentType, dataUrl: toDataUrl(bytes, contentType) };
+};
+
+const loadShotReferences = async (userId: string, shots: readonly (readonly string[])[]) => {
+  const cache = new Map<string, Record<string, unknown>>();
+  const loaded: Record<string, unknown>[][] = [];
+  for (const keys of shots) {
+    const references: Record<string, unknown>[] = [];
+    for (const key of keys) {
+      let reference = cache.get(key);
+      if (!reference) {
+        if (!isImageKey(key)) throw new Error("Upload a reference picture.");
+        const media = await readOwnedMedia(userId, key);
+        reference = { type: "image_url", image_url: { url: media.dataUrl } };
+        cache.set(key, reference);
+      }
+      references.push(reference);
+    }
+    loaded.push(references);
+  }
+  return loaded;
 };
 
 export const referenceImageDataUrl = async (userId: string, keys: string[] | undefined) => {
@@ -275,5 +338,9 @@ export const footageFromPrepared = (prepared: PreparedJob): FootageRequest => ({
   model: prepared.model,
   resolution: prepared.resolution,
   imageDataUrl: prepared.imageDataUrl,
-  inputReferences: prepared.inputReferences,
+  inputReferences: prepared.shotReferences
+    ? prepared.shotReferences[0]?.length
+      ? prepared.shotReferences[0]
+      : undefined
+    : prepared.inputReferences,
 });

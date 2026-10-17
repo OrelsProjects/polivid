@@ -26,7 +26,7 @@ export const MAX_PROMPT_LENGTH = 10_000;
 export const MAX_REFERENCE_IMAGES = 8;
 
 /** Director notes and scene description on a lyrics video. */
-export const MAX_LYRICS_NOTE = 2_000;
+export const MAX_LYRICS_NOTE = 5_000;
 
 /** Shot or scene pictures attached to one lyrics input. */
 export const MAX_LYRICS_REFERENCES = 3;

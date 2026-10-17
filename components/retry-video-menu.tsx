@@ -54,7 +54,7 @@ export const RetryVideoMenu = ({
     <div className="mt-2 flex flex-col items-start gap-2">
       <Menu.Root>
         <Menu.Trigger
-          className={cn(buttonVariants({ variant: "outline", size: "default" }), "min-h-11 bg-white")}
+          className={cn(buttonVariants({ variant: "outline", size: "default" }), "min-h-11 bg-card")}
           aria-label="Try again"
           disabled={isLoading}
         >
@@ -63,7 +63,7 @@ export const RetryVideoMenu = ({
         </Menu.Trigger>
         <Menu.Portal>
           <Menu.Positioner side="bottom" align="start" sideOffset={6} className="z-50">
-            <Menu.Popup className="w-64 origin-(--transform-origin) rounded-xl border border-border bg-white p-1 shadow-lg outline-none">
+            <Menu.Popup className="w-64 origin-(--transform-origin) rounded-xl border border-border bg-card p-1 shadow-lg outline-none">
               <Menu.Item
                 label="From last point"
                 className={itemClass}

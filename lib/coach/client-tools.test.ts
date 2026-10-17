@@ -7,4 +7,6 @@ test("server tools are not completed in the browser", () => {
   assert.equal(isCoachClientTool("start_production"), false);
   assert.equal(isCoachClientTool("app_ask_question"), false);
   assert.equal(isCoachClientTool("app_open_create"), true);
+  assert.equal(isCoachClientTool("app_open_editor"), true);
+  assert.equal(isCoachClientTool("make_prompt_video"), false);
 });

@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/session";
 import { hasFootage } from "@/lib/video/footage";
 import type { VideoFormat } from "@/lib/video/schema";
 import { getVideoForUser } from "@/lib/videos";
+import { nextExportMark } from "./export-mark";
 import { timelineFromVideo } from "./from-video";
 import { emptyTimeline, TimelineSchema, type Timeline } from "./schema";
 import type { EditProjectSummary, EditProjectView } from "./types";
@@ -24,25 +25,92 @@ const parseTimeline = (value: unknown): Timeline => {
   return parsed.data;
 };
 
-const toView = (row: {
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type ProjectRow = {
   id: string;
+  userId: string;
   title: string;
   format: string;
   timeline: Prisma.JsonValue;
   version: number;
   sourceVideoId: string | null;
+  exportVideoId: string | null;
+  exportVersion: number | null;
   createdAt: Date;
   updatedAt: Date;
-}): EditProjectView => ({
+};
+
+const toView = (row: ProjectRow): EditProjectView => ({
   id: row.id,
   title: row.title,
   format: row.format as VideoFormat,
   timeline: parseTimeline(row.timeline),
   version: row.version,
   sourceVideoId: row.sourceVideoId,
+  exportVideoId: row.exportVideoId,
+  exportVersion: row.exportVersion,
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
+
+/** A ready export made after the last save still matches this timeline. */
+const latestUneditedExport = async (row: ProjectRow) => {
+  const latest = await db.video.findFirst({
+    where: { userId: row.userId, editProjectId: row.id, status: "ready" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true },
+  });
+  if (!latest || latest.createdAt < row.updatedAt) return null;
+  return latest.id;
+};
+
+/** Fills or clears the stored export so the editor can offer the finished file. */
+const resolveExportMark = async (row: ProjectRow): Promise<ProjectRow> => {
+  if (row.exportVideoId) {
+    const video = await db.video.findFirst({
+      where: { id: row.exportVideoId, userId: row.userId, editProjectId: row.id, status: "ready" },
+      select: { id: true },
+    });
+    if (video) return row;
+    await db.editProject.update({ where: { id: row.id }, data: { exportVideoId: null, exportVersion: null } });
+    row = { ...row, exportVideoId: null, exportVersion: null };
+  }
+  const videoId = await latestUneditedExport(row);
+  if (!videoId) return row;
+  await db.editProject.update({
+    where: { id: row.id },
+    data: { exportVideoId: videoId, exportVersion: row.version },
+  });
+  return { ...row, exportVideoId: videoId, exportVersion: row.version };
+};
+
+/** Records the MP4 that a finished render produced, without replacing a newer cut. */
+export const rememberProjectExport = async (userId: string, projectId: string, videoId: string, version: number) => {
+  if (!ID.test(projectId) || !ID.test(videoId)) return null;
+  const project = await db.editProject.findFirst({
+    where: { id: projectId, userId },
+    select: { exportVideoId: true, exportVersion: true },
+  });
+  if (!project) return null;
+  const video = await db.video.findFirst({
+    where: { id: videoId, userId, editProjectId: projectId, status: "ready" },
+    select: { id: true },
+  });
+  if (!video) return null;
+  const next = nextExportMark({ version: project.exportVersion }, { videoId, version });
+  if (!next) {
+    if (!project.exportVideoId || project.exportVersion == null) return null;
+    return { videoId: project.exportVideoId, version: project.exportVersion };
+  }
+  if (project.exportVideoId !== next.videoId || project.exportVersion !== next.version) {
+    await db.editProject.update({
+      where: { id: projectId },
+      data: { exportVideoId: next.videoId, exportVersion: next.version },
+    });
+  }
+  return next;
+};
 
 export const listProjectsForUser = async (userId: string): Promise<EditProjectSummary[]> => {
   const rows = await db.editProject.findMany({
@@ -63,7 +131,7 @@ export const listMyProjects = async () => listProjectsForUser((await getCurrentU
 
 export const getProjectForUser = async (userId: string, id: string): Promise<EditProjectView | null> => {
   const row = await db.editProject.findFirst({ where: { id, userId } });
-  return row ? toView(row) : null;
+  return row ? toView(await resolveExportMark(row)) : null;
 };
 
 export const getMyProject = async (id: string) => getProjectForUser((await getCurrentUser()).id, id);
@@ -150,6 +218,30 @@ export const saveProjectForUser = async (
   const exists = await db.editProject.findFirst({ where: { id, userId }, select: { id: true } });
   if (!exists) throw new Error("Not found.");
   throw new ProjectConflictError();
+};
+
+/** Applies one timeline edit and saves it. Retries once when another save landed first. */
+export const applyProjectEdit = async (
+  userId: string,
+  projectId: string,
+  edit: (timeline: Timeline) => Timeline,
+): Promise<EditProjectView> => {
+  let last: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const current = await getProjectForUser(userId, projectId);
+    if (!current) throw new Error("Not found.");
+    try {
+      return await saveProjectForUser(userId, projectId, {
+        timeline: edit(current.timeline),
+        title: current.title,
+        version: current.version,
+      });
+    } catch (error) {
+      last = error;
+      if (!(error instanceof ProjectConflictError) || attempt === 1) throw error;
+    }
+  }
+  throw last;
 };
 
 export const saveMyProject = async (id: string, input: { timeline: Timeline; title: string; version: number }) =>

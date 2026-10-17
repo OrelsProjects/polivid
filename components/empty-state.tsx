@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export function EmptyState() {
   return (
-    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-white p-10 text-center">
+    <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card p-10 text-center">
       <span className="grid size-11 place-items-center rounded-xl bg-primary/10 text-primary">
         <Film className="size-5" aria-hidden />
       </span>

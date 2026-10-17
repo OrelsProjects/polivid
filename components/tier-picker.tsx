@@ -1,6 +1,7 @@
 "use client";
 
 import type { KeyboardEvent } from "react";
+import { SlidingPill } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 import {
   describeModeTier,
@@ -64,15 +65,18 @@ export function TierPicker({
                 onChange(tier);
               }}
               className={cn(
-                "flex min-h-11 cursor-pointer flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
+                "relative flex min-h-11 cursor-pointer flex-col items-start gap-1 rounded-xl border px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50",
                 active
-                  ? "border-primary bg-primary/5 text-foreground"
+                  ? "border-transparent text-foreground"
                   : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground",
               )}
             >
-              <span className="text-sm font-semibold text-foreground">{TIER_LABELS[tier]}</span>
-              <span className="text-xs text-foreground">{details.name}</span>
-              <span className="text-xs text-muted-foreground">
+              {active ? (
+                <SlidingPill layoutId="quality-tier" className="-inset-px rounded-xl border border-primary bg-primary/5" />
+              ) : null}
+              <span className="relative z-10 text-sm font-semibold text-foreground">{TIER_LABELS[tier]}</span>
+              <span className="relative z-10 text-xs text-foreground">{details.name}</span>
+              <span className="relative z-10 text-xs text-muted-foreground">
                 {details.price} · up to {details.maxLength}s
               </span>
             </button>

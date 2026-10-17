@@ -1,0 +1,156 @@
+import { z } from "zod";
+import { defineTool } from "@/lib/tools/define";
+import { idField } from "@/lib/tools/fields";
+import type { ToolEffects } from "@/lib/tools/types";
+
+const videoId = z.object({
+  videoId: idField("Video or job id from list_my_videos."),
+});
+
+const productionId = z.object({
+  productionId: idField("Production id from list_my_productions."),
+});
+
+const charge: ToolEffects = { readOnly: false, spendsCredits: true, destructive: false, longRunning: true };
+const harm: ToolEffects = { readOnly: false, spendsCredits: false, destructive: true, longRunning: false };
+const quiet: ToolEffects = { readOnly: false, spendsCredits: false, destructive: false, longRunning: true };
+
+export const jobTools = [
+  defineTool({
+    name: "retry_video",
+    title: "Retry a video",
+    category: "jobs",
+    summary: "Continue a failed video from the clips already stored. Holds credits again.",
+    whenToUse: ["get_video says the video failed and at least one clip was saved."],
+    avoidWhen: ["Nothing was saved. They need a new make_* call."],
+    inputSchema: videoId,
+    effects: charge,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `retry ${String(input.videoId ?? "")}`,
+  }),
+  defineTool({
+    name: "pause_video",
+    title: "Pause a video",
+    category: "jobs",
+    summary: "Finish the clip already filming, then stop and wait. Does not spend credits.",
+    whenToUse: ["A video is filming and they want it to stop after the current clip."],
+    avoidWhen: ["The video is a single clip. Pausing is not available."],
+    inputSchema: videoId,
+    effects: quiet,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "resume_video",
+    title: "Resume a video",
+    category: "jobs",
+    summary: "Continue a paused video at the next clip. Does not take a new credit hold.",
+    whenToUse: ["They paused a video and want filming to continue."],
+    inputSchema: videoId,
+    effects: quiet,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "cancel_video",
+    title: "Cancel a video",
+    category: "jobs",
+    summary: "Cancel a queued, running, or paused video.",
+    whenToUse: ["They want a video job stopped and discarded."],
+    avoidWhen: ["They only want a pause. Use pause_video."],
+    inputSchema: videoId,
+    effects: harm,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `cancel ${String(input.videoId ?? "")}`,
+  }),
+  defineTool({
+    name: "answer_production_questions",
+    title: "Answer production questions",
+    category: "jobs",
+    summary: "Send answers and resume planning a staged production. Does not spend credits.",
+    whenToUse: ["get_production shows the production is waiting on questions, and the person has answered them."],
+    inputSchema: productionId.extend({
+      answers: z.record(z.string(), z.string()).describe("Question id to the person's answer."),
+    }),
+    effects: quiet,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "approve_production",
+    title: "Approve a production",
+    category: "jobs",
+    summary: "Approve a production that is waiting in preview and start generation. Spends credits.",
+    whenToUse: ["get_production says status is preview and they want it filmed."],
+    avoidWhen: ["It is not in preview. Read it first."],
+    inputSchema: productionId,
+    effects: charge,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `approve ${String(input.productionId ?? "")}`,
+  }),
+  defineTool({
+    name: "regenerate_production",
+    title: "Regenerate a production",
+    category: "jobs",
+    summary: "Start a new generation from a production that is ready. Spends credits.",
+    whenToUse: ["A ready production should be generated again."],
+    inputSchema: productionId,
+    effects: charge,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `regenerate ${String(input.productionId ?? "")}`,
+  }),
+  defineTool({
+    name: "retry_production",
+    title: "Retry a production",
+    category: "jobs",
+    summary: "Retry one failed step, or resume from the last step. Does not take a new credit hold here.",
+    whenToUse: ["A production failed mid-way and they want it to continue."],
+    inputSchema: productionId.extend({
+      stepId: z.string().trim().min(1).optional().describe("Step to retry. Omit to resume from the last step."),
+    }),
+    effects: quiet,
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "cancel_production",
+    title: "Cancel a production",
+    category: "jobs",
+    summary: "Cancel the open steps of a production.",
+    whenToUse: ["They want a staged production stopped."],
+    inputSchema: productionId,
+    effects: harm,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `cancel ${String(input.productionId ?? "")}`,
+  }),
+  defineTool({
+    name: "restore_version",
+    title: "Restore a version",
+    category: "jobs",
+    summary: "Point a production entity back at an earlier version.",
+    whenToUse: ["They named a version id and want that version to be current again."],
+    avoidWhen: ["You do not have a version id. Do not guess one."],
+    inputSchema: productionId.extend({
+      versionId: idField("Entity version id to make current."),
+    }),
+    effects: harm,
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `restore ${String(input.versionId ?? "")}`,
+  }),
+];

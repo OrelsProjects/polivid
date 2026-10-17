@@ -2,6 +2,7 @@
 
 import { LoaderCircle } from "lucide-react";
 import { useId, useMemo, useState } from "react";
+import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useCharacters } from "@/components/characters/use-characters";
@@ -26,7 +27,7 @@ const TRACKS: readonly Track[] = [
 const audioSrc = (base64: string) => `data:audio/mpeg;base64,${base64}`;
 
 const fieldClass =
-  "min-h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+  "min-h-11 w-full rounded-lg border border-input bg-card px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 export function SongVoiceTest() {
   const characters = useCharacters();
@@ -56,7 +57,7 @@ export function SongVoiceTest() {
 
   if (characters.length > 0 && voiced.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-border bg-white px-4 py-6 text-sm text-muted-foreground">
+      <p className="rounded-2xl border border-dashed border-border bg-card px-4 py-6 text-sm text-muted-foreground">
         None of your characters has a voice yet. Record or design one on the Characters page first.
       </p>
     );
@@ -64,7 +65,7 @@ export function SongVoiceTest() {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
           <div className="flex flex-col gap-1.5">
             <label htmlFor={ids.character} className="text-sm font-medium">
@@ -116,7 +117,7 @@ export function SongVoiceTest() {
             value={lyrics}
             onChange={(event) => setLyrics(event.target.value)}
             rows={5}
-            className="bg-white"
+            className="bg-card"
           />
           <p className="text-xs text-muted-foreground">Use [Verse] or [Chorus] tags to split sections.</p>
         </div>
@@ -150,18 +151,12 @@ export function SongVoiceTest() {
       {result ? (
         <ul className="grid gap-3 sm:grid-cols-2" aria-label="Test song tracks">
           {TRACKS.map((track) => (
-            <li key={track.key} className="flex flex-col gap-2 rounded-2xl border border-border bg-white p-4 shadow-sm">
+            <li key={track.key} className="flex flex-col gap-2 rounded-2xl border border-border bg-card p-4 shadow-sm">
               <div className="flex flex-col gap-0.5">
                 <p className="text-sm font-medium">{track.label}</p>
                 <p className="text-xs text-muted-foreground">{track.hint}</p>
               </div>
-              <audio
-                src={audioSrc(result[track.key])}
-                controls
-                preload="metadata"
-                className="h-9 w-full"
-                aria-label={track.label}
-              />
+              <AudioPlayer src={audioSrc(result[track.key])} title={track.label} hideTitle />
             </li>
           ))}
         </ul>

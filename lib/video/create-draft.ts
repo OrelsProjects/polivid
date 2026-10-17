@@ -12,14 +12,10 @@ import {
   type VideoFormat,
 } from "./schema";
 
-const INPUT_MODES = ["topic", "article", "data"] as const;
-export type CreateDraftInputMode = (typeof INPUT_MODES)[number];
-
 export const createDraftStorageKey = (mode?: string) => `polivid:create:${mode ?? "prompt"}`;
 
 export interface CreateDraft {
   prompt: string;
-  inputMode: CreateDraftInputMode;
   format: VideoFormat;
   length: number;
   customLength: string;
@@ -37,9 +33,6 @@ export interface CreateDraft {
   sceneKeys: string[];
 }
 
-const isInputMode = (value: unknown): value is CreateDraftInputMode =>
-  typeof value === "string" && (INPUT_MODES as readonly string[]).includes(value);
-
 const isFormat = (value: unknown): value is VideoFormat =>
   typeof value === "string" && (VIDEO_FORMATS as readonly string[]).includes(value);
 
@@ -56,7 +49,6 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
     if (!record || typeof record !== "object" || Array.isArray(record)) return null;
     const data = record as Record<string, unknown>;
     const prompt = typeof data.prompt === "string" ? data.prompt.slice(0, MAX_PROMPT_LENGTH) : "";
-    const inputMode = isInputMode(data.inputMode) ? data.inputMode : "topic";
     const format = isFormat(data.format) ? data.format : "9:16";
     const length = typeof data.length === "number" && isVideoLength(data.length) ? data.length : 5;
     const customLength = typeof data.customLength === "string" ? data.customLength.slice(0, 8) : "";
@@ -83,7 +75,6 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       Array.isArray(value) ? value.filter(isUploadKey).slice(0, MAX_LYRICS_REFERENCES) : [];
     return {
       prompt,
-      inputMode,
       format,
       length,
       customLength,

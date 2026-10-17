@@ -90,7 +90,11 @@ export const jobDetailRows = (
     push(rows, "This video", "Reference pictures", count === 1 ? "1 picture" : `${count} pictures`);
   }
   if (model && isStitchedMode(job.mode)) {
-    push(rows, "This video", "Clips", formatClipSplit(planSegments(job.length, model.durations)));
+    const lengths =
+      job.mode === "prompt" && job.cuts.length > 1
+        ? job.cuts.map((cut) => cut.seconds)
+        : planSegments(job.length, model.durations);
+    push(rows, "This video", "Clips", formatClipSplit(lengths));
   }
   push(rows, "This video", "Prompt", job.prompt);
   return rows;

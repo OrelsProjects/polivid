@@ -1,7 +1,7 @@
 "use client";
 
 import { Popover } from "@base-ui/react/popover";
-import { Check, FileVideo, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
+import { Check, FileVideo, Image as ImageIcon, ImagePlus, LoaderCircle, Trash2, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +21,11 @@ type ImageLibraryProps = {
   uploading?: boolean;
   triggerLabel: string;
   tileClassName?: string;
+  /** Horizontal dashed chip instead of a square add tile. */
+  chip?: boolean;
+  /** Accessible name when the visible chip label is shorter than the control's purpose. */
+  ariaLabel?: string;
+  title?: string;
   side?: "top" | "bottom";
   source?: LibrarySource;
   layout?: "popover" | "inline";
@@ -64,6 +69,9 @@ export function ImageLibrary({
   uploading,
   triggerLabel,
   tileClassName,
+  chip = false,
+  ariaLabel,
+  title,
   side = "bottom",
   source = "image",
   layout = "popover",
@@ -181,14 +189,23 @@ export function ImageLibrary({
     <Popover.Root open={open} onOpenChange={handleOpenChange}>
       <Popover.Trigger
         disabled={disabled || uploading}
-        aria-label={triggerLabel}
+        aria-label={ariaLabel ?? triggerLabel}
+        title={title}
         className={cn(
-          "flex cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-border bg-muted/40 px-2 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-primary/40 data-[popup-open]:text-foreground",
-          tileClassName ?? "size-28 sm:size-32",
+          "cursor-pointer border border-dashed border-border text-xs text-muted-foreground transition hover:border-primary/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[popup-open]:border-primary/40 data-[popup-open]:text-foreground",
+          chip
+            ? "inline-flex h-10 items-center gap-2 rounded-xl px-3"
+            : "flex flex-col items-center justify-center gap-1 rounded-xl bg-muted/40 px-2",
+          chip ? undefined : (tileClassName ?? "size-28 sm:size-32"),
         )}
       >
         {uploading ? (
-          <LoaderCircle className="size-5 animate-spin" aria-hidden />
+          <LoaderCircle className={cn("animate-spin", chip ? "size-4" : "size-5")} aria-hidden />
+        ) : chip ? (
+          <>
+            <ImageIcon className="size-4" aria-hidden />
+            <span>{triggerLabel}</span>
+          </>
         ) : (
           <>
             <ImagePlus className="size-5" aria-hidden />
@@ -198,7 +215,7 @@ export function ImageLibrary({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Positioner side={side} align="start" sideOffset={8} collisionPadding={16} className="z-50">
-          <Popover.Popup className="w-[min(24rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-2xl border border-border bg-white p-3 shadow-lg outline-none transition-[opacity,scale] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
+          <Popover.Popup className="w-[min(24rem,calc(100vw-2rem))] origin-(--transform-origin) rounded-2xl border border-border bg-card p-3 shadow-lg outline-none transition-[opacity,scale] duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0">
             <div className="flex items-baseline justify-between gap-3 px-1">
               <Popover.Title className="text-sm font-semibold">{TITLE[source]}</Popover.Title>
               <Popover.Description className="text-xs text-muted-foreground">
@@ -241,7 +258,7 @@ function LibraryTile({
     return (
       <div className="relative aspect-square overflow-hidden rounded-xl border border-destructive/40">
         <LibraryThumb picture={picture} faded />
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-white/70 p-1.5 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background/80 p-1.5 text-center">
           <span className="text-[11px] font-medium">Delete for good?</span>
           <Button type="button" variant="destructive" size="xs" onClick={onConfirmDelete} className="w-full">
             Delete
@@ -278,7 +295,7 @@ function LibraryTile({
         type="button"
         aria-label={`Delete ${label.toLowerCase()}`}
         onClick={onAskDelete}
-        className="absolute top-1.5 right-1.5 grid size-7 cursor-pointer place-items-center rounded-full bg-white/90 text-muted-foreground opacity-100 shadow-sm transition hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:opacity-0 sm:group-hover:opacity-100"
+        className="absolute top-1.5 right-1.5 grid size-7 cursor-pointer place-items-center rounded-full bg-background/85 text-muted-foreground opacity-100 shadow-sm transition hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:opacity-0 sm:group-hover:opacity-100"
       >
         <Trash2 className="size-3.5" aria-hidden />
       </button>

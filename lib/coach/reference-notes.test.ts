@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  attachedFileFromNote,
+  attachedFileNote,
+  attachedMediaFromMessages,
   mergeReferenceKeys,
+  proseWithoutAttachedFileNote,
   proseWithoutReferenceNote,
   referenceKeysFromMessages,
   referenceKeysFromNote,
@@ -25,4 +29,26 @@ test("reference keys collect across user messages", () => {
   ]);
   assert.deepEqual(keys, [key]);
   assert.deepEqual(mergeReferenceKeys([key], undefined, ["uploads/nope.txt"]), [key]);
+});
+
+test("attached file notes keep audio and video, not pictures", () => {
+  const audio = "uploads/user_abc/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.mp3";
+  const note = attachedFileNote(audio);
+  assert.deepEqual(attachedFileFromNote(`Use this.\n${note}`), { key: audio, kind: "audio" });
+  assert.equal(proseWithoutAttachedFileNote(`Use this.\n${note}`), "Use this.");
+  assert.equal(attachedFileFromNote(attachedFileNote(key)), null);
+  const video = "uploads/user_abc/videos/bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee.mp4";
+  assert.deepEqual(
+    attachedMediaFromMessages([
+      {
+        role: "user",
+        parts: [{ type: "text", text: `${referencePictureNote([key])}\n${note}\n${attachedFileNote(video)}` }],
+      },
+    ]),
+    [
+      { key, kind: "image" },
+      { key: audio, kind: "audio" },
+      { key: video, kind: "video" },
+    ],
+  );
 });

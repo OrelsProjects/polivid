@@ -68,7 +68,7 @@ async function VideoGrid({ filter }: { filter: VideoFilter }) {
   if (visibleVideos.length === 0 && visibleJobs.length === 0) {
     if (filter === "all") return <EmptyState />;
     return (
-      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm">
+      <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm">
         <p className="text-muted-foreground">{EMPTY_FILTER[filter]}</p>
         <Link href={videoFilterHref("all")} className="rounded-md font-medium text-primary underline-offset-4 hover:underline">
           Show all videos

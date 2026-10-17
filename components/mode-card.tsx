@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import Link from "next/link";
+import { CardLink } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 import type { VideoMode } from "@/lib/video/modes";
 
@@ -17,11 +17,11 @@ export function ToolCard({ title, description, icon: Icon, tint, href }: ToolCar
   const body = (
     <>
       <div className={cn("relative aspect-[4/3] overflow-hidden rounded-xl bg-gradient-to-br", tint)}>
-        <span className="absolute right-3 bottom-3 grid size-10 place-items-center rounded-xl bg-white/90 text-foreground shadow-sm transition-transform group-hover:scale-105">
+        <span className="absolute right-3 bottom-3 grid size-10 place-items-center rounded-xl bg-background/85 text-foreground shadow-sm transition-transform group-hover:scale-105">
           <Icon className="size-5" aria-hidden />
         </span>
         {!href && (
-          <span className="absolute top-3 left-3 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
+          <span className="absolute top-3 left-3 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
             Coming soon
           </span>
         )}
@@ -32,16 +32,16 @@ export function ToolCard({ title, description, icon: Icon, tint, href }: ToolCar
   );
 
   if (!href) {
-    return <div className="flex h-full flex-col rounded-2xl border border-border bg-white p-3 opacity-75 shadow-sm">{body}</div>;
+    return <div className="flex h-full flex-col rounded-2xl border border-border bg-card p-3 opacity-75 shadow-sm">{body}</div>;
   }
 
   return (
-    <Link
+    <CardLink
       href={href}
-      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+      className="group flex h-full cursor-pointer flex-col rounded-2xl border border-border bg-card p-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
     >
       {body}
-    </Link>
+    </CardLink>
   );
 }
 

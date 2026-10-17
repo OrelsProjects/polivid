@@ -11,6 +11,8 @@ export async function GET(_request: Request, context: { params: Promise<{ thread
   return Response.json({
     id: thread.id,
     title: thread.title,
+    videoJobId: thread.videoJobId,
+    editProjectId: thread.editProjectId,
     messages: thread.messages.map((message) => ({
       id: message.id,
       role: message.role,

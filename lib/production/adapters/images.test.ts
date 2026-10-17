@@ -15,6 +15,10 @@ test("reference pictures are sent as image-to-image inputs", () => {
   });
   assert.equal(body.aspect_ratio, "9:16");
   assert.equal(body.input_references?.length, 2);
+  assert.equal(
+    body.input_references?.some((ref) => ref.image_url.url.includes("BBBB")),
+    false,
+  );
   assert.equal(body.input_references?.[0]?.type, "image_url");
   assert.match(body.input_references?.[0]?.image_url.url ?? "", /^data:image\/png;base64,/);
   assert.equal(body.input_references?.[1]?.image_url.url, "data:image/jpeg;base64,AAAA");

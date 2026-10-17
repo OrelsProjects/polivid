@@ -19,6 +19,12 @@ import { getPickableCharacter } from "@/lib/characters/store";
 import { mergeCharacterImage } from "@/lib/characters/reference";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
 import { readSongDraft, songCharacterId, songDraftFits } from "@/lib/music/song-draft";
+import { normalizeCuts, readSongBrief, type SongCut } from "@/lib/music/song-plan";
+import { planCuts } from "@/lib/music/shot-plan";
+import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
+import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
+import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
+import { lyricsClipDurations } from "@/lib/video/singer-models";
 
 export { CreateVideoSchema, type CreateVideoInput } from "@/lib/video/create-schema";
 
@@ -115,6 +121,9 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   }
 
   let songId: string | undefined;
+  let brief: PromptBrief | undefined;
+  let attachmentRoles: AttachmentAssignment[] | undefined;
+  let cuts: SongCut[] | undefined;
   if (parsed.data.songId) {
     if (resolved?.mode.id !== "lyrics") throw new CreateVideoError("Only lyrics videos use a song take.", 400);
     const draft = await readSongDraft(userId, parsed.data.songId);
@@ -131,6 +140,58 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     songId = draft.id;
   }
 
+  if (lyricsMode && videoModel) {
+    const durations = lyricsClipDurations(videoModel, referenceKeys.length > 0);
+    const limit = durations.length > 0 ? Math.max(...durations) : parsed.data.length;
+    const sent = parsed.data.cuts ?? [];
+    if (sent.length > 0) {
+      cuts = normalizeCuts(sent, parsed.data.length, limit);
+    } else {
+      const songBrief = readSongBrief(prompt);
+      cuts = await planCuts({
+        lyrics: songBrief.lyrics || prompt,
+        style: songBrief.style,
+        direction,
+        scene,
+        length: parsed.data.length,
+        durations,
+      });
+    }
+  }
+
+  if (resolved?.mode.id === "prompt" && videoModel) {
+    const durations = videoModel.durations;
+    const sent = parsed.data.cuts ?? [];
+    const context = {
+      length: parsed.data.length,
+      durations,
+      referenceCount: referenceKeys.length,
+    };
+    const preset = presetById(parsed.data.presetId);
+    const planned =
+      sent.length > 0
+        ? promptPlanFromOutput(
+            {
+              ...parsed.data.brief,
+              attachmentRoles: parsed.data.attachmentRoles,
+              cuts: sent,
+            },
+            context,
+          )
+        : await planPromptCuts({
+            prompt,
+            length: parsed.data.length,
+            durations,
+            format: parsed.data.format,
+            referenceCount: referenceKeys.length,
+            visualDirection: parsed.data.visualDirection,
+            styleNote: preset && preset.id !== AUTO_PRESET_ID ? preset.promptFragment : "",
+          });
+    brief = planned.brief;
+    attachmentRoles = planned.attachmentRoles;
+    cuts = planned.cuts;
+  }
+
   try {
     const credits = videoJobCredits({
       demo: !hasOpenRouterKey(),
@@ -142,6 +203,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       length: parsed.data.length,
       referenceCount: referenceKeys.length,
       songReady: Boolean(songId),
+      cuts,
     });
     const job = await createQueuedVideoJob(userId, {
       prompt,
@@ -163,6 +225,9 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       directionKeys,
       sceneKeys,
       songId,
+      cuts,
+      brief,
+      attachmentRoles,
       creditsHeld: credits,
     });
     void import("@/lib/video/worker")

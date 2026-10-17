@@ -2,6 +2,7 @@
 
 import { Square } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { AudioPlayer } from "@/components/audio-player";
 import { Button } from "@/components/ui/button";
 import { MAX_SAMPLE_SECONDS, SAMPLE_PROMPTS } from "@/lib/voice/constants";
 
@@ -253,7 +254,13 @@ export function VoiceRecorder({
                       : `${prompt.minSeconds}–${MAX_SAMPLE_SECONDS}s`}
                 </span>
                 {take && !recording ? (
-                  <audio src={take.url} controls preload="none" className="h-8 max-w-full" aria-label={`Playback of part ${index + 1}`} />
+                  <AudioPlayer
+                    src={take.url}
+                    title={`Part ${index + 1} recording`}
+                    hideTitle
+                    durationSeconds={take.seconds}
+                    className="min-w-52 flex-1"
+                  />
                 ) : null}
               </div>
             </li>

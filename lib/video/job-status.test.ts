@@ -62,6 +62,16 @@ test("reads the prompt stored on a video job", () => {
       scene: "",
       directionKeys: [],
       sceneKeys: [],
+      cuts: [],
+      brief: {
+        subject: "",
+        setting: "",
+        director: "",
+        style: "",
+        mustKeep: "",
+        mustAvoid: "",
+      },
+      attachmentRoles: [],
     },
   );
   assert.deepEqual(readJobInput(null), {
@@ -85,6 +95,16 @@ test("reads the prompt stored on a video job", () => {
     scene: "",
     directionKeys: [],
     sceneKeys: [],
+    cuts: [],
+    brief: {
+      subject: "",
+      setting: "",
+      director: "",
+      style: "",
+      mustKeep: "",
+      mustAvoid: "",
+    },
+    attachmentRoles: [],
   });
   assert.equal(readJobInput({ prompt: "  ", aspectRatio: "square", duration: 1.5 }).format, "9:16");
   assert.deepEqual(
@@ -113,6 +133,23 @@ test("reads the prompt stored on a video job", () => {
       "uploads/user_abc/ffffffff-1111-2222-3333-444444444444.png",
     ],
   );
+});
+
+test("reads a prompt brief and the role of each picture", () => {
+  const input = readJobInput({
+    prompt: "A fox crossing a snowy road",
+    aspectRatio: "9:16",
+    duration: 12,
+    model: "alibaba/wan-3.0",
+    mode: "prompt",
+    brief: { subject: "A rust-orange fox", setting: "Snowy road" },
+    attachmentRoles: [{ index: 1, role: "subject" }, { index: 2, role: "nope" }],
+    cuts: [{ seconds: 6, camera: "wide", images: [1, 0] }],
+  });
+  assert.equal(input.brief.subject, "A rust-orange fox");
+  assert.equal(input.brief.setting, "Snowy road");
+  assert.deepEqual(input.attachmentRoles, [{ index: 1, role: "subject" }]);
+  assert.deepEqual(input.cuts, [{ seconds: 6, camera: "wide", images: [1] }]);
 });
 
 test("reads a character id from a stored job, including older voiceSettingId payloads", () => {

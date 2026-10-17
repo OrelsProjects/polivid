@@ -123,7 +123,7 @@ export function NewProductionForm() {
 
   return (
     <form
-      className="flex flex-col gap-5 rounded-2xl border border-border bg-white p-5 shadow-sm"
+      className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-sm"
       aria-busy={pending}
       onSubmit={(event) => {
         event.preventDefault();

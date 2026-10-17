@@ -86,6 +86,18 @@ Sizes: `9:16` is 1080×1920, `16:9` is 1920×1080, `1:1` is 1080×1080, all at 3
 - **Env reads are request-time.** `connection()` makes the "demo mode" and model indicators read env at request time, so adding a key doesn't need a rebuild.
 - **Read the bundled docs first.** Next.js docs ship in `node_modules/next/dist/docs/`; read them before changing framework-level code (see `AGENTS.md`).
 
+## Coach and tools
+
+The Coach is a chat that can call the rest of the product. The tools live in one registry, `lib/tools`, so the model, the chat UI, the generated catalog, and a future MCP endpoint all read the same definitions.
+
+- `lib/tools/defs` describes each tool: name, when to use it, the Zod input, and whether it spends credits, is destructive, or needs approval. This code is safe to import from the browser.
+- `lib/tools/handlers` runs the server tools. Each one calls an existing service (`queueVideoFromInput`, `planShotsFromInput`, `generateImage`, and so on) and returns a small JSON result, or `{ error }` when the person can fix the request.
+- `lib/coach/tools.ts` turns the registry into AI SDK tools for one turn. Tools marked `legacy` stay registered so old chats still load, but `activeTools` hides them from the model.
+- Client tools (`app_open_create`, `app_open_video`, `app_open_production`, `app_open_editor`) finish in the browser. `app_ask_question` waits for the person.
+- `docs/tools/CATALOG.md` is generated with `npm run tools:docs`. `docs/tools/README.md` is how to add or retire a tool. `docs/tools/MCP.md` is the adapter that is not built yet.
+
+A turn can take up to 10 tool steps, so the Coach can look something up and then act.
+
 ## Folder map
 
 ```
@@ -97,6 +109,7 @@ app/
   (app)/create/               generator UI (format, length, progress)
   (app)/videos/               video list and video page (player, sources, script)
   (app)/productions/          staged AI production: plan, generate, review
+  (studio)/coach/             Coach chat, full screen, no app sidebar
   api/videos/route.ts         POST: generate a video, streams progress
   api/productions/            create, plan, approve, and resume productions
   api/auth/[...nextauth]/     Auth.js endpoints
@@ -114,11 +127,13 @@ lib/
   video/generate.ts           pipeline + progress steps + saving
   video/demo.ts               fictional sample video
   production/                 staged production schemas, planner, jobs, adapters
+  tools/                      Coach and MCP tool registry, handlers, generated catalog source
+  coach/                      Coach turn, instructions, and the thin AI SDK adapter
   ai/openrouter.ts, ai/prompts.ts
   db.ts, session.ts, videos.ts
 prisma/schema.prisma
 scripts/try-pipeline.ts       run the pipeline from the terminal (npm run try)
-docs/                         PLAN.md, SETUP.md, ARCHITECTURE.md, PRODUCTION.md
+docs/                         PLAN.md, SETUP.md, ARCHITECTURE.md, PRODUCTION.md, tools/
 ```
 
 ## What's next

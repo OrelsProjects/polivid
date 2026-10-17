@@ -33,7 +33,7 @@ export const LoginForm = ({ callbackUrl }: { callbackUrl: string }) => {
           <span className="w-full border-t border-border" />
         </div>
         <div className="relative flex justify-center">
-          <span className="bg-white px-2 text-xs text-muted-foreground">or</span>
+          <span className="bg-card px-2 text-xs text-muted-foreground">or</span>
         </div>
       </div>
 

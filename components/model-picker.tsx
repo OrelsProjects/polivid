@@ -2,6 +2,7 @@
 
 import { CircleHelp } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { RevealPanel, SlidingPill } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 import { GENERATION_MODELS, type GenerationModelId } from "@/lib/video/models";
 
@@ -103,13 +104,17 @@ export function ModelPicker({
                 onChange(model.id);
               }}
               className={cn(
-                "min-h-11 cursor-pointer rounded-lg px-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:text-sm",
-                active
-                  ? "bg-card text-foreground shadow-sm ring-1 ring-primary/50"
-                  : "text-muted-foreground hover:text-foreground",
+                "relative min-h-11 cursor-pointer rounded-lg px-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 sm:text-sm",
+                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {model.name}
+              {active ? (
+                <SlidingPill
+                  layoutId="generation-model"
+                  className="rounded-lg bg-card shadow-sm ring-1 ring-primary/50"
+                />
+              ) : null}
+              <span className="relative z-10">{model.name}</span>
             </button>
           );
         })}
@@ -121,13 +126,13 @@ export function ModelPicker({
           : selected.summary}
       </p>
 
-      {open && (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label="Pick your generation model"
-          className="absolute top-full right-0 left-0 z-30 mt-2 rounded-2xl border border-border bg-popover p-4 shadow-xl"
-        >
+      <RevealPanel
+        open={open}
+        id={panelId}
+        role="dialog"
+        label="Pick your generation model"
+        className="absolute top-full right-0 left-0 z-30 mt-2 rounded-2xl border border-border bg-popover p-4 shadow-xl"
+      >
           <p className="text-sm font-medium">Pick your generation model</p>
           <p className="mt-1 text-xs text-muted-foreground">
             This model films the prompt. The player shows that footage.
@@ -161,8 +166,7 @@ export function ModelPicker({
               );
             })}
           </div>
-        </div>
-      )}
+      </RevealPanel>
     </div>
   );
 }

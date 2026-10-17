@@ -13,6 +13,8 @@ const project: EditProjectView = {
   timeline: emptyTimeline(),
   version: 3,
   sourceVideoId: null,
+  exportVideoId: null,
+  exportVersion: null,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -101,7 +103,14 @@ test("replaceProject resets history and selection", () => {
     loaded(),
     editorActions.applyTimeline(addTrack(project.timeline, "text")),
     editorActions.select({ trackId: "track", itemId: "item" }),
-    editorActions.replaceProject({ timeline: reverted, title: "Original", version: 9, sourceVideoId: "video-a" }),
+    editorActions.replaceProject({
+      timeline: reverted,
+      title: "Original",
+      version: 9,
+      sourceVideoId: "video-a",
+      exportVideoId: null,
+      exportVersion: null,
+    }),
   );
   const document = documentOf(state);
   assert.equal(document.history.present.timeline, reverted);
@@ -115,6 +124,45 @@ test("document actions before a project loads are ignored", () => {
   const empty = editorSlice.getInitialState();
   const state = reduce(empty, editorActions.applyTimeline(project.timeline), editorActions.undo(), editorActions.setZoom(8));
   assert.equal(state.document, null);
+});
+
+test("markExported remembers the finished file until the project is replaced", () => {
+  const marked = reduce(loaded(), editorActions.markExported({ videoId: "video-1", version: 3 }));
+  assert.equal(documentOf(marked).exportVideoId, "video-1");
+  assert.equal(documentOf(marked).exportVersion, 3);
+  assert.equal(documentOf(marked).saveStatus, "saved");
+
+  const replaced = reduce(
+    marked,
+    editorActions.replaceProject({
+      timeline: emptyTimeline("16:9"),
+      title: "Original",
+      version: 4,
+      sourceVideoId: null,
+      exportVideoId: null,
+      exportVersion: null,
+    }),
+  );
+  assert.equal(documentOf(replaced).exportVideoId, null);
+});
+
+test("a remote edit keeps the server version and can be undone", () => {
+  const next = addTrack(project.timeline, "audio", "Song");
+  const itemId = next.tracks.at(-1)?.id ?? "missing";
+  const edited = reduce(
+    loaded(),
+    editorActions.applyRemoteEdit({ timeline: next, version: 4, changedItemIds: [itemId] }),
+  );
+  const document = documentOf(edited);
+  assert.equal(document.version, 4);
+  assert.equal(document.saveStatus, "saved");
+  assert.equal(document.history.past.length, 1);
+  assert.equal(edited.highlightIds[0], itemId);
+  assert.equal(edited.playback.playheadFrame, 0);
+
+  const undone = reduce(edited, editorActions.undo());
+  assert.equal(documentOf(undone).history.present.timeline, project.timeline);
+  assert.equal(documentOf(undone).saveStatus, "dirty");
 });
 
 test("playhead never goes below frame zero", () => {

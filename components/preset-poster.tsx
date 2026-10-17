@@ -45,7 +45,7 @@ export function PresetPoster({
     <div
       className={cn(
         "relative aspect-[3/4] w-full overflow-hidden rounded-2xl bg-muted shadow-sm",
-        selected && "ring-2 ring-primary ring-offset-2",
+        selected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
         className,
       )}
       style={{

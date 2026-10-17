@@ -19,6 +19,9 @@ export interface EditorDocument {
   projectId: string;
   sourceVideoId: string | null;
   version: number;
+  /** Finished MP4 for exportVersion, when that render still exists. */
+  exportVideoId: string | null;
+  exportVersion: number | null;
   history: { past: EditorSnapshot[]; present: EditorSnapshot; future: EditorSnapshot[] };
   gestureBase: EditorSnapshot | null;
   selection: Selection;
@@ -37,9 +40,14 @@ export interface EditorState {
   playback: EditorPlayback;
   /** Frame under the mouse on the timeline, or null when the mouse is elsewhere. */
   hoverFrame: number | null;
+  /** Clips a Coach edit just changed. The timeline pulses them, then clears the list. */
+  highlightIds: string[];
 }
 
-export type ProjectSource = Pick<EditProjectView, "timeline" | "title" | "version" | "sourceVideoId">;
+export type ProjectSource = Pick<
+  EditProjectView,
+  "timeline" | "title" | "version" | "sourceVideoId" | "exportVideoId" | "exportVersion"
+>;
 
 type EditorDraft = Draft<EditorState>;
 
@@ -47,6 +55,7 @@ const initialState: EditorState = {
   document: null,
   playback: { playheadFrame: 0, isPlaying: false },
   hoverFrame: null,
+  highlightIds: [],
 };
 
 const sameSnapshot = (a: EditorSnapshot, b: EditorSnapshot) => a.title === b.title && a.timeline === b.timeline;
@@ -80,6 +89,8 @@ export const editorSlice = createSlice({
         projectId: project.id,
         sourceVideoId: project.sourceVideoId,
         version: project.version,
+        exportVideoId: project.exportVideoId,
+        exportVersion: project.exportVersion,
         history: { past: [], present: { timeline: project.timeline, title: project.title }, future: [] },
         gestureBase: null,
         selection: null,
@@ -157,11 +168,18 @@ export const editorSlice = createSlice({
       state.document.version = action.payload;
       state.document.saveStatus = "saved";
     },
+    markExported: (state, action: PayloadAction<{ videoId: string; version: number }>) => {
+      if (!state.document) return;
+      state.document.exportVideoId = action.payload.videoId;
+      state.document.exportVersion = action.payload.version;
+    },
     replaceProject: (state, action: PayloadAction<ProjectSource>) => {
       if (!state.document) return;
       const project = action.payload;
       state.document.sourceVideoId = project.sourceVideoId;
       state.document.version = project.version;
+      state.document.exportVideoId = project.exportVideoId;
+      state.document.exportVersion = project.exportVersion;
       state.document.history = {
         past: [],
         present: { timeline: project.timeline, title: project.title },
@@ -180,13 +198,46 @@ export const editorSlice = createSlice({
     setHoverFrame: (state, action: PayloadAction<number | null>) => {
       state.hoverFrame = action.payload;
     },
+    /** A save that already happened on the server. Undo can still step back to the previous cut. */
+    applyRemoteEdit: (
+      state,
+      action: PayloadAction<{ timeline: Timeline; version: number; changedItemIds: string[] }>,
+    ) => {
+      const base = baseDocument(state);
+      if (!base || !state.document) return;
+      const snapshot = { timeline: action.payload.timeline, title: base.history.present.title };
+      if (!sameSnapshot(base.history.present, snapshot)) {
+        state.document.history = {
+          past: [...base.history.past, base.history.present].slice(-HISTORY_LIMIT),
+          present: snapshot,
+          future: [],
+        };
+      }
+      state.document.version = action.payload.version;
+      state.document.saveStatus = "saved";
+      state.highlightIds = action.payload.changedItemIds;
+      const firstId = action.payload.changedItemIds[0];
+      if (!firstId) return;
+      for (const track of action.payload.timeline.tracks) {
+        const item = track.items.find((entry) => entry.id === firstId);
+        if (!item) continue;
+        state.playback.playheadFrame = item.from;
+        state.playback.isPlaying = false;
+        state.document.selection = { trackId: track.id, itemId: item.id };
+        return;
+      }
+    },
+    clearHighlights: (state) => {
+      state.highlightIds = [];
+    },
   },
   selectors: {
     selectEditorDocument: (state) => state.document,
     selectEditorPlayback: (state) => state.playback,
     selectHoverFrame: (state) => state.hoverFrame,
+    selectHighlightIds: (state) => state.highlightIds,
   },
 });
 
 export const editorActions = editorSlice.actions;
-export const { selectEditorDocument, selectEditorPlayback, selectHoverFrame } = editorSlice.selectors;
+export const { selectEditorDocument, selectEditorPlayback, selectHoverFrame, selectHighlightIds } = editorSlice.selectors;

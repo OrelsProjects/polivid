@@ -3,8 +3,12 @@ import test from "node:test";
 import {
   compositionChunks,
   durationsForLyrics,
+  filmSecondsFor,
   lyricsCreditBreakdown,
+  normalizeCuts,
+  retimeCut,
   planShots,
+  planShotsFromCuts,
   planSongSections,
   readSongBrief,
   songReferences,
@@ -44,7 +48,11 @@ test("section durations add up and stay long enough to sing", () => {
 });
 
 test("a singer photo alternates performance and b-roll", () => {
-  const sections = planSongSections([{ name: "Song", lines: ["One", "Two", "Three", "Four"] }], 28, WAN);
+  const sections = planSongSections(
+    [{ name: "Song", lines: ["One", "Two", "Three", "Four"] }],
+    28,
+    Array.from({ length: 9 }, (_, index) => index + 2),
+  );
   const shots = planShots(sections, true);
   assert.ok(shots.length >= 2);
   assert.deepEqual(
@@ -112,4 +120,151 @@ test("scene pictures alone do not invent a performer", () => {
   assert.deepEqual(plan.keys, ["roof", "street"]);
   assert.equal(plan.note, "Images 1-2 show the location: match the set and light.");
   assert.doesNotMatch(plan.note, /performer/);
+});
+
+const HAILUO = Array.from({ length: 11 }, (_, index) => index + 5);
+
+test("cuts are resized so they add up to the video, and the list stays capped", () => {
+  assert.deepEqual(
+    normalizeCuts(
+      [
+        { seconds: 3, camera: "wide" },
+        { seconds: 3, camera: "close" },
+      ],
+      10,
+    ).map((cut) => cut.seconds),
+    [3, 7],
+  );
+  assert.deepEqual(
+    normalizeCuts(
+      [
+        { seconds: 8, camera: "a" },
+        { seconds: 8, camera: "b" },
+      ],
+      10,
+    ).map((cut) => cut.seconds),
+    [8, 2],
+  );
+  const capped = normalizeCuts(
+    Array.from({ length: 80 }, () => ({ seconds: 1, camera: "angle" })),
+    80,
+  );
+  assert.equal(capped.length, 60);
+  assert.equal(
+    capped.reduce((sum, cut) => sum + cut.seconds, 0),
+    80,
+  );
+  const packed = normalizeCuts(
+    Array.from({ length: 80 }, () => ({ seconds: 1, camera: "angle" })),
+    80,
+    15,
+  );
+  assert.equal(packed.length, 60);
+  assert.equal(
+    packed.reduce((sum, cut) => sum + cut.seconds, 0),
+    80,
+  );
+  assert.ok(packed.every((cut) => cut.seconds <= 15));
+});
+
+test("retiming one cut keeps the video length and the other framings", () => {
+  const cuts = [
+    { seconds: 2, camera: "wide" },
+    { seconds: 2, camera: "close-up" },
+    { seconds: 2, camera: "overhead" },
+  ];
+  const longer = retimeCut(cuts, 0, 4, 6, 15);
+  assert.deepEqual(
+    longer.map((cut) => [cut.seconds, cut.camera]),
+    [
+      [4, "wide"],
+      [1, "close-up"],
+      [1, "overhead"],
+    ],
+  );
+  const shorter = retimeCut(cuts, 1, 1, 6, 15);
+  assert.deepEqual(
+    shorter.map((cut) => cut.seconds),
+    [2, 1, 3],
+  );
+  assert.equal(shorter[1]?.camera, "close-up");
+  const last = retimeCut(cuts, 2, 4, 6, 15);
+  assert.deepEqual(
+    last.map((cut) => cut.seconds),
+    [1, 1, 4],
+  );
+  const stuck = retimeCut(
+    Array.from({ length: 6 }, (_, index) => ({ seconds: 1, camera: `angle ${index}` })),
+    0,
+    3,
+    6,
+    15,
+  );
+  assert.ok(stuck.every((cut) => cut.seconds === 1));
+  assert.equal(stuck[0]?.camera, "angle 0");
+  const capped = retimeCut(cuts, 0, 20, 6, 4);
+  assert.ok(capped.every((cut) => cut.seconds <= 4));
+  assert.equal(
+    capped.reduce((sum, cut) => sum + cut.seconds, 0),
+    6,
+  );
+  assert.equal(retimeCut(cuts, 9, 3, 6, 15).length, 3);
+});
+
+test("a cut longer than the model can film is split", () => {
+  const split = normalizeCuts([{ seconds: 40, camera: "wide shot" }], 40, 15);
+  assert.deepEqual(
+    split.map((cut) => cut.seconds),
+    [15, 15, 10],
+  );
+  assert.ok(split.every((cut) => cut.camera === "wide shot"));
+});
+
+test("a one second cut is filmed at the model minimum", () => {
+  assert.equal(filmSecondsFor(1, HAILUO), 5);
+  assert.equal(filmSecondsFor(6, [5, 10]), 10);
+  const shots = planShotsFromCuts(
+    [{ name: "Song", lines: ["One"], clips: [10], durationSec: 10 }],
+    normalizeCuts(
+      Array.from({ length: 10 }, () => ({ seconds: 1, camera: "angle" })),
+      10,
+    ),
+    false,
+    HAILUO,
+  );
+  assert.equal(shots.length, 10);
+  assert.ok(shots.every((shot) => shot.durationSec === 1 && shot.filmSec === 5));
+  const priced = lyricsCreditBreakdown(
+    10,
+    HAILUO,
+    false,
+    Array.from({ length: 10 }, () => ({ seconds: 1, camera: "angle" })),
+  );
+  const steady = lyricsCreditBreakdown(10, HAILUO, false);
+  assert.equal(priced.brollSeconds, 50);
+  assert.equal(priced.songSeconds, 10);
+  assert.ok(priced.brollSeconds > steady.brollSeconds);
+});
+
+test("each cut takes the lines of the section it sits in", () => {
+  const shots = planShotsFromCuts(
+    [
+      { name: "Verse", lines: ["One", "Two"], clips: [5], durationSec: 5 },
+      { name: "Chorus", lines: ["Three", "Four"], clips: [5], durationSec: 5 },
+    ],
+    [
+      { seconds: 5, camera: "wide" },
+      { seconds: 5, camera: "close-up" },
+    ],
+    true,
+    WAN,
+  );
+  assert.equal(shots[0]?.sectionName, "Verse");
+  assert.deepEqual(shots[0]?.lines, ["One", "Two"]);
+  assert.equal(shots[0]?.kind, "performance");
+  assert.equal(shots[1]?.sectionName, "Chorus");
+  assert.deepEqual(shots[1]?.lines, ["Three", "Four"]);
+  assert.equal(shots[1]?.kind, "broll");
+  assert.equal(shots[1]?.camera, "close-up");
+  assert.equal(shots[0]?.filmSec, 5);
 });

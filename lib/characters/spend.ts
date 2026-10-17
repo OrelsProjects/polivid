@@ -4,7 +4,7 @@ import { refundCredits, requireCredits, reserveCredits } from "@/lib/billing/cre
 
 export const spendCharacterCredit = async (
   userId: string,
-  reason: "character_image" | "character_voice",
+  reason: "character_image" | "character_voice" | "image",
 ) => {
   await requireCredits(userId, 1);
   const refId = randomUUID();

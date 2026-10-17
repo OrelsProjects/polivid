@@ -1,8 +1,8 @@
 import { ChevronRight, Clapperboard } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 import { NewProjectButton } from "@/components/editor/new-project-button";
+import { CardLink } from "@/components/motion/motion";
 import { Skeleton } from "@/components/ui/skeleton";
 import { listMyProjects } from "@/lib/editor/projects";
 import { formatDate } from "@/lib/video/format";
@@ -30,7 +30,7 @@ async function ProjectGrid() {
   const projects = await listMyProjects();
   if (projects.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-border bg-white p-10 text-center text-sm text-muted-foreground">
+      <p className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
         No edits yet. Start a blank project or open a video and choose Edit in editor.
       </p>
     );
@@ -40,9 +40,9 @@ async function ProjectGrid() {
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {projects.map((project) => (
         <li key={project.id}>
-          <Link
+          <CardLink
             href={`/editor/${project.id}`}
-            className="group flex items-center gap-3 rounded-2xl border border-border bg-white p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+            className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md"
           >
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
               <Clapperboard className="size-4" aria-hidden />
@@ -57,7 +57,7 @@ async function ProjectGrid() {
               className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
               aria-hidden
             />
-          </Link>
+          </CardLink>
         </li>
       ))}
     </ul>

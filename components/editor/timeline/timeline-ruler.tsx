@@ -64,7 +64,7 @@ export function TimelineRuler({
       aria-valuemin={0}
       aria-valuenow={playheadFrame}
       aria-valuemax={durationInFrames}
-      className="relative h-7 w-full min-w-0 shrink-0 cursor-ew-resize bg-[#F7F7F8]"
+      className="relative h-7 w-full min-w-0 shrink-0 cursor-ew-resize bg-surface"
       onPointerDown={handlePointerDown}
       onKeyDown={(event) => {
         if (event.key === "ArrowLeft") {
@@ -80,14 +80,14 @@ export function TimelineRuler({
       {minors.map((frame) => (
         <span
           key={`m-${frame}`}
-          className="absolute top-0 h-1.5 w-px bg-neutral-300"
+          className="absolute top-0 h-1.5 w-px bg-muted-foreground/40"
           style={{ left: frame * zoom }}
         />
       ))}
       {marks.map((frame) => (
         <span key={frame} className="absolute top-0 flex flex-col items-start" style={{ left: frame * zoom }}>
-          <span className="h-2 w-px bg-neutral-400" />
-          <span className="pl-0.5 text-[10px] leading-none text-neutral-500">{frame / FPS}s</span>
+          <span className="h-2 w-px bg-muted-foreground/40" />
+          <span className="pl-0.5 text-[10px] leading-none text-muted-foreground">{frame / FPS}s</span>
         </span>
       ))}
     </div>

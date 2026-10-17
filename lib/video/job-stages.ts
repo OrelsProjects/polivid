@@ -27,8 +27,9 @@ export const stagesForJob = (job: { mode: string; tier: string; model: string; l
   return steps;
 };
 
-/** How many clips a stitched footage job will film. Other jobs are one clip. */
-export const clipCountForJob = (job: { mode: string; model: string; length: number }) => {
+/** How many clips a stitched footage job will film. Planned shots film one clip per stored cut. */
+export const clipCountForJob = (job: { mode: string; model: string; length: number; cuts?: readonly { seconds: number }[] }) => {
+  if ((job.mode === "lyrics" || job.mode === "prompt") && job.cuts && job.cuts.length > 0) return job.cuts.length;
   const model = generationModelBySlug(job.model);
   if (!model || !isStitchedMode(job.mode)) return 1;
   return Math.max(planSegments(job.length, model.durations).length, 1);

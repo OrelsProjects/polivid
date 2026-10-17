@@ -14,7 +14,7 @@ export async function UserMenu() {
         // eslint-disable-next-line @next/next/no-img-element -- remote avatar from Google, tiny
         <img src={user.image} alt="" className="size-8 rounded-full" referrerPolicy="no-referrer" />
       ) : (
-        <span className="grid size-8 place-items-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-800">
+        <span className="grid size-8 place-items-center rounded-full bg-emerald-400/15 text-xs font-semibold text-emerald-200">
           {initial}
         </span>
       )}
@@ -27,7 +27,7 @@ export async function UserMenu() {
           type="submit"
           aria-label="Sign out"
           title="Sign out"
-          className="grid size-9 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-white hover:text-foreground"
+          className="grid size-9 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LogOut className="size-4" aria-hidden />
         </button>

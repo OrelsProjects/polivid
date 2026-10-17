@@ -17,7 +17,12 @@ const chosenCharacter = (requested: unknown, attached: string, allowsVoice: bool
   return isCharacterId(requested) ? requested : "";
 };
 
-export const useCoachClientTools = (referenceKeysRef: RefObject<string[]>, voiceRef: RefObject<string>) => {
+export const useCoachClientTools = (
+  referenceKeysRef: RefObject<string[]>,
+  voiceRef: RefObject<string>,
+  mediaKeyRef: RefObject<string | null>,
+  videoKeyRef: RefObject<string | null>,
+) => {
   const router = useRouter();
 
   const run = (toolName: string, input: Record<string, unknown>) => {
@@ -32,16 +37,24 @@ export const useCoachClientTools = (referenceKeysRef: RefObject<string[]>, voice
           ? mergeReferenceKeys(fromTool, referenceKeysRef.current)
           : [];
       const length = typeof input.length === "number" && isVideoLength(input.length) ? input.length : 30;
+      const upload = modeDef?.upload;
+      const attachedFile =
+        upload === "video"
+          ? videoKeyRef.current
+          : upload === "audio"
+            ? mediaKeyRef.current
+            : upload === "media"
+              ? videoKeyRef.current || mediaKeyRef.current
+              : mediaKeyRef.current;
       writeCreateDraft(
         {
           prompt: typeof input.prompt === "string" ? input.prompt : "",
-          inputMode: "topic",
           format: isFormat(input.format) ? input.format : "9:16",
           length,
           customLength: String(length),
           model: "wan",
           tier: typeof input.tier === "string" && isVideoTier(input.tier) ? input.tier : "pro",
-          mediaKey: null,
+          mediaKey: typeof input.mediaKey === "string" && input.mediaKey ? input.mediaKey : attachedFile,
           referenceKeys,
           showText: true,
           presetId: typeof input.presetId === "string" ? input.presetId : "auto",
@@ -64,6 +77,10 @@ export const useCoachClientTools = (referenceKeysRef: RefObject<string[]>, voice
     if (toolName === "app_open_production" && typeof input.productionId === "string") {
       router.push(`/productions/${input.productionId}`);
       return { opened: `/productions/${input.productionId}` };
+    }
+    if (toolName === "app_open_editor" && typeof input.projectId === "string") {
+      router.push(`/editor/${input.projectId}`);
+      return { opened: `/editor/${input.projectId}` };
     }
     return { skipped: true };
   };

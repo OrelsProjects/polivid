@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FilterLink } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
 
 export const VIDEO_FILTERS = [
@@ -23,18 +23,21 @@ export const VideoFilters = ({ current }: { current: VideoFilter }) => {
       {VIDEO_FILTERS.map((filter) => {
         const selected = current === filter.id;
         return (
-          <Link
+          <FilterLink
             key={filter.id}
             href={videoFilterHref(filter.id)}
+            active={selected}
+            layoutId="video-filter"
+            pillClassName="rounded-xl bg-foreground"
             aria-current={selected ? "page" : undefined}
             scroll={false}
             className={cn(
               "inline-flex h-9 cursor-pointer items-center rounded-xl px-3 text-sm font-medium transition-colors",
-              selected ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+              selected ? "text-background" : "bg-muted text-muted-foreground hover:text-foreground",
             )}
           >
             {filter.label}
-          </Link>
+          </FilterLink>
         );
       })}
     </nav>

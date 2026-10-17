@@ -1,7 +1,7 @@
 "use client";
 
 import { TriangleAlert } from "lucide-react";
-import Link from "next/link";
+import { CardLink } from "@/components/motion/motion";
 import { useSyncExternalStore } from "react";
 import { VideoThumbnail } from "@/components/video/video-player";
 import { formatDate } from "@/lib/video/format";
@@ -71,7 +71,7 @@ export const VideoCardLink = ({
   };
 
   return (
-    <Link
+    <CardLink
       href={href}
       onClick={handleSeen}
       onPointerEnter={handleSeen}
@@ -79,8 +79,8 @@ export const VideoCardLink = ({
     >
       <div
         className={cn(
-          "relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border bg-white shadow-sm transition group-hover:border-primary/30 group-hover:shadow-md group-focus-visible:ring-3 group-focus-visible:ring-ring/50 group-focus-visible:ring-offset-2",
-          failed ? "border-red-100 bg-red-50" : "border-border",
+          "relative grid aspect-[3/4] place-items-center overflow-hidden rounded-2xl border bg-card shadow-sm transition group-hover:border-primary/30 group-hover:shadow-md group-focus-visible:ring-3 group-focus-visible:ring-ring/50 group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-background",
+          failed ? "border-destructive/30 bg-destructive/10" : "border-border",
         )}
       >
         {failed ? (
@@ -109,7 +109,7 @@ export const VideoCardLink = ({
         ) : (
           <div aria-hidden className="flex flex-col items-center gap-2 px-4 text-center">
             <TriangleAlert className="size-5 text-destructive" aria-hidden />
-            <span className="text-sm font-medium text-red-900">{video.title}</span>
+            <span className="text-sm font-medium text-red-300">{video.title}</span>
           </div>
         )}
       </div>
@@ -122,6 +122,6 @@ export const VideoCardLink = ({
           {failed ? " · Try again" : ""}
         </span>
       </div>
-    </Link>
+    </CardLink>
   );
 };

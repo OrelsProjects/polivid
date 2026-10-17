@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { EmptyState } from "@/components/empty-state";
+import { CardLink } from "@/components/motion/motion";
 import { Greeting } from "@/components/greeting";
 import { PromptBox } from "@/components/prompt-box";
 import { StylePoster } from "@/components/style-frame";
@@ -29,21 +30,21 @@ const TOOLS = [
     title: "Article to video",
     body: "Paste a post",
     icon: FileText,
-    tint: "bg-emerald-50 text-emerald-700",
+    tint: "bg-glow/15 text-indigo-300",
   },
   {
     href: "/create?input=data",
     title: "Data story",
     body: "Sourced charts",
     icon: BarChart3,
-    tint: "bg-amber-50 text-amber-700",
+    tint: "bg-hot/15 text-pink-300",
   },
   {
     href: "/create/voiceover",
     title: "Voiceover video",
     body: "Script or a link",
     icon: Mic,
-    tint: "bg-violet-50 text-violet-700",
+    tint: "bg-sky-400/10 text-sky-300",
   },
 ] as const;
 
@@ -66,10 +67,10 @@ export default function DashboardPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {TOOLS.map(({ href, title, body, icon: Icon, tint }) => (
-            <Link
+            <CardLink
               key={href}
               href={href}
-              className="flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
             >
               <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", tint)}>
                 <Icon className="size-4" aria-hidden />
@@ -78,7 +79,7 @@ export default function DashboardPage() {
                 <span className="block text-sm font-medium">{title}</span>
                 <span className="block text-xs text-muted-foreground">{body}</span>
               </span>
-            </Link>
+            </CardLink>
           ))}
         </div>
       </section>
@@ -97,9 +98,9 @@ export default function DashboardPage() {
         <ul className="grid gap-3 lg:grid-cols-3">
           {STARTERS.map((video) => (
             <li key={video.title}>
-              <Link
+              <CardLink
                 href={showcaseHref(video)}
-                className="flex items-center gap-3 rounded-2xl border border-border bg-white p-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
+                className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3 shadow-sm transition hover:border-primary/30 hover:shadow-md"
               >
                 <span aria-hidden className="w-16 shrink-0">
                   <StylePoster style={video.style} title={video.title} size="sm" className="w-full rounded-xl" />
@@ -112,11 +113,11 @@ export default function DashboardPage() {
                 </span>
                 <span
                   aria-hidden
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden shrink-0 rounded-xl bg-white sm:inline-flex")}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden shrink-0 rounded-xl bg-card sm:inline-flex")}
                 >
                   Create similar
                 </span>
-              </Link>
+              </CardLink>
             </li>
           ))}
         </ul>
@@ -153,9 +154,9 @@ async function DashboardContent() {
     <>
       <section className="grid gap-3 sm:grid-cols-3">
         {stats.map((stat) => (
-          <div key={stat.label} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-            <div className="text-xs text-muted-foreground">{stat.label}</div>
-            <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums">{stat.value}</div>
+          <div key={stat.label} className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+            <div className="font-label text-[11px] font-medium tracking-[0.14em] text-muted-foreground uppercase">{stat.label}</div>
+            <div className="mt-2 font-heading text-3xl font-bold tabular-nums">{stat.value}</div>
             <div className="mt-1 text-xs text-muted-foreground">{stat.hint}</div>
           </div>
         ))}

@@ -21,10 +21,10 @@ const COLUMNS = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-border bg-white">
+    <footer className="border-t border-white/[0.06] bg-sidebar">
       <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 sm:grid-cols-4">
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-semibold">PoliVid</span>
+          <span className="font-heading text-lg font-bold">PoliVid</span>
           <p className="max-w-48 text-sm text-muted-foreground">Short videos drawn with code.</p>
         </div>
         {COLUMNS.map((column) => (

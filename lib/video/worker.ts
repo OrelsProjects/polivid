@@ -1,7 +1,7 @@
 import "server-only";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { db } from "@/lib/db";
-import { getProjectForUser } from "@/lib/editor/projects";
+import { getProjectForUser, rememberProjectExport } from "@/lib/editor/projects";
 import { renderEditProject } from "@/lib/editor/render";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { createVideo, saveReadyVideo } from "@/lib/videos";
@@ -10,7 +10,7 @@ import { signedGetUrl } from "@/lib/storage/s3";
 import { isImageKey } from "@/lib/storage/upload-key";
 import { songMediaKey, songSliceKey, readStoredSong, type StoredSong } from "@/lib/music/song";
 import { extractSongBrief } from "@/lib/music/song-brief";
-import { planShots, planSongSections, songReferences, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
+import { normalizeCuts, planShotsFromCuts, planSongSections, songReferences, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
 import { readSongDraft, readSongDraftAudio } from "@/lib/music/song-draft";
 import { singAs } from "@/lib/music/sing-as";
 import { mixNarration, narrationAudio, resolveCharacterVoice } from "@/lib/voice/speak";
@@ -29,6 +29,7 @@ import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipel
 import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 import { shouldHoldAfterClip } from "./job-stages";
 import { AUTO_PRESET_ID, withVisualStyle } from "./presets";
+import { filmSecondsFor, type AttachmentAssignment, type PromptBrief } from "./shot-plan";
 import { isStitchedMode, planSegments, readStitchPlan, segmentMediaKey } from "./segments";
 import { assembleSongVideo, lastFrameDataUrl, sliceSong, stitchClips } from "./stitch";
 import { writeBeats } from "./beats";
@@ -56,6 +57,9 @@ interface JobInput {
   sceneKeys?: string[];
   characterId?: string;
   songId?: string;
+  cuts?: { seconds: number; camera: string; images?: number[] }[];
+  brief?: PromptBrief;
+  attachmentRoles?: AttachmentAssignment[];
 }
 
 /** One promise per video, so several can film at once. Kept here so a finished request does not drop a long render. */
@@ -180,6 +184,7 @@ const filmEditorExport = async (userId: string, jobId: string, input: JobInput) 
   if (!input.projectId) throw new Error("This export is missing its edit.");
   const project = await getProjectForUser(userId, input.projectId);
   if (!project) throw new Error("That edit was not found.");
+  const renderedVersion = project.version;
   if (!(await markVideoJobProgress(jobId, "render", 10))) return;
   await renderEditProject(userId, jobId, project.timeline);
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
@@ -197,6 +202,9 @@ const filmEditorExport = async (userId: string, jobId: string, input: JobInput) 
     outputUrl: `/api/videos/${jobId}/file`,
     error: null,
   });
+  await rememberProjectExport(userId, project.id, jobId, renderedVersion).catch((error) => {
+    console.error("Could not remember the finished export", error);
+  });
 };
 
 const filmWithModel = async (userId: string, jobId: string, input: JobInput) => {
@@ -210,13 +218,22 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
   }
   if (!saved && !(await markVideoJobProgress(jobId, "script", 10))) return;
   const stitch = isStitchedMode(input.mode);
+  const approvedCuts = input.mode === "prompt" && input.cuts && input.cuts.length > 0 ? input.cuts : null;
   const segments =
-    saved?.segments ?? (stitch ? planSegments(input.length, model.durations) : [clipDuration(input.length, model.durations)]);
+    saved?.segments ??
+    (approvedCuts
+      ? approvedCuts.map((cut) => cut.seconds)
+      : stitch
+        ? planSegments(input.length, model.durations)
+        : [clipDuration(input.length, model.durations)]);
   const prepared = await prepareModeJob(userId, {
     ...input,
     segments: stitch && segments.length > 1 ? segments : undefined,
     existingBeats: saved?.beats,
     existingSpoken: readSpoken(job?.artifacts),
+    cuts: approvedCuts ?? undefined,
+    brief: input.brief,
+    attachmentRoles: input.attachmentRoles,
   });
   if (prepared.spoken) await rememberSpoken(jobId, job?.artifacts, prepared.spoken);
   const speech = await narrationAudio(userId, input.characterId, prepared.spoken);
@@ -402,7 +419,7 @@ const publishPartial = async (
   if (stored.length < 1) return;
   const filmed = segments.slice(0, stored.length);
   const duration = filmed.reduce((sum, part) => sum + part, 0);
-  let bytes = await stitchClips(stored);
+  let bytes = await stitchClips(stored, segments.slice(0, stored.length));
   if (speech) {
     try {
       bytes = await mixNarration(bytes, speech, duration);
@@ -487,7 +504,8 @@ const songPrompt = (
     ? `${PERFORMER_IMAGE}\n${shot.kind === "performance" ? PERFORMER_SINGS : PERFORMER_LISTENS}`
     : SCENE_ONLY;
   const place = scene?.trim() ? `Scene: ${scene.trim()}` : "";
-  return [camera, place, referenceNote.trim(), withVisualStyle(visual, preset, direction), NO_ON_SCREEN_TEXT]
+  const angle = shot.camera?.trim() ? `Camera: ${shot.camera.trim()}` : "";
+  return [camera, place, angle, referenceNote.trim(), withVisualStyle(visual, preset, direction), NO_ON_SCREEN_TEXT]
     .filter((part) => part.trim().length > 0)
     .join("\n");
 };
@@ -534,9 +552,10 @@ const filmSongShot = async (
     return images;
   };
   let audio: Record<string, unknown> | null = null;
+  const filmed = shot.filmSec ?? shot.durationSec;
   if (performerImage && shot.kind === "performance") {
     try {
-      const slice = await sliceSong(songBytes, shot.startSec, shot.durationSec);
+      const slice = await sliceSong(songBytes, shot.startSec, filmed);
       const sliceKey = songSliceKey(jobId, shot.index);
       await putVideoMedia(sliceKey, slice, "audio/wav");
       const audioUrl = await signedVideoMediaUrl(sliceKey);
@@ -552,7 +571,7 @@ const filmSongShot = async (
       {
         prompt,
         format: input.format,
-        length: shot.durationSec,
+        length: filmed,
         model: slug,
         resolution:
           model && !model.resolutions.includes(input.resolution ?? "") ? clipResolution(model.resolutions) : input.resolution,
@@ -636,7 +655,16 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
     if (!(await markVideoJobProgress(jobId, "script", 10))) return;
     const hasSinger = (input.referenceKeys?.length ?? 0) > 0;
     const { sections, words, audio, ...brief } = await songForJob(userId, jobId, input, hasSinger);
-    const shots = planShots(sections, hasSinger);
+    const durations = lyricsClipDurations(model, hasSinger);
+    const limit = durations.length > 0 ? Math.max(...durations) : input.length;
+    const cuts = normalizeCuts(
+      input.cuts && input.cuts.length > 0
+        ? input.cuts
+        : planSegments(input.length, durations).map((seconds) => ({ seconds, camera: "" })),
+      input.length,
+      limit,
+    );
+    const shots = planShotsFromCuts(sections, cuts, hasSinger, durations);
     const composed = { bytes: audio, words };
     await putVideoMedia(songMediaKey(jobId), composed.bytes, "audio/mpeg");
     const visuals = await writeBeats({
@@ -644,7 +672,11 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
         brief.style ? `Music: ${brief.style}` : "",
         input.direction?.trim() ? `Director notes: ${input.direction.trim()}` : "",
         input.scene?.trim() ? `Scene: ${input.scene.trim()}` : "",
-        ...shots.map((shot) => `Shot ${shot.index + 1} (${shot.durationSec}s): ${shot.lines.join(" / ") || shot.sectionName}`),
+        ...shots.map((shot) => {
+          const camera = shot.camera?.trim();
+          const label = camera ? `${shot.durationSec}s, ${camera}` : `${shot.durationSec}s`;
+          return `Shot ${shot.index + 1} (${label}): ${shot.lines.join(" / ") || shot.sectionName}`;
+        }),
       ]
         .filter(Boolean)
         .join("\n"),
@@ -763,7 +795,29 @@ const filmSegments = async (
   const beats = prepared.beats.length === segments.length ? prepared.beats : segments.map(() => prepared.prompt);
   await db.videoJob.update({
     where: { id: jobId },
-    data: { artifacts: { segments, beats, spoken: prepared.spoken ?? "" } },
+    data: {
+      artifacts: {
+        segments,
+        beats,
+        spoken: prepared.spoken ?? "",
+        brief: input.brief
+          ? {
+              subject: input.brief.subject,
+              setting: input.brief.setting,
+              director: input.brief.director,
+              style: input.brief.style,
+              mustKeep: input.brief.mustKeep,
+              mustAvoid: input.brief.mustAvoid,
+            }
+          : null,
+        attachmentRoles: (input.attachmentRoles ?? []).map((role) => ({ index: role.index, role: role.role })),
+        cuts: (input.cuts ?? []).map((cut) => ({
+          seconds: cut.seconds,
+          camera: cut.camera,
+          ...(cut.images ? { images: cut.images } : {}),
+        })),
+      },
+    },
   });
   if (!(await markVideoJobProgress(jobId, "videos", progressFor("videos", 0, segments.length)))) {
     throw new FootageStopped();
@@ -794,7 +848,7 @@ const filmSegments = async (
     }
   }
 
-  const stitched = await stitchClips(clipBytes);
+  const stitched = await stitchClips(clipBytes, segments);
   const duration = segments.reduce((sum, part) => sum + part, 0);
   const voiced = speech ? await mixNarration(stitched, speech, duration) : stitched;
   await storeClip(userId, jobId, input, duration, voiced, prepared.spoken?.trim() || beats.join("\n\n"));
@@ -815,14 +869,15 @@ const filmOneSegment = async (input: {
   const stored = await readVideoMedia(key);
   if (stored) return { bytes: stored, cached: true };
 
+  const allowed = generationModelBySlug(input.input.model)?.durations ?? [];
   const request: FootageRequest = {
     prompt: input.prompt,
     format: input.input.format,
-    length: input.duration,
+    length: filmSecondsFor(input.duration, allowed),
     model: input.input.model,
     resolution: input.prepared.resolution ?? input.input.resolution,
     imageDataUrl: input.startFrame,
-    inputReferences: input.index === 0 ? input.prepared.inputReferences : undefined,
+    inputReferences: referencesForShot(input.prepared, input.index),
   };
   const shouldContinue = () => isStillRunning(input.userId, input.jobId);
 
@@ -857,6 +912,15 @@ const filmOneSegment = async (input: {
   const clip = await renderSegmentWithRetry(input.jobId, input.index, request, shouldContinue);
   await putVideoMedia(key, clip.bytes, "video/mp4");
   return { bytes: clip.bytes, cached: false };
+};
+
+/** Planned shots carry their own pictures. Older jobs only send references with the first clip. */
+const referencesForShot = (prepared: PreparedJob, index: number) => {
+  if (prepared.shotReferences) {
+    const shot = prepared.shotReferences[index];
+    return shot && shot.length > 0 ? shot : undefined;
+  }
+  return index === 0 ? prepared.inputReferences : undefined;
 };
 
 const renderSegmentWithRetry = async (
@@ -1025,4 +1089,9 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   sceneKeys: input.sceneKeys.length > 0 ? input.sceneKeys : undefined,
   characterId: input.characterId || undefined,
   songId: input.songId || undefined,
+  cuts: input.cuts.length > 0 ? input.cuts : undefined,
+  brief: input.brief.subject || input.brief.setting || input.brief.director || input.brief.mustKeep || input.brief.style || input.brief.mustAvoid
+    ? input.brief
+    : undefined,
+  attachmentRoles: input.attachmentRoles.length > 0 ? input.attachmentRoles : undefined,
 });

@@ -1,3 +1,8 @@
+import { spendNeedsApproval } from "@/lib/billing/auto-approve";
+import { videoJobCredits } from "@/lib/billing/estimate";
+import { toolByName } from "@/lib/tools/registry";
+import { proseWithoutVoiceNote } from "@/lib/coach/voice-notes";
+
 export interface CoachBrief {
   mode: string;
   format: string;
@@ -15,7 +20,10 @@ const BRIEF_FENCE = /```brief\s*([\s\S]*?)```/i;
 /** Sent when the person presses Approve under a brief. The Coach treats it as the go-ahead. */
 export const BRIEF_APPROVAL_TEXT = "Approved. Queue it exactly as written in the brief.";
 
-const SPEND_TOOLS = new Set(["tool-create_video", "tool-start_production"]);
+const queuesSpend = (type: string) => {
+  if (!type.startsWith("tool-")) return false;
+  return toolByName(type.slice("tool-".length))?.effects.spendsCredits === true;
+};
 
 /** An assistant reply with a brief and no queued action yet, so Approve can go under it. */
 export const hasApprovableBrief = (message: {
@@ -24,7 +32,39 @@ export const hasApprovableBrief = (message: {
 }) =>
   message.role === "assistant" &&
   message.parts.some((part) => part.type === "text" && Boolean(part.text) && BRIEF_FENCE.test(part.text ?? "")) &&
-  !message.parts.some((part) => SPEND_TOOLS.has(part.type));
+  !message.parts.some((part) => queuesSpend(part.type));
+
+export const briefFromParts = (parts: readonly { type: string; text?: string }[]) => {
+  for (const part of parts) {
+    if (part.type !== "text" || !part.text) continue;
+    const brief = splitCoachContent(part.text).brief;
+    if (brief) return brief;
+  }
+  return null;
+};
+
+/** Credits the brief card quotes for a Create video. A production start is priced separately, at one credit. */
+export const briefCredits = (brief: CoachBrief) => {
+  const length = Number.parseInt(brief.length, 10);
+  if (!Number.isFinite(length) || length <= 0) return 0;
+  return videoJobCredits({ mode: brief.mode, tier: brief.tier, length });
+};
+
+/** A brief at 200 credits or more waits for Approve. A cheaper brief can start on its own. */
+export const briefNeedsApproval = (brief: CoachBrief) => spendNeedsApproval(briefCredits(brief));
+
+/** The go-ahead the Approve button sends. It is for the model, not a line to show in the chat. */
+export const isBriefApprovalMessage = (message: {
+  role: string;
+  parts: readonly { type: string; text?: string }[];
+}) =>
+  message.role === "user" &&
+  message.parts.length > 0 &&
+  message.parts.every((part) => {
+    if (part.type !== "text" || !part.text) return false;
+    const prose = proseWithoutVoiceNote(part.text).trim();
+    return prose === "" || prose === BRIEF_APPROVAL_TEXT;
+  });
 
 export const splitCoachContent = (text: string) => {
   const match = text.match(BRIEF_FENCE);

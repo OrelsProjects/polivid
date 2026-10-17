@@ -27,7 +27,7 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
               message ? (
                 <div
                   role="alert"
-                  className="flex w-full gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                  className="flex w-full gap-2 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-red-300"
                 >
                   <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span>{message}</span>

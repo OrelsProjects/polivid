@@ -17,6 +17,18 @@ test("a long prompt video expects filming and stitching", () => {
   assert.ok(clipCountForJob(job) > 1);
 });
 
+test("a prompt shot plan films one clip per cut", () => {
+  const job = {
+    mode: "prompt",
+    tier: "pro",
+    model: "minimax/hailuo-3",
+    length: 10,
+    cuts: [{ seconds: 1 }, { seconds: 1 }, { seconds: 8 }],
+  };
+  assert.equal(clipCountForJob(job), 3);
+  assert.deepEqual(stagesForJob(job), ["script", "videos", "render", "finalize"]);
+});
+
 test("a single clip skips stitching", () => {
   const job = { mode: "prompt", tier: "low", model: "alibaba/wan-3.0", length: 8 };
   assert.deepEqual(stagesForJob(job), ["script", "videos", "finalize"]);

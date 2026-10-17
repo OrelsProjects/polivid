@@ -20,10 +20,10 @@ export function ZoomControl() {
         aria-valuemax={MAX_ZOOM}
         aria-valuenow={zoom}
         aria-valuetext={`${percent}%`}
-        className="h-1 w-28 cursor-pointer appearance-none rounded-full bg-neutral-200 accent-primary"
+        className="h-1 w-28 cursor-pointer appearance-none rounded-full bg-muted accent-primary"
         onChange={(event) => setZoom(Number(event.target.value))}
       />
-      <span className="w-10 text-right text-[11px] tabular-nums text-neutral-500">{percent}%</span>
+      <span className="w-10 text-right text-[11px] tabular-nums text-muted-foreground">{percent}%</span>
     </div>
   );
 }

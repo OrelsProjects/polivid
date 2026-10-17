@@ -10,7 +10,7 @@ const EXAMPLES = [
 
 export function CreditExamples() {
   return (
-    <div className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <h3 className="font-semibold">What credits buy</h3>
       <p className="mt-1 text-sm text-muted-foreground">
         1 credit is $0.01 of provider cost. {TRIAL_CREDITS} free credits is enough to try a short draft.

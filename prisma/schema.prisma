@@ -137,10 +137,14 @@ model EditProject {
   format        String
   timeline      Json
   version       Int      @default(1)
+  /// Last finished MP4 for this edit. It matches the timeline at exportVersion.
+  exportVideoId String?
+  exportVersion Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   exports       Video[]  @relation("EditExports")
   productions   Production[] @relation("ProductionEdit")
+  coachThreads  CoachThread[]
 
   @@index([userId, updatedAt])
   @@map("edit_projects")
@@ -415,15 +419,20 @@ model StylePreset {
 }
 
 model CoachThread {
-  id        String         @id @default(uuid())
-  userId    String
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String         @default("New chat")
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  messages  CoachMessage[]
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String         @default("New chat")
+  /// Video job this chat became. The finished video reuses this id.
+  videoJobId    String?
+  editProjectId String?
+  editProject   EditProject?   @relation(fields: [editProjectId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  messages      CoachMessage[]
 
   @@index([userId, updatedAt])
+  @@index([editProjectId])
   @@map("coach_threads")
 }
 

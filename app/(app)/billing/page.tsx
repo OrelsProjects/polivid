@@ -75,14 +75,14 @@ async function BillingAccount({
       )}
       {query.status === "cancel" && (
         <p
-          className="rounded-xl border border-border bg-white px-3 py-2 text-sm text-muted-foreground"
+          className="rounded-xl border border-border bg-card px-3 py-2 text-sm text-muted-foreground"
           role="status"
         >
           Checkout was canceled. Your current plan is unchanged.
         </p>
       )}
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold tracking-wide text-primary">

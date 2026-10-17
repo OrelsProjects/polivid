@@ -107,7 +107,7 @@ export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
   };
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-white">
+    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card">
       <div className="flex gap-1 border-b border-border p-2">
         {TABS.map((entry) => (
           <button
