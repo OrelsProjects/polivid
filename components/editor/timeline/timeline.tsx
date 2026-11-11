@@ -4,7 +4,9 @@ import { useRef, type PointerEvent } from "react";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { cn } from "@/lib/utils";
 import { useEditorActions, useEditorPlayback, useEditorTimeline, useEditorZoom } from "../editor-provider";
+import { footageSoundSeparate } from "./footage-sound";
 import { HoverLine, Playhead, TRACK_HEADER_WIDTH } from "./playhead";
+import { SoundLane } from "./sound-lane";
 import { TimelineRuler } from "./timeline-ruler";
 import { TimelineTrack } from "./timeline-track";
 import { TimelineTransport } from "./timeline-transport";
@@ -39,7 +41,7 @@ export function TimelinePanel({ className }: { className?: string } = {}) {
   const durationInFrames = timelineDurationInFrames(timeline);
   const pictureTracks = timeline.tracks.filter((track) => track.kind !== "audio").reverse();
   const audioTracks = timeline.tracks.filter((track) => track.kind === "audio");
-  const tracks = [...pictureTracks, ...audioTracks];
+  const separateSound = footageSoundSeparate(timeline);
 
   const handleSeek = (frame: number) => {
     actions.setPlaying(false);
@@ -75,7 +77,7 @@ export function TimelinePanel({ className }: { className?: string } = {}) {
             </div>
           </div>
           <div className="relative">
-            {tracks.map((track) => (
+            {pictureTracks.map((track) => (
               <TimelineTrack
                 key={track.id}
                 track={track}
@@ -83,6 +85,10 @@ export function TimelinePanel({ className }: { className?: string } = {}) {
                 zoom={zoom}
                 onSeek={handleSeek}
               />
+            ))}
+            {separateSound ? <SoundLane timeline={timeline} zoom={zoom} onSeek={handleSeek} /> : null}
+            {audioTracks.map((track) => (
+              <TimelineTrack key={track.id} track={track} timeline={timeline} zoom={zoom} onSeek={handleSeek} />
             ))}
           </div>
           <HoverLine zoom={zoom} />

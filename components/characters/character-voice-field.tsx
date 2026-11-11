@@ -3,7 +3,7 @@
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { AudioPlayer } from "@/components/audio-player";
-import { emptyTakes, VoiceRecorder, type VoiceTake } from "@/components/voice/voice-recorder";
+import { VoiceRecorder, type VoiceTake } from "@/components/voice/voice-recorder";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_VOICE_DESCRIPTION, type VoiceMode } from "@/lib/characters/constants";
@@ -18,22 +18,26 @@ export function CharacterVoiceField({
   generatedVoiceId,
   takes,
   hasExistingVoice,
+  recordingsReady = true,
   disabled = false,
   onVoiceMode,
   onVoiceDescription,
   onGeneratedVoiceId,
   onTakesChange,
+  onDiscardRecordings,
 }: {
   voiceMode: VoiceMode;
   voiceDescription: string;
   generatedVoiceId: string;
   takes: (VoiceTake | null)[];
   hasExistingVoice: boolean;
+  recordingsReady?: boolean;
   disabled?: boolean;
   onVoiceMode: (mode: VoiceMode) => void;
   onVoiceDescription: (value: string) => void;
   onGeneratedVoiceId: (id: string) => void;
   onTakesChange: (takes: (VoiceTake | null)[]) => void;
+  onDiscardRecordings?: () => void;
 }) {
   const [previews, setPreviews] = useState<VoicePreview[]>([]);
   const [designVoices, { isLoading: busy }] = useDesignVoicesMutation();
@@ -63,12 +67,6 @@ export function CharacterVoiceField({
   const handleTab = (mode: VoiceMode) => {
     onVoiceMode(mode);
     setError(null);
-    if (mode !== "recorded") {
-      for (const take of takes) {
-        if (take) URL.revokeObjectURL(take.url);
-      }
-      onTakesChange(emptyTakes());
-    }
     if (mode !== "designed") {
       setPreviews([]);
       onGeneratedVoiceId("");
@@ -112,7 +110,17 @@ export function CharacterVoiceField({
               what makes songs sound like you.
             </p>
           )}
-          <VoiceRecorder disabled={disabled} takes={takes} onTakesChange={onTakesChange} />
+          {recordingsReady ? (
+            <VoiceRecorder
+              disabled={disabled}
+              takes={takes}
+              onTakesChange={onTakesChange}
+              onDiscard={onDiscardRecordings}
+              notice="Each part is kept on this device as soon as you stop. You can leave and come back."
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">Loading saved recordings…</p>
+          )}
         </div>
       ) : null}
       {voiceMode === "designed" ? (

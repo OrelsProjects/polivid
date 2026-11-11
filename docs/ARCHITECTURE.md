@@ -93,7 +93,7 @@ The Coach is a chat that can call the rest of the product. The tools live in one
 - `lib/tools/defs` describes each tool: name, when to use it, the Zod input, and whether it spends credits, is destructive, or needs approval. This code is safe to import from the browser.
 - `lib/tools/handlers` runs the server tools. Each one calls an existing service (`queueVideoFromInput`, `planShotsFromInput`, `generateImage`, and so on) and returns a small JSON result, or `{ error }` when the person can fix the request.
 - `lib/coach/tools.ts` turns the registry into AI SDK tools for one turn. Tools marked `legacy` stay registered so old chats still load, but `activeTools` hides them from the model.
-- Client tools (`app_open_create`, `app_open_video`, `app_open_production`, `app_open_editor`) finish in the browser. `app_ask_question` waits for the person.
+- Client tools (`app_open_create`, `app_open_video`, `app_open_production`, `app_open_editor`) finish in the browser. `app_ask_question` and `app_confirm_preset` wait for the person.
 - `docs/tools/CATALOG.md` is generated with `npm run tools:docs`. `docs/tools/README.md` is how to add or retire a tool. `docs/tools/MCP.md` is the adapter that is not built yet.
 
 A turn can take up to 10 tool steps, so the Coach can look something up and then act.

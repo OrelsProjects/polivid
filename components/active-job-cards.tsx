@@ -10,6 +10,7 @@ import { JobHoldControls } from "@/components/job-hold-controls";
 import { JobMoreMenu } from "@/components/job-more-menu";
 import { JobStageList } from "@/components/job-stage-list";
 import { VideoStage } from "@/components/video/video-stage";
+import { DeleteVideoButton } from "@/components/delete-video-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
@@ -201,17 +202,20 @@ const ActiveJobCard = ({
             See progress
           </Link>
           {paused ? <JobHoldControls job={job} /> : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={canceling}
-            aria-label={`Cancel ${title}`}
-            aria-busy={canceling}
-            onClick={onCancel}
-          >
-            {canceling ? "Canceling…" : "Cancel"}
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={canceling}
+              aria-label={`Cancel ${title}`}
+              aria-busy={canceling}
+              onClick={onCancel}
+            >
+              {canceling ? "Canceling…" : "Cancel"}
+            </Button>
+            <DeleteVideoButton id={job.id} title={title} filming />
+          </div>
           {cancelError ? (
             <p className="text-center text-xs text-destructive" role="alert">
               {cancelError}

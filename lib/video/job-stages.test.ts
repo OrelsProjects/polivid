@@ -98,3 +98,29 @@ test("holds after the open clip, and lets the last clip finish the video", () =>
 test("keeps a live step that the usual path skips", () => {
   assert.deepEqual(visibleStages(["script", "finalize"], "images"), ["script", "images", "finalize"]);
 });
+
+test("an animated-stills job writes, draws, renders, and finishes", () => {
+  assert.deepEqual(stagesForJob({ mode: "voiceover", tier: "pro", model: "stills", length: 30 }), [
+    "script",
+    "images",
+    "render",
+    "finalize",
+  ]);
+});
+
+test("a background-loop job writes, renders, and finishes", () => {
+  assert.deepEqual(stagesForJob({ mode: "voiceover", tier: "pro", model: "loop", length: 60 }), [
+    "script",
+    "render",
+    "finalize",
+  ]);
+});
+
+test("a captions job transcribes, renders, and finishes, and a quick edit only renders", () => {
+  assert.deepEqual(stagesForJob({ mode: "captions", tier: "pro", model: "captions", length: 30 }), [
+    "script",
+    "render",
+    "finalize",
+  ]);
+  assert.deepEqual(stagesForJob({ mode: "edit", tier: "pro", model: "edit", length: 30 }), ["render", "finalize"]);
+});

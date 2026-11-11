@@ -8,7 +8,7 @@ import { StoreProvider } from "@/components/store-provider";
  */
 export default function StudioLayout({ children }: { children: ReactNode }) {
   return (
-    <main id="main" className="h-svh overflow-hidden bg-background">
+    <main id="main" className="h-svh overflow-hidden bg-background text-foreground">
       <StoreProvider>
         <Suspense fallback={<div className="h-svh bg-background" />}>
           <PageTransition distance={0} className="h-svh overflow-hidden">

@@ -1,10 +1,13 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
+import { getCharacter } from "@/lib/characters/store";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { hasFootage } from "@/lib/video/footage";
+import { hasFootage, hasSourceFootage, hasVoiceLayer } from "@/lib/video/footage";
+import { readJobInput } from "@/lib/video/job-status";
 import type { VideoFormat } from "@/lib/video/schema";
 import { getVideoForUser } from "@/lib/videos";
+import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { nextExportMark } from "./export-mark";
 import { timelineFromVideo } from "./from-video";
 import { emptyTimeline, TimelineSchema, type Timeline } from "./schema";
@@ -168,10 +171,34 @@ export const createProjectFromTimelineForUser = async (
   return toView(row);
 };
 
+const voiceLayerName = async (userId: string, videoId: string) => {
+  if (!(await hasVoiceLayer(videoId))) return null;
+  const job = await db.videoJob.findFirst({
+    where: { id: videoId, userId },
+    select: { input: true },
+  });
+  const characterId = job ? readJobInput(job.input).characterId : "";
+  if (characterId === STUDIO_VOICE_ID) return "Voiceover · Studio narrator";
+  if (characterId && characterId !== OFF_VOICE_ID) {
+    const character = await getCharacter(userId, characterId);
+    if (character?.name) return `Voiceover · ${character.name}`;
+  }
+  return "Voiceover";
+};
+
+const footageOptions = async (userId: string, videoId: string) => {
+  const [footage, source, voiceName] = await Promise.all([
+    hasFootage(videoId),
+    hasSourceFootage(videoId),
+    voiceLayerName(userId, videoId),
+  ]);
+  return { hasFootage: footage, hasSource: source, voice: voiceName ? { name: voiceName } : null };
+};
+
 export const createProjectFromVideoForUser = async (userId: string, videoId: string) => {
   const video = await getVideoForUser(userId, videoId);
   if (!video || video.status !== "ready") return null;
-  const timeline = timelineFromVideo(video, { hasFootage: await hasFootage(video.id) });
+  const timeline = timelineFromVideo(video, await footageOptions(userId, video.id));
   const row = await db.editProject.create({
     data: {
       userId,
@@ -259,7 +286,7 @@ export const revertProjectForUser = async (userId: string, id: string): Promise<
   if (!project?.sourceVideoId) return null;
   const video = await getVideoForUser(userId, project.sourceVideoId);
   if (!video) return null;
-  const timeline = timelineFromVideo(video, { hasFootage: await hasFootage(video.id) });
+  const timeline = timelineFromVideo(video, await footageOptions(userId, video.id));
   const row = await db.editProject.update({
     where: { id: project.id },
     data: {

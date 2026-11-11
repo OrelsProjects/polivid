@@ -9,6 +9,7 @@ const modeHandler = (mode: VideoModeId): ToolHandler => async (input, ctx) => qu
 
 export const makePromptVideoHandler = modeHandler("prompt");
 export const makeVoiceoverVideoHandler = modeHandler("voiceover");
+export const makeShortsVideoHandler = modeHandler("shorts");
 export const makeMotionGraphicsHandler = modeHandler("motion-graphics");
 export const makeMusicVideoHandler = modeHandler("music");
 export const makeAvatarVideoHandler = modeHandler("avatar");
@@ -16,6 +17,7 @@ export const makeImageVideoHandler = modeHandler("image");
 export const makeAvCutHandler = modeHandler("av-to-video");
 export const makeLyricsVideoHandler = modeHandler("lyrics");
 export const addCaptionsHandler = modeHandler("captions");
+export const quickEditVideoHandler = modeHandler("edit");
 
 export const createVideoHandler: ToolHandler = async (input, ctx) => {
   const row = asRecord(input);

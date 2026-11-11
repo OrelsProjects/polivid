@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BackLink } from "@/components/back-link";
+import { DeleteVideoButton } from "@/components/delete-video-button";
 import { CopyButton } from "@/components/copy-button";
 import { NewProjectButton } from "@/components/editor/new-project-button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,14 @@ export default function VideoPage({ params }: PageProps<"/videos/[id]">) {
 async function VideoDetail({ id }: { id: string }) {
   const job = await getMyVideoJob(id);
   if (job && (job.status === "queued" || job.status === "running" || job.status === "paused")) {
-    return <VideoJobProgress job={job} createdLabel={formatDate(job.createdAt)} />;
+    return (
+      <VideoJobProgress
+        job={job}
+        createdLabel={formatDate(job.createdAt)}
+        backHref="/videos"
+        backLabel="My videos"
+      />
+    );
   }
   const video = await getMyVideo(id);
   if (!video) notFound();
@@ -120,6 +128,7 @@ async function VideoDetail({ id }: { id: string }) {
                 ? "This file is the clip the model filmed. Nothing is posted anywhere until you share it yourself."
                 : "This one is a drawn preview. Generate again to film it with a video model."}
             </p>
+            <DeleteVideoButton id={video.id} title={video.title} redirectTo="/videos" />
           </div>
 
           <div className="flex flex-col gap-4">
@@ -262,6 +271,7 @@ function FailedVideo({
         </span>
         <span className="text-muted-foreground">{video.error}</span>
         <RetryVideoMenu videoId={video.id} scratchHref={scratchHref} clipsReady={clipsReady} clipTotal={clipTotal} />
+        <DeleteVideoButton id={video.id} title={video.title} redirectTo="/videos" />
       </div>
       {video.facts.length > 0 && <Sources video={video} />}
     </div>

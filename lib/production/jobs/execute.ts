@@ -253,6 +253,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
     const production = await db.production.findUnique({ where: { id: productionId } });
     const { styleLockForProduction } = await import("@/lib/video/style-lock");
     const styleLock = await styleLockForProduction(production?.presetId, production?.visualDirection, production?.userId);
+    const source = await currentEntityData<InputRecord>(productionId, "input", "input");
     const prompt = compileShotPrompt({
       corrections: previousTake
         ? [...previousTake.deviations, ...previousTake.incompleteActions.map((action) => `not completed: ${action}`)]
@@ -278,6 +279,7 @@ export const executeStep = async (userId: string, productionId: string, step: { 
         .filter((character) => shot.characterIds.includes(character.id))
         .map((character) => `${character.name}: ${character.appearance}, ${character.clothing}`),
       locationNotes: structure?.locations.find((location) => location.id === scene?.locationId)?.description ?? "",
+      silent: source?.voiceover === false,
     });
     const result = await runAdapter({
       productionId,

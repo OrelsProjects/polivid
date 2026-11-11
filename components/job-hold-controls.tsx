@@ -21,7 +21,7 @@ export const JobHoldControls = ({ job }: { job: VideoJobView }) => {
   const lyrics = job.mode === "lyrics" && job.clipTotal > 1;
   const stopping = job.stopping && job.status === "running";
   const showStop = canStopAfterClip(job) || stopping;
-  const showContinue = job.status === "paused";
+  const showContinue = job.status === "paused" && !job.needsModel;
 
   const handleStop = async () => {
     if (pausing || stopping) return;

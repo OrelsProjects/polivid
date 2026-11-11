@@ -9,6 +9,11 @@ import {
 import { isVideoTier, TIER_LABELS, videoModeById } from "./modes";
 import { presetById } from "./presets";
 import { formatClipSplit, isStitchedMode, planSegments } from "./segments";
+import { backgroundById } from "./backgrounds";
+import { CAPTIONS_MODEL } from "./captions";
+import { describeEdit, EDIT_MODEL, isEditOp } from "./edit-ops";
+import { LOOP_MODEL, STILLS_MODEL, stillsUseDraft } from "./stills";
+import { toolBySlug } from "./tool-catalog";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "../voice/constants";
 
 const PROVIDERS: Record<string, string> = {
@@ -62,11 +67,26 @@ export const jobDetailRows = (
     }
     push(rows, "Tool", "Model", model.slug);
     if (job.mode === "lyrics") push(rows, "Tool", "Song", "ElevenLabs Music");
+  } else if (job.model === STILLS_MODEL) {
+    push(rows, "Tool", "About", "One drawn picture for each part of the script, moved slowly by the camera, with a voice and captions.");
+    push(rows, "Tool", "Pictures", stillsUseDraft(job.tier) ? "Draft quality" : "Final quality");
+  } else if (job.model === EDIT_MODEL) {
+    push(rows, "Tool", "About", "One plain change to an uploaded video. No model is involved.");
+    if (isEditOp(job.op)) push(rows, "Tool", "Edit", describeEdit(job.op, job.opValue));
+  } else if (job.model === CAPTIONS_MODEL) {
+    push(rows, "Tool", "About", "The words in your video are transcribed, timed, and drawn into the picture.");
+  } else if (job.model === LOOP_MODEL) {
+    push(rows, "Tool", "About", "A voice reads the text over a looping background clip, with captions that follow the words.");
+    push(rows, "Tool", "Background", job.backgroundKey ? "Your own clip" : (backgroundById(job.backgroundId)?.name ?? ""));
   } else if (job.model && job.model !== "editor") {
     push(rows, "Tool", "Model", job.model);
   }
+  if (job.verbatim) push(rows, "This video", "Script", "Read word for word");
+  push(rows, "This video", "Source link", job.sourceUrl);
 
   const mode = videoModeById(job.mode);
+  const tool = toolBySlug(job.tool);
+  if (tool && tool.slug !== job.mode) push(rows, "This video", "Made with", tool.title);
   if (mode) {
     push(rows, "This video", "Mode", mode.title);
     push(rows, "This video", "Mode details", mode.description);
@@ -93,7 +113,7 @@ export const jobDetailRows = (
     const lengths =
       job.mode === "prompt" && job.cuts.length > 1
         ? job.cuts.map((cut) => cut.seconds)
-        : planSegments(job.length, model.durations);
+        : planSegments(job.length, model.durations, job.clips || undefined);
     push(rows, "This video", "Clips", formatClipSplit(lengths));
   }
   push(rows, "This video", "Prompt", job.prompt);

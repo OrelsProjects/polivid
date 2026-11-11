@@ -18,8 +18,12 @@ export const timelineEditTools = [
     name: "edit_read_timeline",
     title: "Read the timeline",
     category: "editor",
-    summary: "List the tracks and clips in the open project, with ids and times in seconds.",
-    whenToUse: ["Before any edit, so you use real clip ids.", "When they ask what is on the timeline."],
+    summary:
+      "List the tracks and clips in the open project, with ids and times in seconds. The sound field says whether a Voiceover clip was added after filming.",
+    whenToUse: [
+      "Before any edit, so you use real clip ids.",
+      "When they ask what is on the timeline, or where a voice is coming from.",
+    ],
     inputSchema: z.object({ projectId: projectField() }),
     effects: { readOnly: true, spendsCredits: false, destructive: false, longRunning: false },
     approval: "none",
@@ -100,7 +104,10 @@ export const timelineEditTools = [
     title: "Remove a clip",
     category: "editor",
     summary: `Delete a clip. Free. ${oneClip}`,
-    whenToUse: ["They want a title, a song, or a split piece gone."],
+    whenToUse: [
+      "They want a title, a song, a Voiceover clip, or a split piece gone.",
+      "They want a voice that was added after filming taken off. Remove the Voiceover clip. That is free.",
+    ],
     inputSchema: z.object({
       projectId: projectField(),
       itemId: idField("Clip id from edit_read_timeline."),
@@ -153,8 +160,13 @@ export const timelineEditTools = [
     name: "edit_set_volume",
     title: "Set volume",
     category: "editor",
-    summary: "Change a clip's volume, or mute a track. Free.",
-    whenToUse: ["The song is too loud, or they want a track silent."],
+    summary:
+      "Change a clip's volume, or mute a track. Free. Turn down the Voiceover clip, or set an older mixed video clip to 0.",
+    whenToUse: [
+      "The song or the Voiceover clip is too loud, or they want a track silent.",
+      "sound.kind is mixed. Set sound.videoItemId to volume 0. That silences the whole older clip.",
+    ],
+    avoidWhen: ["They want the voice gone and a Voiceover clip is on the Audio track. Use edit_remove. Do not start a new video."],
     inputSchema: z.object({
       projectId: projectField(),
       itemId: idField("Audio or video clip id.").optional(),

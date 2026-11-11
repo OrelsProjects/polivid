@@ -30,21 +30,21 @@ const TOOLS = [
     title: "Article to video",
     body: "Paste a post",
     icon: FileText,
-    tint: "bg-glow/15 text-indigo-300",
+    tint: "bg-glow/15 text-indigo-700",
   },
   {
     href: "/create?input=data",
     title: "Data story",
     body: "Sourced charts",
     icon: BarChart3,
-    tint: "bg-hot/15 text-pink-300",
+    tint: "bg-hot/15 text-pink-700",
   },
   {
     href: "/create/voiceover",
     title: "Voiceover video",
     body: "Script or a link",
     icon: Mic,
-    tint: "bg-sky-400/10 text-sky-300",
+    tint: "bg-sky-500/10 text-sky-700",
   },
 ] as const;
 

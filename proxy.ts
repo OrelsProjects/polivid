@@ -32,5 +32,7 @@ export const config = {
     "/characters/:path*",
     "/coach",
     "/coach/:path*",
+    "/studio",
+    "/studio/:path*",
   ],
 };

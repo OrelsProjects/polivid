@@ -4,20 +4,25 @@ import { planSegments } from "@/lib/video/segments";
 /** One cut per second, and never more than this, so a long video cannot ask for hundreds of clips. */
 export const MAX_CUTS = 60;
 export const MAX_CUT_CAMERA = 200;
+export const MAX_CUT_ACTION = 400;
 
 export const MAX_BRIEF_LINE = 500;
 export const MAX_DIRECTOR_LINE = 800;
 
 /** What an uploaded picture is for. The planner assigns these; the user does not label them. */
-export const ATTACHMENT_ROLES = ["subject", "person", "product", "location", "framing"] as const;
+export const ATTACHMENT_ROLES = ["subject", "person", "product", "location", "storyboard", "framing"] as const;
 export type AttachmentRole = (typeof ATTACHMENT_ROLES)[number];
 
 /** Subject and people stay ahead of the place, which stays ahead of framing references. */
-const ROLE_ORDER: readonly AttachmentRole[] = ["subject", "person", "product", "location", "framing"];
+const ROLE_ORDER: readonly AttachmentRole[] = ["subject", "person", "product", "location", "storyboard", "framing"];
 
 export interface ShotCut {
   seconds: number;
   camera: string;
+  /** What happens in this shot only. Empty on older cuts and on lyrics cuts. */
+  action?: string;
+  /** True when this shot stays in the same place as the previous one. */
+  samePlace?: boolean;
   /** 1-based attachment indexes for this shot. Missing means every attachment. */
   images?: number[];
 }
@@ -57,6 +62,9 @@ export const isAttachmentRole = (value: string | undefined): value is Attachment
 const cleanCamera = (camera: string | undefined) =>
   (camera ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_CUT_CAMERA);
 
+const cleanAction = (action: string | undefined) =>
+  (action ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_CUT_ACTION);
+
 const cleanImages = (images: readonly number[] | undefined): number[] | undefined => {
   if (!images || images.length === 0) return undefined;
   const next: number[] = [];
@@ -68,8 +76,18 @@ const cleanImages = (images: readonly number[] | undefined): number[] | undefine
   return next.length > 0 ? next : undefined;
 };
 
-const withImages = (seconds: number, camera: string, images: number[] | undefined): ShotCut =>
-  images && images.length > 0 ? { seconds, camera, images } : { seconds, camera };
+const withCut = (
+  seconds: number,
+  cut: { camera?: string; images?: number[]; action?: string; samePlace?: boolean },
+): ShotCut => {
+  const images = cleanImages(cut.images);
+  const action = cleanAction(cut.action);
+  const next: ShotCut = { seconds, camera: cleanCamera(cut.camera) };
+  if (action) next.action = action;
+  if (cut.samePlace === true || cut.samePlace === false) next.samePlace = cut.samePlace;
+  if (images && images.length > 0) next.images = images;
+  return next;
+};
 
 /**
  * Makes the cuts add up to `length`. A long or short list is fixed by changing the last cut.
@@ -77,7 +95,7 @@ const withImages = (seconds: number, camera: string, images: number[] | undefine
  * A cut longer than `maxSeconds` is split so one clip can film it.
  */
 export const normalizeCuts = (
-  cuts: readonly { seconds: number; camera?: string; images?: number[] }[],
+  cuts: readonly { seconds: number; camera?: string; images?: number[]; action?: string; samePlace?: boolean }[],
   length: number,
   maxSeconds?: number,
 ): ShotCut[] => {
@@ -88,7 +106,7 @@ export const normalizeCuts = (
   for (const cut of cuts) {
     const seconds = Math.round(cut.seconds);
     if (!Number.isInteger(seconds) || seconds < 1) continue;
-    cleaned.push(withImages(seconds, cleanCamera(cut.camera), cleanImages(cut.images)));
+    cleaned.push(withCut(seconds, cut));
     if (cleaned.length >= cap) break;
   }
   const fitted = (cleaned.length > 0 ? cleaned : [{ seconds: target, camera: "" }]).map((cut) => ({ ...cut }));
@@ -126,11 +144,11 @@ export const normalizeCuts = (
     while (left > 0) {
       const room = cap - pieces.length;
       if (room <= 1 || left <= limit) {
-        if (room >= 1) pieces.push(withImages(left, cut.camera, cut.images));
+        if (room >= 1) pieces.push(withCut(left, cut));
         else pieces[pieces.length - 1]!.seconds += left;
         break;
       }
-      pieces.push(withImages(limit, cut.camera, cut.images));
+      pieces.push(withCut(limit, cut));
       left -= limit;
     }
   }
@@ -143,7 +161,7 @@ export const normalizeCuts = (
  * No cut drops below 1 second or rises above `maxSeconds`, and the order stays put.
  */
 export const retimeCut = (
-  cuts: readonly { seconds: number; camera?: string; images?: number[] }[],
+  cuts: readonly { seconds: number; camera?: string; images?: number[]; action?: string; samePlace?: boolean }[],
   index: number,
   seconds: number,
   length: number,
@@ -208,9 +226,9 @@ export const filmedSecondsForCuts = (
 };
 
 /** Equal model-legal cuts with no camera line. Used when the planner cannot run. */
-export const fallbackCuts = (length: number, durations: readonly number[], maxSeconds: number): ShotCut[] =>
+export const fallbackCuts = (length: number, durations: readonly number[], maxSeconds: number, clips?: number): ShotCut[] =>
   normalizeCuts(
-    planSegments(length, durations).map((seconds) => ({ seconds, camera: "" })),
+    planSegments(length, durations, clips).map((seconds) => ({ seconds, camera: "" })),
     length,
     maxSeconds,
   );
@@ -279,7 +297,7 @@ export const promptPlanFromOutput = (
     mustKeep?: string;
     mustAvoid?: string;
     attachmentRoles?: { index: number; role: string }[];
-    cuts?: { seconds: number; camera?: string; images?: number[] }[];
+    cuts?: { seconds: number; camera?: string; images?: number[]; action?: string; samePlace?: boolean }[];
   } | null,
   input: { length: number; durations: readonly number[]; referenceCount: number },
 ): PromptShotPlan => {
@@ -294,7 +312,7 @@ export const promptPlanFromOutput = (
   const cuts = normalizeCuts(rawCuts, input.length, maxSeconds).map((cut) => {
     if (!cut.images) return cut;
     const images = cut.images.filter((index) => index <= input.referenceCount);
-    return images.length > 0 ? { ...cut, images } : { seconds: cut.seconds, camera: cut.camera };
+    return images.length > 0 ? { ...cut, images } : { ...cut, images: undefined };
   });
   return { brief, attachmentRoles, cuts };
 };
@@ -313,6 +331,9 @@ const roleSentence = (role: AttachmentRole, start: number, end: number) => {
   }
   if (role === "location") {
     return `${label} ${plural ? "show" : "shows"} the location: match the set and light.`;
+  }
+  if (role === "storyboard") {
+    return `${label} ${plural ? "are" : "is"} the storyboard frame for this shot. Match its framing, pose, and setting, and keep the same person.`;
   }
   return `${label} ${plural ? "show" : "shows"} framing: copy the camera and composition, not the people.`;
 };
@@ -363,26 +384,30 @@ export const promptShotReferences = (input: {
 export const promptShotPrompt = (input: {
   brief: PromptBrief;
   camera: string;
+  /** What happens in this shot only. When set, the whole-video scene and keep lines stay off the clip. */
+  action?: string;
   referenceNote: string;
-  /** Used when this cut has no camera line, so a fallback plan still films the request. */
+  /** Used when this cut has no action and no camera line. */
   fallbackAction: string;
   continued: boolean;
+  /** Say the shot continues the previous one only when it stays in the same place. */
+  samePlace?: boolean;
 }) => {
   const camera = input.camera.trim();
+  const action = input.action?.trim() ?? "";
   const fallback = input.fallbackAction.trim();
-  const action = camera
-    ? `Camera: ${camera}`
-    : input.continued && fallback
-      ? `Continue the same scene. ${fallback}`
-      : fallback;
+  const ownBeat = action.length > 0;
+  const beat = ownBeat ? action : camera ? "" : input.continued && fallback ? fallback : fallback;
   return [
-    "One continuous shot. Do not change the location or cut to a new angle inside this clip.",
+    "One continuous shot. Film only this beat. Do not show events from other beats.",
+    input.continued && input.samePlace ? "This shot continues from the previous shot, in the same place." : "",
     input.brief.subject ? `Subject: ${input.brief.subject} Keep this subject the same in every shot.` : "",
-    input.brief.setting ? `Scene: ${input.brief.setting}` : "",
     input.brief.director ? `Direction: ${input.brief.director}` : "",
-    input.brief.mustKeep ? `Keep: ${input.brief.mustKeep}` : "",
+    ownBeat ? "" : input.brief.setting ? `Scene: ${input.brief.setting}` : "",
+    ownBeat ? "" : input.brief.mustKeep ? `Keep: ${input.brief.mustKeep}` : "",
     input.brief.mustAvoid ? `Avoid: ${input.brief.mustAvoid}` : "",
-    action,
+    beat ? `Action: ${beat}` : "",
+    camera ? `Camera: ${camera}` : "",
     input.referenceNote.trim(),
   ]
     .filter((part) => part.trim().length > 0)

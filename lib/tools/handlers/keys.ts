@@ -2,6 +2,7 @@
 export const HANDLER_KEYS = [
   "make_prompt_video",
   "make_voiceover_video",
+  "make_shorts_video",
   "make_motion_graphics",
   "make_music_video",
   "make_avatar_video",
@@ -9,8 +10,10 @@ export const HANDLER_KEYS = [
   "make_av_cut",
   "make_lyrics_video",
   "add_captions",
+  "quick_edit_video",
   "create_video",
   "start_production",
+  "make_storyboard",
   "plan_shots",
   "improve_narration",
   "polish_look",

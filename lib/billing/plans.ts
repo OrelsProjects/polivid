@@ -94,6 +94,9 @@ export const MOTION_GRAPHICS_CREDITS: Record<"low" | "pro" | "ultra", number> = 
   ultra: 80,
 };
 
+/** Captioning transcribes an upload and films nothing, so it has one price whatever the length. */
+export const CAPTIONS_CREDITS = 10;
+
 export const isPlanId = (value: string): value is PlanId => (PLAN_IDS as readonly string[]).includes(value);
 
 export const isPaidPlanId = (value: string): value is PaidPlanId =>

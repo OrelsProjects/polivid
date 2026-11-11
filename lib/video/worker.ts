@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getProjectForUser, rememberProjectExport } from "@/lib/editor/projects";
 import { renderEditProject } from "@/lib/editor/render";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
-import { createVideo, saveReadyVideo } from "@/lib/videos";
+import { saveVideoForJob } from "@/lib/videos";
 import { composeSong } from "@/lib/music/compose";
 import { signedGetUrl } from "@/lib/storage/s3";
 import { isImageKey } from "@/lib/storage/upload-key";
@@ -13,54 +13,36 @@ import { extractSongBrief } from "@/lib/music/song-brief";
 import { normalizeCuts, planShotsFromCuts, planSongSections, songReferences, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
 import { readSongDraft, readSongDraftAudio } from "@/lib/music/song-draft";
 import { singAs } from "@/lib/music/sing-as";
-import { mixNarration, narrationAudio, resolveCharacterVoice } from "@/lib/voice/speak";
+import { narrationAudio, resolveCharacterVoice, speakFittedBeats } from "@/lib/voice/speak";
 import { clipFinishData, clipStartData } from "./clip-timing";
 import { DEMO_FACTS, DEMO_PLAN, DEMO_QUOTES } from "./demo";
-import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, saveFootage, type FootageRequest } from "./footage";
+import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, saveFootage, storeVoiced, type FootageRequest } from "./footage";
 import { progressFor, readJobInput } from "./job-status";
 import { markVideoJobProgress, transitionVideoJob } from "./jobs";
 import { deleteVideoMedia, putVideoMedia, readVideoMedia, signedVideoMediaUrl } from "./media-store";
 import { footageFromPrepared, prepareModeJob, referenceImageDataUrl, resolveJobPreset, type PreparedJob } from "./mode-prepare";
 import { NO_ON_SCREEN_TEXT } from "./on-screen-text";
 import { clipDuration, clipResolution, generationModelBySlug, isVideoProvider, type VideoProvider } from "./models";
+import { CLIP_ATTEMPTS, clipFailureAction, MODEL_CHOICE_CODE, ModelChoiceNeeded } from "./model-choice";
 import { lyricsClipDurations, singerModelsFor } from "./singer-models";
 import { modeNeedsUpload, videoModeById } from "./modes";
 import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
 import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 import { shouldHoldAfterClip } from "./job-stages";
 import { AUTO_PRESET_ID, withVisualStyle } from "./presets";
-import { filmSecondsFor, type AttachmentAssignment, type PromptBrief } from "./shot-plan";
+import { filmSecondsFor } from "./shot-plan";
 import { isStitchedMode, planSegments, readStitchPlan, segmentMediaKey } from "./segments";
 import { assembleSongVideo, lastFrameDataUrl, sliceSong, stitchClips } from "./stitch";
+import { voiceBeatTimings } from "./beat-text";
 import { writeBeats } from "./beats";
+import { composeCaptions } from "./compose/captions";
+import { composeEdit } from "./compose/edit";
+import { composeLoop } from "./compose/loop";
+import { composeStills } from "./compose/stills";
+import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
 const FILMING_PROGRESS = progressFor("images") - 1;
-
-interface JobInput {
-  prompt: string;
-  format: VideoFormat;
-  length: number;
-  model: string;
-  mode?: string;
-  tier?: string;
-  resolution?: string;
-  mediaKey?: string;
-  referenceKeys?: string[];
-  showText?: boolean;
-  projectId?: string;
-  presetId?: string;
-  visualDirection?: string;
-  direction?: string;
-  scene?: string;
-  directionKeys?: string[];
-  sceneKeys?: string[];
-  characterId?: string;
-  songId?: string;
-  cuts?: { seconds: number; camera: string; images?: number[] }[];
-  brief?: PromptBrief;
-  attachmentRoles?: AttachmentAssignment[];
-}
 
 /** One promise per video, so several can film at once. Kept here so a finished request does not drop a long render. */
 const runs = new Map<string, Promise<void>>();
@@ -75,11 +57,21 @@ const track = (jobId: string, run: Promise<void>) => {
   return wrapped;
 };
 
-/** Starts this video now. A video this process is already filming is left alone. */
+/**
+ * Starts this video now. A video this process is already filming is left alone.
+ * Continuing with another model marks the job running first, so that case films the running job instead of trying to queue it again.
+ */
 export const startVideoJob = (userId: string, jobId: string) => {
   const existing = runs.get(jobId);
   if (existing) return existing;
-  return track(jobId, filmQueuedJob(userId, jobId));
+  return track(
+    jobId,
+    (async () => {
+      const job = await db.videoJob.findFirst({ where: { id: jobId, userId }, select: { status: true } });
+      if (job?.status === "running") return filmRunningJob(userId, jobId);
+      return filmQueuedJob(userId, jobId);
+    })(),
+  );
 };
 
 /**
@@ -110,6 +102,18 @@ export const resumeOpenVideos = async (userId: string) => {
   }
 };
 
+/** Picks what makes this job. A queued job and a restarted one take the same path. */
+const runJob = async (userId: string, jobId: string, input: JobInput) => {
+  if (input.mode === "editor-export") return filmEditorExport(userId, jobId, input);
+  if (input.mode === "edit") return composeEdit(userId, jobId, input);
+  if (input.mode === "captions") return composeCaptions(userId, jobId, input);
+  if (!hasOpenRouterKey()) return filmDemo(userId, jobId, input);
+  if (input.media === "stills") return composeStills(userId, jobId, input);
+  if (input.media === "loop") return composeLoop(userId, jobId, input);
+  if (input.mode === "motion-graphics") return filmMotion(userId, jobId, input);
+  return filmWithModel(userId, jobId, input);
+};
+
 const filmQueuedJob = async (userId: string, jobId: string) => {
   try {
     await transitionVideoJob(jobId, "running");
@@ -130,17 +134,10 @@ const filmQueuedJob = async (userId: string, jobId: string) => {
       throw new Error("Upload a file for this mode.");
     }
 
-    if (input.mode === "editor-export") {
-      await filmEditorExport(userId, jobId, toJobInput(input));
-    } else if (!hasOpenRouterKey()) {
-      await filmDemo(userId, jobId, toJobInput(input));
-    } else if (input.mode === "motion-graphics") {
-      await filmMotion(userId, jobId, toJobInput(input));
-    } else {
-      await filmWithModel(userId, jobId, toJobInput(input));
-    }
+    await runJob(userId, jobId, toJobInput(input));
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (await askForAnotherModel(userId, jobId, input.model, error)) return;
     if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
     const message = footageErrorMessage(error);
@@ -156,21 +153,10 @@ const filmRunningJob = async (userId: string, jobId: string) => {
   const input = readJobInput(job.input);
   if (!isFormat(input.format) || !input.model || input.length < 2) return;
   try {
-    if (input.mode === "editor-export") {
-      await filmEditorExport(userId, jobId, toJobInput(input));
-      return;
-    }
-    if (!hasOpenRouterKey()) {
-      await filmDemo(userId, jobId, toJobInput(input));
-      return;
-    }
-    if (input.mode === "motion-graphics") {
-      await filmMotion(userId, jobId, toJobInput(input));
-      return;
-    }
-    await filmWithModel(userId, jobId, toJobInput(input));
+    await runJob(userId, jobId, toJobInput(input));
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (await askForAnotherModel(userId, jobId, input.model, error)) return;
     if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
     const message = footageErrorMessage(error);
@@ -178,6 +164,22 @@ const filmRunningJob = async (userId: string, jobId: string) => {
     await saveFailedVideo(userId, jobId, input, message);
     await transitionVideoJob(jobId, "failed", { error: message });
   }
+};
+
+/** Three tries are used up. Pause with the filmed clips kept, and wait for another model. */
+const askForAnotherModel = async (userId: string, jobId: string, model: string, error: unknown) => {
+  if (!(error instanceof ModelChoiceNeeded)) return false;
+  if (!(await isStillRunning(userId, jobId))) return true;
+  await failOpenClips(jobId, model);
+  try {
+    await transitionVideoJob(jobId, "paused", {
+      error: error.message,
+      errorDetail: { code: MODEL_CHOICE_CODE },
+    });
+  } catch (cause) {
+    console.error("Could not pause the video for another model", cause);
+  }
+  return true;
 };
 
 const filmEditorExport = async (userId: string, jobId: string, input: JobInput) => {
@@ -190,7 +192,7 @@ const filmEditorExport = async (userId: string, jobId: string, input: JobInput) 
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
   const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / FPS));
   const plan = footagePlan(project.title, length, project.title);
-  await createVideo(userId, {
+  await saveVideoForJob(userId, {
     ...readyRecord(jobId, { ...input, length }, plan, length, false),
     title: project.title,
     parentVideoId: project.sourceVideoId,
@@ -224,19 +226,20 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     (approvedCuts
       ? approvedCuts.map((cut) => cut.seconds)
       : stitch
-        ? planSegments(input.length, model.durations)
+        ? planSegments(input.length, model.durations, input.clips)
         : [clipDuration(input.length, model.durations)]);
   const prepared = await prepareModeJob(userId, {
     ...input,
     segments: stitch && segments.length > 1 ? segments : undefined,
     existingBeats: saved?.beats,
     existingSpoken: readSpoken(job?.artifacts),
+    existingSpokenBeats: readSpokenBeats(job?.artifacts),
     cuts: approvedCuts ?? undefined,
     brief: input.brief,
     attachmentRoles: input.attachmentRoles,
   });
-  if (prepared.spoken) await rememberSpoken(jobId, job?.artifacts, prepared.spoken);
-  const speech = await narrationAudio(userId, input.characterId, prepared.spoken);
+  if (prepared.spoken) await rememberSpoken(jobId, job?.artifacts, prepared.spoken, prepared.spokenBeats);
+  const speech = await speechForCuts(userId, input.characterId, prepared, segments.length > 0 ? segments : [input.length]);
   if (prepared.reuseUploadAsFootage && prepared.mediaBytes) {
     await storeClip(userId, jobId, input, input.length, prepared.mediaBytes, prepared.transcript ?? prepared.prompt);
     return;
@@ -246,13 +249,14 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     return;
   }
   if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
-  const clip = await renderFootage(
+  const clip = await filmClipWithRetries(
+    jobId,
+    0,
     footageFromPrepared(prepared),
     () => isStillRunning(userId, jobId),
-    (providerJobId, provider) => rememberProviderJob(jobId, providerJobId, provider, 0, input.model),
+    null,
   );
-  await finishSceneClip(jobId, 0, "completed", input.model);
-  const voiced = speech ? await mixNarration(clip.bytes, speech, clip.durationSec) : clip.bytes;
+  const voiced = speech ? await storeVoiced(jobId, clip.bytes, speech, clip.durationSec) : clip.bytes;
   await storeClip(userId, jobId, input, clip.durationSec, voiced, prepared.spoken?.trim() || prepared.prompt);
 };
 
@@ -269,7 +273,7 @@ const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
     if (!(await markVideoJobProgress(jobId, "images", 40))) return;
     const { plan, lint } = await buildScenePlan(generateInput, research, searchSources);
     if (lint.errors[0]) throw new Error(lint.errors[0]);
-    await createVideo(userId, {
+    await saveVideoForJob(userId, {
       ...readyRecord(jobId, input, normalizePlan(plan, input.length), input.length, false),
       facts: research.facts,
       quotes: research.quotes,
@@ -278,7 +282,7 @@ const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
     });
   } else {
     const plan = normalizePlan(await writeScript(generateInput), input.length);
-    await createVideo(userId, readyRecord(jobId, input, plan, input.length, false));
+    await saveVideoForJob(userId, readyRecord(jobId, input, plan, input.length, false));
   }
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
@@ -305,10 +309,11 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
     const spoken = readSpoken(job.artifacts);
     const durationSec = clipDuration(input.length, model.durations);
     const speech = await narrationAudio(userId, jobInput.characterId, spoken);
-    const voiced = speech ? await mixNarration(bytes, speech, durationSec) : bytes;
+    const voiced = speech ? await storeVoiced(jobId, bytes, speech, durationSec) : bytes;
     await storeClip(userId, jobId, jobInput, durationSec, voiced, spoken || undefined);
   } catch (error) {
     if (error instanceof FootageStopped) return;
+    if (await askForAnotherModel(userId, jobId, input.model, error)) return;
     if (leaveRunningOnSilence(jobId, error)) return;
     if (!(await isStillRunning(userId, jobId))) return;
     const message = footageErrorMessage(error);
@@ -329,7 +334,7 @@ const storeClip = async (
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
   await saveFootage(jobId, bytes);
   const plan = footagePlan(input.prompt, durationSec, input.showText === false ? "" : narration);
-  await saveReadyVideo(userId, readyRecord(jobId, input, plan, durationSec, false));
+  await saveVideoForJob(userId, readyRecord(jobId, input, plan, durationSec, false));
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
   await transitionVideoJob(jobId, "succeeded", {
@@ -422,7 +427,7 @@ const publishPartial = async (
   let bytes = await stitchClips(stored, segments.slice(0, stored.length));
   if (speech) {
     try {
-      bytes = await mixNarration(bytes, speech, duration);
+      bytes = await storeVoiced(jobId, bytes, speech, duration);
     } catch (error) {
       console.error("Could not add narration to the partial video", error);
     }
@@ -442,7 +447,7 @@ const pauseWithCut = async (
 ) => {
   if (!(await isStillRunning(userId, jobId))) return;
   await saveFootage(jobId, bytes);
-  await saveReadyVideo(
+  await saveVideoForJob(
     userId,
     readyRecord(jobId, input, footagePlan(input.prompt, duration, input.showText === false ? "" : narration), duration, false),
   );
@@ -800,6 +805,7 @@ const filmSegments = async (
         segments,
         beats,
         spoken: prepared.spoken ?? "",
+        spokenBeats: prepared.spokenBeats ?? [],
         brief: input.brief
           ? {
               subject: input.brief.subject,
@@ -814,6 +820,8 @@ const filmSegments = async (
         cuts: (input.cuts ?? []).map((cut) => ({
           seconds: cut.seconds,
           camera: cut.camera,
+          ...(cut.action ? { action: cut.action } : {}),
+          ...(typeof cut.samePlace === "boolean" ? { samePlace: cut.samePlace } : {}),
           ...(cut.images ? { images: cut.images } : {}),
         })),
       },
@@ -850,7 +858,7 @@ const filmSegments = async (
 
   const stitched = await stitchClips(clipBytes, segments);
   const duration = segments.reduce((sum, part) => sum + part, 0);
-  const voiced = speech ? await mixNarration(stitched, speech, duration) : stitched;
+  const voiced = speech ? await storeVoiced(jobId, stitched, speech, duration) : stitched;
   await storeClip(userId, jobId, input, duration, voiced, prepared.spoken?.trim() || beats.join("\n\n"));
   await Promise.all(segments.map((_, index) => deleteVideoMedia(segmentKey(jobId, index)).catch(() => undefined)));
 };
@@ -880,36 +888,10 @@ const filmOneSegment = async (input: {
     inputReferences: referencesForShot(input.prepared, input.index),
   };
   const shouldContinue = () => isStillRunning(input.userId, input.jobId);
-
   const open = await db.providerJob.findFirst({
     where: { jobId: input.jobId, sceneIdx: input.index, status: { in: ["pending", "in_progress"] } },
   });
-  if (open) {
-    try {
-      const model = generationModelBySlug(input.input.model);
-      const bytes = await finishFootage(
-        open.providerJobId,
-        isVideoProvider(open.provider) ? open.provider : (model?.provider ?? "openrouter"),
-        shouldContinue,
-      );
-      await finishProviderClip(open.providerJobId, "completed", input.input.model);
-      await putVideoMedia(key, bytes, "video/mp4");
-      return { bytes, cached: false };
-    } catch (error) {
-      if (error instanceof FootageStopped) throw error;
-      if (error instanceof TypeError && (error.message === "fetch failed" || error.message === "terminated")) throw error;
-      await finishProviderClip(open.providerJobId, "failed", input.input.model);
-      console.error("Clip failed, retrying once", { jobId: input.jobId, sceneIdx: input.index, error });
-      const clip = await renderFootage(request, shouldContinue, (providerJobId, provider) =>
-        rememberProviderJob(input.jobId, providerJobId, provider, input.index, input.input.model),
-      );
-      await finishSceneClip(input.jobId, input.index, "completed", input.input.model);
-      await putVideoMedia(key, clip.bytes, "video/mp4");
-      return { bytes: clip.bytes, cached: false };
-    }
-  }
-
-  const clip = await renderSegmentWithRetry(input.jobId, input.index, request, shouldContinue);
+  const clip = await filmClipWithRetries(input.jobId, input.index, request, shouldContinue, open);
   await putVideoMedia(key, clip.bytes, "video/mp4");
   return { bytes: clip.bytes, cached: false };
 };
@@ -923,27 +905,55 @@ const referencesForShot = (prepared: PreparedJob, index: number) => {
   return index === 0 ? prepared.inputReferences : undefined;
 };
 
-const renderSegmentWithRetry = async (
+const stopsTheWait = (error: unknown) =>
+  error instanceof FootageStopped ||
+  (error instanceof TypeError && (error.message === "fetch failed" || error.message === "terminated"));
+
+/** Tries the same model three times. The third failure asks for a different model. */
+const filmClipWithRetries = async (
   jobId: string,
   sceneIdx: number,
   request: FootageRequest,
   shouldContinue: () => Promise<boolean>,
+  open: { providerJobId: string; provider: string } | null,
 ) => {
-  const submit = async () => {
-    const clip = await renderFootage(request, shouldContinue, (providerJobId, provider) =>
-      rememberProviderJob(jobId, providerJobId, provider, sceneIdx, request.model),
-    );
-    await finishSceneClip(jobId, sceneIdx, "completed", request.model);
-    return clip;
-  };
-  try {
-    return await submit();
-  } catch (error) {
-    if (error instanceof FootageStopped) throw error;
-    if (error instanceof TypeError && (error.message === "fetch failed" || error.message === "terminated")) throw error;
-    console.error("Clip failed, retrying once", { jobId, sceneIdx, error });
-    return submit();
+  let resume = open;
+  let last: unknown;
+  for (let attempt = 1; attempt <= CLIP_ATTEMPTS; attempt += 1) {
+    try {
+      if (resume) {
+        const model = generationModelBySlug(request.model);
+        const bytes = await finishFootage(
+          resume.providerJobId,
+          isVideoProvider(resume.provider) ? resume.provider : (model?.provider ?? "openrouter"),
+          shouldContinue,
+        );
+        await finishProviderClip(resume.providerJobId, "completed", request.model);
+        return { durationSec: clipDuration(request.length, model?.durations ?? [request.length]), bytes };
+      }
+      const clip = await renderFootage(request, shouldContinue, (providerJobId, provider) =>
+        rememberProviderJob(jobId, providerJobId, provider, sceneIdx, request.model),
+      );
+      await finishSceneClip(jobId, sceneIdx, "completed", request.model);
+      return clip;
+    } catch (error) {
+      const action = clipFailureAction(attempt, stopsTheWait(error));
+      if (action === "stop") throw error;
+      last = error;
+      if (resume) {
+        await finishProviderClip(resume.providerJobId, "failed", request.model);
+        resume = null;
+      } else {
+        await finishSceneClip(jobId, sceneIdx, "failed", request.model);
+      }
+      if (action === "retry") {
+        console.error("Clip failed, trying again", { jobId, sceneIdx, attempt, error });
+        continue;
+      }
+      throw new ModelChoiceNeeded(footageErrorMessage(error));
+    }
   }
+  throw new ModelChoiceNeeded(footageErrorMessage(last));
 };
 
 const filmDemo = async (userId: string, jobId: string, input: JobInput) => {
@@ -953,7 +963,7 @@ const filmDemo = async (userId: string, jobId: string, input: JobInput) => {
     facts: DEMO_FACTS,
     quotes: DEMO_QUOTES,
   };
-  await createVideo(userId, record);
+  await saveVideoForJob(userId, record);
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
   await transitionVideoJob(jobId, "succeeded", { outputUrl: null, error: null });
@@ -964,7 +974,7 @@ const saveFailedVideo = async (userId: string, jobId: string, input: ReturnType<
   if (input.mode === "editor-export") return;
   const format = isFormat(input.format) ? input.format : "9:16";
   try {
-    await createVideo(userId, {
+    await saveVideoForJob(userId, {
       id: jobId,
       prompt: input.prompt,
       format,
@@ -994,38 +1004,6 @@ const leaveRunningOnSilence = (jobId: string, error: unknown) => {
   return true;
 };
 
-const isStillRunning = async (userId: string, jobId: string) => {
-  const updated = await db.videoJob.updateMany({
-    where: { id: jobId, userId, status: "running" },
-    data: { heartbeatAt: new Date() },
-  });
-  return updated.count === 1;
-};
-
-const readyRecord = (
-  jobId: string,
-  input: JobInput,
-  plan: ScenePlan,
-  length: number,
-  demo: boolean,
-): VideoRecord => ({
-  id: jobId,
-  prompt: input.prompt,
-  format: input.format,
-  length,
-  status: "ready",
-  createdAt: new Date().toISOString(),
-  title: plan.title,
-  facts: [],
-  quotes: [],
-  plan,
-  searchSources: [],
-  unverifiedFactIds: [],
-  model: input.model,
-  demo,
-  error: null,
-});
-
 const footagePlan = (prompt: string, durationSec: number, narration = prompt): ScenePlan => {
   const title = titleFromPrompt(prompt);
   return {
@@ -1043,12 +1021,6 @@ const footagePlan = (prompt: string, durationSec: number, narration = prompt): S
   };
 };
 
-const titleFromPrompt = (prompt: string) => {
-  const trimmed = prompt.trim().replace(/[.?!]+$/g, "");
-  const short = trimmed.length > 72 ? `${trimmed.slice(0, 72).trim()}…` : trimmed;
-  return short.charAt(0).toUpperCase() + short.slice(1);
-};
-
 const isFormat = (value: string): value is VideoFormat => (VIDEO_FORMATS as readonly string[]).includes(value);
 
 const readSpoken = (artifacts: unknown) => {
@@ -1057,15 +1029,37 @@ const readSpoken = (artifacts: unknown) => {
   return typeof spoken === "string" ? spoken.trim() : "";
 };
 
-const rememberSpoken = async (jobId: string, artifacts: unknown, spoken: string) => {
-  if (readSpoken(artifacts) === spoken) return;
+const readSpokenBeats = (artifacts: unknown) => {
+  if (!artifacts || typeof artifacts !== "object" || Array.isArray(artifacts)) return [];
+  const beats = (artifacts as Record<string, unknown>).spokenBeats;
+  if (!Array.isArray(beats)) return [];
+  return beats.filter((beat): beat is string => typeof beat === "string" && beat.trim().length > 0);
+};
+
+const speechForCuts = async (
+  userId: string,
+  characterId: string | undefined,
+  prepared: PreparedJob,
+  seconds: number[],
+) => {
+  const beats = prepared.spokenBeats ?? [];
+  const timings = voiceBeatTimings(beats, seconds, prepared.length);
+  if (timings.length > 0 && timings.length === seconds.length) {
+    return speakFittedBeats(userId, characterId, timings);
+  }
+  const spoken = beats.filter(Boolean).join(" ") || prepared.spoken;
+  return narrationAudio(userId, characterId, spoken);
+};
+
+const rememberSpoken = async (jobId: string, artifacts: unknown, spoken: string, spokenBeats?: string[]) => {
+  if (readSpoken(artifacts) === spoken && readSpokenBeats(artifacts).join("\n") === (spokenBeats ?? []).join("\n")) return;
   const current =
     artifacts && typeof artifacts === "object" && !Array.isArray(artifacts)
       ? (artifacts as Record<string, unknown>)
       : {};
   await db.videoJob.update({
     where: { id: jobId },
-    data: { artifacts: { ...current, spoken } },
+    data: { artifacts: { ...current, spoken, spokenBeats: spokenBeats ?? [] } },
   });
 };
 
@@ -1075,6 +1069,12 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   length: input.length,
   model: input.model,
   mode: input.mode || undefined,
+  media: input.media || undefined,
+  verbatim: input.verbatim || undefined,
+  op: input.op || undefined,
+  opValue: input.opValue || undefined,
+  backgroundId: input.backgroundId || undefined,
+  backgroundKey: input.backgroundKey || undefined,
   tier: input.tier || undefined,
   resolution: input.resolution || undefined,
   mediaKey: input.mediaKey || input.imageKey || undefined,
@@ -1089,7 +1089,9 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   sceneKeys: input.sceneKeys.length > 0 ? input.sceneKeys : undefined,
   characterId: input.characterId || undefined,
   songId: input.songId || undefined,
+  vo: input.vo,
   cuts: input.cuts.length > 0 ? input.cuts : undefined,
+  clips: input.clips || undefined,
   brief: input.brief.subject || input.brief.setting || input.brief.director || input.brief.mustKeep || input.brief.style || input.brief.mustAvoid
     ? input.brief
     : undefined,

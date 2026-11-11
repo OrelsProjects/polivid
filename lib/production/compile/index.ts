@@ -11,6 +11,8 @@ export interface CompileContext {
   corrections?: string[];
   /** Catalog or custom preset fragment, reused verbatim on every shot. */
   styleLock?: string | null;
+  /** Nobody speaks in this shot. */
+  silent?: boolean;
 }
 
 export const compileShotPrompt = (context: CompileContext) => {
@@ -53,6 +55,7 @@ export const compileShotPrompt = (context: CompileContext) => {
   if (corrections.length > 0) {
     parts.push(`A previous take was rejected. Avoid these problems: ${corrections.join("; ")}.`);
   }
+  if (context.silent) parts.push("Nobody speaks. No dialogue, narration, or voiceover.");
   if (context.styleLock?.trim()) parts.push(context.styleLock.trim());
   return parts.filter(Boolean).join(" ");
 };

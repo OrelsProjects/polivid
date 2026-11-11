@@ -1,23 +1,52 @@
+import { CAPTIONS_LABEL, CAPTIONS_MODEL } from "./captions";
+import { EDIT_LABEL, EDIT_MODEL } from "./edit-ops";
+import { LOOP_LABEL, LOOP_MODEL, STILLS_LABEL, STILLS_MODEL } from "./stills";
+import { CREDITS_PER_USD } from "@/lib/billing/plans";
+
 /**
  * Video models the creator can pick on the Create page. The prompt is filmed by that model.
  * Most are OpenRouter text-to-video models. Gemini Omni is not on OpenRouter,
  * so it goes straight to Google's Gemini API and needs GEMINI_API_KEY.
+ * Kling models go to api-singapore.klingai.com and need KLING_API_KEY.
+ * Motion Control and Kling 4.0 are not listed: Motion Control needs a performance video,
+ * and 4.0 is not on the developer API yet.
  */
 
 const seconds = (min: number, max: number) =>
   Array.from({ length: max - min + 1 }, (_, index) => min + index);
 
-export const GENERATION_MODEL_IDS = ["wan", "hailuo", "seedance", "flux", "omni"] as const;
+const fiveOrTen = [5, 10] as const;
+
+export const GENERATION_MODEL_IDS = [
+  "wan",
+  "wan-27",
+  "hailuo",
+  "seedance",
+  "seedance-20",
+  "flux",
+  "omni",
+  "kling",
+  "kling-turbo",
+  "kling-omni",
+  "kling-26",
+  "kling-25",
+] as const;
 export type GenerationModelId = (typeof GENERATION_MODEL_IDS)[number];
 
-export const VIDEO_PROVIDERS = ["openrouter", "google"] as const;
+export const MODEL_VENDORS = ["Seedance", "Wan", "MiniMax", "Kling", "FLUX", "Google"] as const;
+export type ModelVendor = (typeof MODEL_VENDORS)[number];
+
+export const VIDEO_PROVIDERS = ["openrouter", "google", "kling"] as const;
 export type VideoProvider = (typeof VIDEO_PROVIDERS)[number];
 
 export const isVideoProvider = (value: string): value is VideoProvider =>
   (VIDEO_PROVIDERS as readonly string[]).includes(value);
 
+export type ModelInput = "text" | "image" | "video" | "audio";
+
 export interface GenerationModel {
   id: GenerationModelId;
+  vendor: ModelVendor;
   provider: VideoProvider;
   slug: string;
   name: string;
@@ -32,19 +61,24 @@ export interface GenerationModel {
   audio: boolean;
   /** Accepts OpenRouter input_references images for subject or style. */
   referenceImages: boolean;
+  /** Input types the provider lists for this model. Output is always video. */
+  inputs: readonly ModelInput[];
   /** Accepts an audio_url reference, so a singer's mouth can follow a song. */
   referenceAudio?: boolean;
   /** Turns down reference pictures of real people. */
   refusesRealPeople?: boolean;
+  /** Rejects a request that has both a first frame and reference pictures. The first frame wins. */
+  noFrameWithReferences?: boolean;
 }
 
 export const GENERATION_MODELS: readonly GenerationModel[] = [
   {
     id: "wan",
+    vendor: "Wan",
     provider: "openrouter",
     slug: "alibaba/wan-3.0",
     name: "Wan 3.0",
-    summary: "Best overall. 2–30 seconds.",
+    summary: "Latest Wan, up to 30s with audio",
     detail: "Films the prompt at 720p, about $0.10 a second. The 2 second test uses this model.",
     durations: seconds(2, 30),
     resolutions: ["480p", "720p", "1080p"],
@@ -52,13 +86,31 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "480p": 0.0425, "720p": 0.1, "1080p": 0.17 },
     audio: true,
     referenceImages: true,
+    inputs: ["text", "image", "video", "audio"],
+  },
+  {
+    id: "wan-27",
+    vendor: "Wan",
+    provider: "openrouter",
+    slug: "alibaba/wan-2.7",
+    name: "Wan 2.7",
+    summary: "Earlier Wan, up to 10s with audio",
+    detail: "Films the prompt at 720p, about $0.10 a second. Clips are 2–10 seconds.",
+    durations: seconds(2, 10),
+    resolutions: ["720p", "1080p"],
+    aspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    pricePerSecond: { "720p": 0.1, "1080p": 0.1 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
   },
   {
     id: "hailuo",
+    vendor: "MiniMax",
     provider: "openrouter",
     slug: "minimax/hailuo-3",
     name: "MiniMax H3",
-    summary: "Realistic motion. 5–15 seconds.",
+    summary: "Realistic motion, up to 15s",
     detail: "Films the prompt at 2K, about $0.13 a second. A 2 second request becomes 5 seconds.",
     durations: seconds(5, 15),
     resolutions: ["2K"],
@@ -66,14 +118,17 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "2K": 0.13 },
     audio: true,
     referenceImages: true,
+    inputs: ["text", "image", "video", "audio"],
     referenceAudio: true,
+    noFrameWithReferences: true,
   },
   {
     id: "seedance",
+    vendor: "Seedance",
     provider: "openrouter",
     slug: "bytedance/seedance-2.5",
     name: "Seedance 2.5",
-    summary: "Cinematic scenes. 4–30 seconds.",
+    summary: "Cinematic scenes, up to 30s",
     detail: "Films the prompt at 720p. A 2 second request becomes 4 seconds.",
     durations: seconds(4, 30),
     resolutions: ["480p", "720p"],
@@ -81,15 +136,35 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "480p": 0.1028, "720p": 0.23112 },
     audio: true,
     referenceImages: true,
+    inputs: ["text", "image", "video", "audio"],
+    referenceAudio: true,
+    refusesRealPeople: true,
+  },
+  {
+    id: "seedance-20",
+    vendor: "Seedance",
+    provider: "openrouter",
+    slug: "bytedance/seedance-2.0",
+    name: "Seedance 2.0",
+    summary: "Previous Seedance, up to 15s",
+    detail: "Films the prompt at 720p. Clips are 4–15 seconds, so a 2 second request becomes 4 seconds.",
+    durations: seconds(4, 15),
+    resolutions: ["480p", "720p", "1080p"],
+    aspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16", "21:9"],
+    pricePerSecond: { "480p": 0.067, "720p": 0.151, "1080p": 0.374 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image", "video", "audio"],
     referenceAudio: true,
     refusesRealPeople: true,
   },
   {
     id: "flux",
+    vendor: "FLUX",
     provider: "openrouter",
     slug: "black-forest-labs/flux-3-video",
     name: "FLUX 3",
-    summary: "Visual styling. 5–20 seconds.",
+    summary: "Visual styling, up to 20s",
     detail: "Films the prompt at 720p, about $0.17 a second. A 2 second request becomes 5 seconds.",
     durations: seconds(5, 20),
     resolutions: ["720p", "1080p"],
@@ -97,13 +172,15 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "720p": 0.17 },
     audio: true,
     referenceImages: true,
+    inputs: ["text", "image", "video"],
   },
   {
     id: "omni",
+    vendor: "Google",
     provider: "google",
     slug: "google/gemini-omni-1.1-flash",
     name: "Omni 1.1 Flash",
-    summary: "Google's Gemini Omni. 3–10 seconds, 16:9 or 9:16.",
+    summary: "Gemini Omni, up to 10s",
     detail:
       "Google's Gemini Omni films the prompt at 720p, about $0.10 a second. Portrait or landscape only. A 2 second request becomes 3 seconds.",
     durations: seconds(3, 10),
@@ -112,6 +189,87 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     pricePerSecond: { "720p": 0.1 },
     audio: true,
     referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-3.0",
+    name: "Kling 3.0",
+    summary: "Native audio and 4K, 3–15s",
+    detail: "Films the prompt at 720p with native audio, about $0.13 a second. 4K is available. A 2 second request becomes 3 seconds.",
+    durations: seconds(3, 15),
+    resolutions: ["720p", "1080p", "4k"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.126, "1080p": 0.168, "4k": 0.42 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-turbo",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-3.0-turbo",
+    name: "Kling 3.0 Turbo",
+    summary: "Fast drafts, 3–15s",
+    detail: "The faster Kling 3.0 pass for iteration, at 720p, about $0.11 a second.",
+    durations: seconds(3, 15),
+    resolutions: ["720p", "1080p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.112, "1080p": 0.14 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-omni",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-3.0-omni",
+    name: "Kling 3.0 Omni",
+    summary: "Same character across clips",
+    detail: "Uses reference pictures so a person can stay consistent from clip to clip. 720p with audio is about $0.11 a second.",
+    durations: seconds(3, 15),
+    resolutions: ["720p", "1080p", "4k"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.112, "1080p": 0.14, "4k": 0.42 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-26",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-2.6",
+    name: "Kling 2.6",
+    summary: "Budget clips with audio, 5 or 10s",
+    detail: "Previous Kling generation. Native audio is 1080p, about $0.14 a second. Length snaps to 5 or 10 seconds.",
+    durations: fiveOrTen,
+    resolutions: ["1080p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "1080p": 0.14 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-25",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-2.5-turbo",
+    name: "Kling 2.5 Turbo",
+    summary: "Cheapest drafts, 5 or 10s",
+    detail: "Silent fast drafts at 720p, about $0.04 a second. Length snaps to 5 or 10 seconds.",
+    durations: fiveOrTen,
+    resolutions: ["720p", "1080p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.042, "1080p": 0.07 },
+    audio: false,
+    referenceImages: true,
+    inputs: ["text", "image"],
   },
 ];
 
@@ -147,7 +305,7 @@ const CHAT_MODEL_LABELS: Record<string, string> = {
 
 /** Label for a stored slug. Older text-model rows fall back to the slug. */
 export const generationModelLabel = (slug: string) =>
-  generationModelBySlug(slug)?.name ?? CHAT_MODEL_LABELS[slug] ?? slug;
+  generationModelBySlug(slug)?.name ?? CHAT_MODEL_LABELS[slug] ?? (slug === STILLS_MODEL ? STILLS_LABEL : slug === LOOP_MODEL ? LOOP_LABEL : slug === EDIT_MODEL ? EDIT_LABEL : slug === CAPTIONS_MODEL ? CAPTIONS_LABEL : slug);
 
 /** The Create page opens on Wan 3.0 unless POLIVID_MODEL is one of these video slugs. */
 export const generationModelIdForSlug = (slug: string): GenerationModelId =>
@@ -155,6 +313,21 @@ export const generationModelIdForSlug = (slug: string): GenerationModelId =>
 
 export const priceForResolution = (model: GenerationModel, resolution: string) =>
   model.pricePerSecond[resolution];
+
+/** Credits for one dollar of model cost, without a floating-point bump on exact cents. */
+const creditsForUsd = (usd: number) => Math.ceil(Number((usd * CREDITS_PER_USD).toFixed(6)));
+
+/** Credits per filmed second. A range when resolutions are priced differently. */
+export const creditRateLabel = (model: GenerationModel) => {
+  const credits = model.resolutions
+    .map((resolution) => priceForResolution(model, resolution))
+    .filter((price): price is number => typeof price === "number")
+    .map(creditsForUsd);
+  if (credits.length === 0) return "";
+  const low = Math.min(...credits);
+  const high = Math.max(...credits);
+  return low === high ? `${low} credits/s` : `${low}–${high} credits/s`;
+};
 
 export const formatPricePerSecond = (price: number | undefined) => {
   if (typeof price !== "number") return "Price varies";

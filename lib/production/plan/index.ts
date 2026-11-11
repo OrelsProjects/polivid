@@ -2,6 +2,7 @@ import type { Planner } from "../planner";
 import { DEVELOP_INSTRUCTIONS, formatDevelopInput, formatStructureInput, STRUCTURE_INSTRUCTIONS } from "../prompts";
 import { DevelopOutputSchema, StructureOutputSchema, type DevelopOutput, type StructureOutput } from "../schema";
 import { normalizeContinuity, validateDevelop, validateStructure, type ValidationResult } from "../validate";
+import { withoutSpeechTracks, withoutSpokenLines } from "../voiceover";
 
 export interface PlanContext {
   text: string;
@@ -11,6 +12,7 @@ export interface PlanContext {
   answers?: Record<string, string>;
   delegated: boolean;
   styleLock?: string | null;
+  voiceover?: boolean;
 }
 
 export const runDevelopPass = async (planner: Planner, context: PlanContext) => {
@@ -20,22 +22,28 @@ export const runDevelopPass = async (planner: Planner, context: PlanContext) => 
     system: DEVELOP_INSTRUCTIONS,
     input: formatDevelopInput(context),
   });
-  const validation = validateDevelop(result.output);
-  return { develop: result.output, validation, usage: result.usage, model: result.model };
+  const develop = context.voiceover === false ? withoutSpokenLines(result.output) : result.output;
+  const validation = validateDevelop(develop);
+  return { develop, validation, usage: result.usage, model: result.model };
 };
 
 export const runStructurePass = async (
   planner: Planner,
   develop: DevelopOutput,
-  options: { retryNotes?: string | null } = {},
+  options: { retryNotes?: string | null; voiceover?: boolean } = {},
 ) => {
   const result = await planner.run({
     task: "structure",
     schema: StructureOutputSchema,
     system: STRUCTURE_INSTRUCTIONS,
-    input: formatStructureInput({ developJson: JSON.stringify(develop), retryNotes: options.retryNotes }),
+    input: formatStructureInput({
+      developJson: JSON.stringify(develop),
+      retryNotes: options.retryNotes,
+      voiceover: options.voiceover,
+    }),
   });
-  const structure = normalizeContinuity(result.output);
+  const normalized = normalizeContinuity(result.output);
+  const structure = options.voiceover === false ? withoutSpeechTracks(normalized) : normalized;
   const validation = validateStructure(develop, structure);
   return { structure, validation, usage: result.usage, model: result.model };
 };

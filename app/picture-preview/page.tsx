@@ -74,6 +74,28 @@ const song = {
   ],
 } as UIMessage;
 
+const proposed = {
+  id: "brief",
+  role: "assistant",
+  parts: [
+    {
+      type: "text",
+      text: `Approve it if you like the frames.
+
+\`\`\`brief
+mode: prompt
+format: 1:1
+length: 10
+tier: pro
+preset: movie
+hook: An alien hunts Orel down a collapsing station corridor
+beats: Orel sprints as an alien hunts him down the corridor (3s) | Orel dives into the escape pod as the hatch seals (3s) | Orel slams the launch lever as the alien claws at the porthole (4s)
+\`\`\`
+`,
+    },
+  ],
+} as UIMessage;
+
 const failed = {
   id: "failed",
   role: "assistant",
@@ -92,6 +114,8 @@ const failed = {
 export default function PicturePreviewPage() {
   const [library, setLibrary] = useState<PictureLibraryState>("add");
   const [notice, setNotice] = useState<string | null>(null);
+  const [approvedModel, setApprovedModel] = useState<string | null>(null);
+  const [confirmedLook, setConfirmedLook] = useState<string | null>(null);
   const controls: CoachPictureControls = {
     libraryState: () => library,
     onAddToLibrary: () => {
@@ -99,13 +123,14 @@ export default function PicturePreviewPage() {
       setLibrary("added");
     },
     onRetry: () => undefined,
+    onRegenerateFrame: () => undefined,
     retryingToolCallId: null,
     retryDisabled: false,
     errorFor: () => notice,
   };
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-10 bg-background px-4 py-8 text-foreground">
+    <main className="dark mx-auto flex min-h-svh max-w-3xl flex-col gap-10 bg-background px-4 py-8 text-foreground">
       <section className="flex flex-col gap-4">
         <h1 className="font-heading text-xl">App icon — dark purple</h1>
 
@@ -193,6 +218,48 @@ export default function PicturePreviewPage() {
             error: notice,
           }}
         />
+      </section>
+      <section className="flex flex-col gap-4">
+        <h1 className="font-heading text-xl">Confirm a look</h1>
+        <CoachMessage
+          message={
+            {
+              id: "look",
+              role: "assistant",
+              parts: [
+                {
+                  type: "tool-app_confirm_preset",
+                  toolCallId: "look-1",
+                  state: confirmedLook ? "output-available" : "input-available",
+                  input: {
+                    presetId: "movie",
+                    engine: "footage",
+                    reason:
+                      "The brief names no preset directly, but it calls for a gritty cinematic sci-fi horror feel with dramatic chase tension. Movie fits the moody lighting and the story-driven chase.",
+                  },
+                  ...(confirmedLook ? { output: { presetId: confirmedLook } } : {}),
+                },
+              ],
+            } as UIMessage
+          }
+          onConfirmPreset={(_toolCallId, presetId) => setConfirmedLook(presetId)}
+          onApprove={noop}
+          onDeny={noop}
+          onAnswer={noop}
+        />
+        {confirmedLook ? <p role="status">Confirmed {confirmedLook}.</p> : null}
+      </section>
+      <section className="flex flex-col gap-4">
+        <h1 className="font-heading text-xl">Proposed brief</h1>
+        <CoachMessage
+          message={proposed}
+          briefApproval="ready"
+          onApproveBrief={(modelId) => setApprovedModel(modelId ?? "tier")}
+          onApprove={noop}
+          onDeny={noop}
+          onAnswer={noop}
+        />
+        {approvedModel ? <p role="status">Approved with {approvedModel}.</p> : null}
       </section>
       <section className="flex flex-col gap-6">
         <CoachMessage message={done} pictureControls={controls} onApprove={noop} onDeny={noop} onAnswer={noop} />

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { STORYBOARD_AUTO_APPROVE_UNDER } from "@/lib/billing/auto-approve";
 import { songCredits, videoJobCredits } from "@/lib/billing/estimate";
 import { PICTURE_CREDITS } from "@/lib/coach/picture-preview";
 import { TOOL_DEFS } from "./registry";
-import { approvalForSpend, creditsForToolInput, LOOKUP_CREDIT_TOOLS, spendNeedsApproval } from "./tool-credits";
+import { approvalForCoachCall, approvalForSpend, creditsForToolInput, LOOKUP_CREDIT_TOOLS, spendNeedsApproval } from "./tool-credits";
 
 test("199 credits run and 200 wait", () => {
   assert.equal(spendNeedsApproval(199), false);
@@ -49,6 +50,14 @@ test("a video with no length or a bad tier is not priced", () => {
   assert.equal(creditsForToolInput("generate_image", {}, { demo: true }), 1);
 });
 
+test("a footage model picked on the brief reprices the video", () => {
+  const tier = creditsForToolInput("make_prompt_video", { length: 10, tier: "pro" });
+  const chosen = creditsForToolInput("make_prompt_video", { length: 10, tier: "pro" }, { generationModelId: "wan" });
+  assert.equal(tier, videoJobCredits({ mode: "prompt", tier: "pro", length: 10 }));
+  assert.equal(chosen, videoJobCredits({ mode: "prompt", modelId: "wan", resolution: "720p", length: 10 }));
+  assert.notEqual(tier, chosen);
+});
+
 test("lyrics include reference pictures and an existing song", () => {
   assert.equal(
     creditsForToolInput("make_lyrics_video", { length: 14, tier: "low", referenceKeys: ["a"], songId: "song" }),
@@ -56,11 +65,50 @@ test("lyrics include reference pictures and an existing song", () => {
   );
 });
 
+test("a storyboard costs one credit a frame and asks at 30", () => {
+  const scenes = [{ seconds: 5, beat: "One", shotPrompt: "A roof" }, { seconds: 5, beat: "Two", shotPrompt: "A leap" }];
+  assert.equal(creditsForToolInput("make_storyboard", { scenes }), scenes.length * PICTURE_CREDITS);
+  assert.equal(creditsForToolInput("make_storyboard", {}), null);
+  assert.equal(
+    approvalForSpend({ asksApproval: true, destructive: false, credits: 29, threshold: STORYBOARD_AUTO_APPROVE_UNDER }),
+    "approved",
+  );
+  assert.equal(
+    approvalForSpend({ asksApproval: true, destructive: false, credits: 30, threshold: STORYBOARD_AUTO_APPROVE_UNDER }),
+    "user-approval",
+  );
+});
+
+test("a video waits unless they approved a brief or asked to run wild", () => {
+  const video = { approval: "user" as const, destructive: false, films: true, credits: 40 };
+  assert.equal(approvalForCoachCall({ ...video, runWild: false, briefApproved: false }), "user-approval");
+  assert.equal(approvalForCoachCall({ ...video, runWild: true, briefApproved: false }), "approved");
+  assert.equal(approvalForCoachCall({ ...video, runWild: false, briefApproved: true }), "approved");
+  assert.equal(approvalForCoachCall({ ...video, credits: 200, runWild: true, briefApproved: false }), "user-approval");
+  assert.equal(
+    approvalForCoachCall({
+      approval: "user",
+      destructive: false,
+      films: false,
+      credits: 3,
+      runWild: false,
+      briefApproved: false,
+      threshold: STORYBOARD_AUTO_APPROVE_UNDER,
+    }),
+    "approved",
+  );
+});
+
 test("every credit tool is priced from its input or looked up", () => {
   const lookup = new Set<string>(LOOKUP_CREDIT_TOOLS);
   for (const definition of TOOL_DEFS) {
     if (!definition.effects.spendsCredits) continue;
-    const credits = creditsForToolInput(definition.name, { length: 8, tier: "low", mode: "prompt" });
+    const credits = creditsForToolInput(definition.name, {
+      length: 8,
+      tier: "low",
+      mode: "prompt",
+      scenes: [{ seconds: 4, beat: "Open", shotPrompt: "A street" }, { seconds: 4, beat: "End", shotPrompt: "A door" }],
+    });
     if (lookup.has(definition.name)) assert.equal(credits, null, definition.name);
     else assert.equal(typeof credits, "number", `${definition.name} ${credits}`);
   }

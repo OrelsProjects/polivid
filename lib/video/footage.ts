@@ -2,7 +2,9 @@ import "server-only";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fitNarration, mixNarration } from "@/lib/voice/speak";
 import { finishGeminiVideo, submitGeminiVideo } from "./gemini-footage";
+import { finishKlingVideo, submitKlingVideo } from "./kling-footage";
 import { assertVideoId, hasVideoMedia, isVideoId, putVideoMedia, readVideoMedia, videoMediaResponse } from "./media-store";
 import { clipDuration, clipResolution, GENERATION_MODELS, generationModelBySlug, type VideoProvider } from "./models";
 import { prepareFootageForSeeking } from "./prepare-footage";
@@ -25,7 +27,17 @@ const API = "https://openrouter.ai/api/v1";
 
 const footageKey = (id: string) => `${assertVideoId(id)}.mp4`;
 
+/** The filmed clip before a voice is laid on top. */
+export const sourceFootageKey = (id: string) => `${assertVideoId(id)}.source.mp4`;
+
+/** The character voice fitted to the picture, stored beside the footage. */
+export const voiceMediaKey = (id: string) => `${assertVideoId(id)}.voice.mp3`;
+
 export const hasFootage = async (id: string) => isVideoId(id) && hasVideoMedia(footageKey(id));
+
+export const hasSourceFootage = async (id: string) => isVideoId(id) && hasVideoMedia(sourceFootageKey(id));
+
+export const hasVoiceLayer = async (id: string) => isVideoId(id) && hasVideoMedia(voiceMediaKey(id));
 
 /** Streams the clip and honors Range. Null when the video has no clip. */
 export const footageResponse = (id: string, rangeHeader: string | null, cacheControl?: string) =>
@@ -66,10 +78,38 @@ export const saveFootage = async (id: string, bytes: Uint8Array) => {
     }
     try {
       const { extractWaveform } = await import("./waveform");
-      await extractWaveform(id, file);
+      const source = await readVideoMedia(sourceFootageKey(id));
+      if (source) {
+        const sourceFile = path.join(path.dirname(file), "source.mp4");
+        await writeFile(sourceFile, source);
+        await extractWaveform(id, sourceFile);
+      } else {
+        await extractWaveform(id, file);
+      }
     } catch (error) {
       console.error("Could not build a waveform. The sound lane may stay empty.", error);
     }
+  });
+};
+
+/** Saves the clean take and the fitted voice, then returns a mix for playback. */
+export const storeVoiced = async (jobId: string, footage: Uint8Array, speech: Uint8Array, durationSec: number) => {
+  const id = assertVideoId(jobId);
+  const fitted = await fitNarration(speech, durationSec);
+  const mixed = await mixNarration(footage, speech, durationSec);
+  await saveSourceFootage(id, footage);
+  await putVideoMedia(voiceMediaKey(id), fitted, "audio/mpeg");
+  return mixed;
+};
+
+const saveSourceFootage = async (id: string, bytes: Uint8Array) => {
+  await withTempClip(id, bytes, async (file) => {
+    try {
+      await prepareFootageForSeeking(file);
+    } catch (error) {
+      console.error("Could not prepare the clean footage for seeking. The clip will still play.", error);
+    }
+    await putVideoMedia(sourceFootageKey(id), new Uint8Array(await readFile(file)), "video/mp4");
   });
 };
 
@@ -99,7 +139,7 @@ const MODEL_NAMES = new Intl.ListFormat("en", { type: "disjunction" }).format(
 );
 
 /**
- * Sends the prompt to the model's provider (OpenRouter or Google) and returns the mp4 bytes.
+ * Sends the prompt to the model's provider (OpenRouter, Google, or Kling) and returns the mp4 bytes.
  * Duration is snapped to a length the model accepts.
  * There is no time limit. A missing reply does not end the job.
  * The provider decides when the clip is done.
@@ -137,7 +177,18 @@ export const renderFootage = async (
           imageDataUrl: input.imageDataUrl,
           inputReferences: input.inputReferences,
         })
-      : await submitJob({
+      : model.provider === "kling"
+        ? await submitKlingVideo({
+            model: model.slug,
+            prompt: input.prompt,
+            duration,
+            resolution,
+            aspectRatio: input.format,
+            generateAudio: input.generateAudio ?? model.audio,
+            imageDataUrl: input.imageDataUrl,
+            inputReferences: input.inputReferences,
+          })
+        : await submitJob({
           model: model.slug,
           prompt: input.prompt,
           duration,
@@ -155,7 +206,9 @@ export const renderFootage = async (
                 ],
               }
             : {}),
-          ...(input.inputReferences?.length ? { input_references: input.inputReferences } : {}),
+          ...(input.inputReferences?.length && !(model.noFrameWithReferences && input.imageDataUrl)
+            ? { input_references: input.inputReferences }
+            : {}),
         });
   if (onSubmitted) {
     try {
@@ -175,6 +228,7 @@ export const finishFootage = async (
   shouldContinue: () => Promise<boolean> = async () => true,
 ) => {
   if (provider === "google") return finishGeminiVideo(providerJobId, shouldContinue);
+  if (provider === "kling") return finishKlingVideo(providerJobId, shouldContinue);
   await waitForJob(providerJobId, shouldContinue);
   return downloadJob(providerJobId);
 };

@@ -1,8 +1,11 @@
+import { isEditOp } from "@/lib/video/edit-ops";
+import { isVisualMedia } from "@/lib/video/stills";
 import "server-only";
+import { modelIdForQueue } from "@/lib/coach/model-notes";
 import { linkThreadVideo } from "@/lib/coach/store";
 import { CreateVideoError, queueVideoFromInput } from "@/lib/video/create-request";
 import { mergeReferenceKeys } from "@/lib/coach/reference-notes";
-import { modeAcceptsReferenceImages, modeNeedsUpload, videoModeById, type ModeUpload, type VideoModeId } from "@/lib/video/modes";
+import { modeAcceptsReferenceImages, modeNeedsUpload, videoModeById, type ModeUpload, type VideoModeId, modeAllowsMedia } from "@/lib/video/modes";
 import { isCharacterId, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 import { VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
 import { InsufficientCreditsError } from "@/lib/billing/errors";
@@ -61,21 +64,31 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       )
     : [];
   try {
+    const model = modelIdForQueue(ctx.generationModelId, input.model);
     const queued = await queueVideoFromInput(ctx.userId, {
       prompt: typeof input.prompt === "string" ? input.prompt : "",
-      format: input.format,
-      length: input.length,
+      // A quick edit takes its shape and length from the upload, so the Coach does not pass them.
+      format: input.format ?? (modeId === "edit" ? "9:16" : undefined),
+      length: input.length ?? (modeId === "edit" ? 5 : undefined),
       mode: modeId,
       tier: typeof input.tier === "string" ? input.tier : "pro",
+      ...(model ? { model } : {}),
+      ...(ctx.clipCount ? { clips: ctx.clipCount } : {}),
       showText: typeof input.showText === "boolean" ? input.showText : undefined,
       presetId: text(input.presetId) || undefined,
       visualDirection: typeof input.visualDirection === "string" ? input.visualDirection : undefined,
       characterId: attachedOrRequested(ctx.attachedCharacterId, input.characterId, modeCanNarrate(modeId)),
+      vo: typeof input.vo === "string" ? input.vo : undefined,
       mediaKey,
       referenceKeys: referenceKeys.length > 0 ? referenceKeys : undefined,
       songId: text(input.songId) || undefined,
       direction: typeof input.direction === "string" ? input.direction : undefined,
       scene: typeof input.scene === "string" ? input.scene : undefined,
+      media: isVisualMedia(input.media) && modeAllowsMedia(mode, input.media) ? input.media : undefined,
+      verbatim: input.verbatim === true ? true : undefined,
+      backgroundId: text(input.backgroundId) || undefined,
+      op: isEditOp(input.op) ? input.op : undefined,
+      opValue: text(input.opValue) || undefined,
     });
     if (ctx.threadId && queued && typeof queued === "object" && "jobId" in queued && typeof queued.jobId === "string") {
       await linkThreadVideo(ctx.userId, ctx.threadId, queued.jobId);

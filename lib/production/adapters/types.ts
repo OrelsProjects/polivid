@@ -32,6 +32,8 @@ export interface AdapterRequest {
   interactionContext?: unknown;
   compositionPlan?: unknown;
   settings?: Record<string, unknown>;
+  /** Image adapter only: give up on the request after this many milliseconds. */
+  timeoutMs?: number;
 }
 
 export interface AdapterOutput {

@@ -1,7 +1,9 @@
 import type { JobStep } from "./job-status";
 import { JOB_STEPS } from "./job-status";
+import { EDIT_MODEL } from "./edit-ops";
 import { generationModelBySlug } from "./models";
 import { isStitchedMode, planSegments } from "./segments";
+import { LOOP_MODEL, STILLS_MODEL } from "./stills";
 
 export const STEP_LABEL: Record<JobStep, string> = {
   script: "Writing the script",
@@ -17,7 +19,9 @@ const EDITOR_MODEL = "editor";
 
 /** Stages this job is expected to pass through, in order. */
 export const stagesForJob = (job: { mode: string; tier: string; model: string; length: number }): JobStep[] => {
-  if (job.model === EDITOR_MODEL) return ["render", "finalize"];
+  if (job.model === EDITOR_MODEL || job.model === EDIT_MODEL) return ["render", "finalize"];
+  if (job.model === STILLS_MODEL) return ["script", "images", "render", "finalize"];
+  if (job.model === LOOP_MODEL || job.mode === "captions") return ["script", "render", "finalize"];
   if (job.mode === "motion-graphics") {
     return job.tier === "ultra" ? ["script", "images", "finalize"] : ["script", "finalize"];
   }
@@ -28,11 +32,17 @@ export const stagesForJob = (job: { mode: string; tier: string; model: string; l
 };
 
 /** How many clips a stitched footage job will film. Planned shots film one clip per stored cut. */
-export const clipCountForJob = (job: { mode: string; model: string; length: number; cuts?: readonly { seconds: number }[] }) => {
+export const clipCountForJob = (job: {
+  mode: string;
+  model: string;
+  length: number;
+  cuts?: readonly { seconds: number }[];
+  clips?: number;
+}) => {
   if ((job.mode === "lyrics" || job.mode === "prompt") && job.cuts && job.cuts.length > 0) return job.cuts.length;
   const model = generationModelBySlug(job.model);
   if (!model || !isStitchedMode(job.mode)) return 1;
-  return Math.max(planSegments(job.length, model.durations).length, 1);
+  return Math.max(planSegments(job.length, model.durations, job.clips || undefined).length, 1);
 };
 
 /**

@@ -76,28 +76,46 @@ export async function createVideo(userId: string, video: VideoRecord) {
   await db.video.create({ data: videoData(userId, video) });
 }
 
+/**
+ * Writes the video only while its job still exists and was not canceled.
+ * The job row is locked for the write, so a delete cannot remove it and then
+ * lose the race to this insert.
+ */
+export async function saveVideoForJob(userId: string, video: VideoRecord) {
+  const data = videoData(userId, video);
+  await db.$transaction(async (tx) => {
+    const locked = await tx.videoJob.updateMany({
+      where: { id: video.id, userId, status: { not: "canceled" } },
+      data: { heartbeatAt: new Date() },
+    });
+    if (locked.count !== 1) return;
+    await tx.video.upsert({
+      where: { id: video.id },
+      create: data,
+      update: {
+        prompt: data.prompt,
+        format: data.format,
+        length: data.length,
+        status: data.status,
+        title: data.title,
+        facts: data.facts,
+        quotes: data.quotes,
+        plan: data.plan,
+        searchSources: data.searchSources,
+        unverifiedFactIds: data.unverifiedFactIds,
+        model: data.model,
+        demo: data.demo,
+        error: data.error,
+        ...(video.parentVideoId !== undefined ? { parentVideoId: data.parentVideoId } : {}),
+        ...(video.editProjectId !== undefined ? { editProjectId: data.editProjectId } : {}),
+      },
+    });
+  });
+}
+
 /** Writes the watchable cut, replacing a partial one from a pause. */
 export async function saveReadyVideo(userId: string, video: VideoRecord) {
-  const data = videoData(userId, video);
-  await db.video.upsert({
-    where: { id: video.id },
-    create: data,
-    update: {
-      prompt: data.prompt,
-      format: data.format,
-      length: data.length,
-      status: data.status,
-      title: data.title,
-      facts: data.facts,
-      quotes: data.quotes,
-      plan: data.plan,
-      searchSources: data.searchSources,
-      unverifiedFactIds: data.unverifiedFactIds,
-      model: data.model,
-      demo: data.demo,
-      error: data.error,
-    },
-  });
+  await saveVideoForJob(userId, video);
 }
 
 /** JSON columns are written only by createVideo, so their shapes are trusted. */

@@ -5,6 +5,7 @@ import { patchTrack } from "@/lib/editor/operations";
 import type { Timeline, Track } from "@/lib/editor/schema";
 import { cn } from "@/lib/utils";
 import { useEditorActions } from "../editor-provider";
+import { footageSoundSeparate, isVoiceItem } from "./footage-sound";
 import { LinkedVideoSound } from "./linked-video-sound";
 import { TRACK_HEADER_WIDTH } from "./playhead";
 import { TimelineItemView } from "./timeline-item";
@@ -23,6 +24,7 @@ export function TimelineTrack({
   const actions = useEditorActions();
   const tall = track.kind === "visual";
   const firstAudio = timeline.tracks.find((entry) => entry.kind === "audio");
+  const voiceOnly = track.kind === "audio" && track.items.length > 0 && track.items.every((item) => isVoiceItem(timeline, item));
 
   const handleLanePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -39,7 +41,7 @@ export function TimelineTrack({
         {track.kind === "audio" ? (
           <button
             type="button"
-            aria-label={track.muted ? "Unmute track" : "Mute track"}
+            aria-label={track.muted ? (voiceOnly ? "Unmute voice" : "Unmute track") : voiceOnly ? "Mute voice" : "Mute track"}
             className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             onClick={() => actions.applyTimeline(patchTrack(timeline, track.id, { muted: !track.muted }))}
           >
@@ -73,7 +75,7 @@ export function TimelineTrack({
         {track.items.length === 0 && track.kind !== "audio" ? (
           <div className="pointer-events-none absolute inset-x-2 inset-y-1 rounded-md bg-muted" />
         ) : null}
-        {track.kind === "audio" && track.id === firstAudio?.id ? (
+        {track.kind === "audio" && track.id === firstAudio?.id && !footageSoundSeparate(timeline) ? (
           <LinkedVideoSound timeline={timeline} zoom={zoom} />
         ) : null}
         {track.items.map((item) => (

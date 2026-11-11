@@ -50,8 +50,14 @@ export const libraryTools = [
     title: "Suggest a preset",
     category: "library",
     summary: "Recommend one visual preset from a short brief.",
-    whenToUse: ["The person described a look and you should pick one preset instead of listing them all."],
-    avoidWhen: ["They already named a preset, or the video is captions. Captions ignore presets."],
+    whenToUse: [
+      "The person described a look and you should pick one preset instead of listing them all.",
+      "Then stop. The person confirms or switches the look on the card. Do not generate pictures in that turn.",
+    ],
+    avoidWhen: [
+      "They already named a preset, or the video is captions. Captions ignore presets.",
+      "They asked you to run wild or to just make it. Pass a preset id on the make_* tool.",
+    ],
     inputSchema: z.object({
       brief: z.string().trim().min(3).describe("What the video should look and feel like."),
       engine: z

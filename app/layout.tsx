@@ -47,7 +47,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${syne.variable} ${spaceGrotesk.variable} dark h-full scroll-smooth antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${syne.variable} ${spaceGrotesk.variable} h-full scroll-smooth antialiased`}
+      data-scroll-behavior="smooth"
     >
       <Script
         defer

@@ -79,6 +79,11 @@ export interface ToolDefinition {
   status?: "live" | "legacy";
   /** The line under the approval card title. */
   approvalDetail?: (input: Record<string, unknown>) => string;
+  /**
+   * Ask before a spend at or above this many credits.
+   * Omit to use the standard line. A storyboard uses a lower one.
+   */
+  approvalCredits?: number;
   /** Create mode this tool queues. Used to price the call before it runs. */
   videoMode?: string;
   examples?: ToolExample[];
@@ -102,9 +107,17 @@ export interface ToolContext {
   attachedReferenceKeys: readonly string[];
   /** Character id from "Attached character:" notes. Empty when they did not pick one. */
   attachedCharacterId: string;
+  /** Footage model from a "Generation model:" note on this turn. Empty when they did not pick one. */
+  generationModelId?: string;
+  /** Clip count from a "Brief changes:" note on this turn. Unset when they did not choose one. */
+  clipCount?: number;
   /** Pictures, audio, and video the person attached in this chat. */
   attachedMedia: readonly AttachedMedia[];
   timezone: string;
+  /** A video for this chat is queued or filming. Change tools must refuse. */
+  filming?: boolean;
+  /** They asked the Coach to decide and start, with no storyboard and no look confirmation. */
+  runWild?: boolean;
 }
 
 export type ToolHandler = (input: unknown, ctx: ToolContext) => Promise<unknown>;

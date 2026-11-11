@@ -5,13 +5,15 @@ import { refundCredits, reserveCredits } from "@/lib/billing/credits";
 import { db } from "@/lib/db";
 import { videoJobCredits } from "@/lib/billing/estimate";
 import { clipPreviewSlots } from "./clip-preview";
-import { hasVideoMedia, deleteVideoMedia } from "./media-store";
+import { hasVideoMedia, deleteStoredVideoFiles, deleteVideoMedia } from "./media-store";
 import { jobDetailRows } from "./job-details";
 import { clipCountForJob, completedClipCount, filmingClipIndex } from "./job-stages";
 import { segmentMediaKey } from "./segments";
 import { readStoredSong } from "@/lib/music/song";
 import {
   assertJobTransition,
+  JobTransitionError,
+  isFilmingStalled,
   isJobStatus,
   isJobStep,
   readJobInput,
@@ -20,7 +22,10 @@ import {
   type JobStep,
   type VideoJobView,
 } from "./job-status";
+import { generationModelById } from "./models";
+import { isModelChoice } from "./model-choice";
 import { presetById } from "./presets";
+import { stillPictureCount } from "./script-markup";
 import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
 
 /** Model slug stamped on edit exports, so they can be kept out of the video library. */
@@ -32,6 +37,21 @@ export interface VideoJobInput {
   length: number;
   model: string;
   mode?: string;
+  /** Catalog tool the form was opened with. Empty when it was just the mode. */
+  tool?: string;
+  /** `stills` draws and animates pictures instead of filming. */
+  media?: string;
+  /** Read the script word for word. */
+  verbatim?: boolean;
+  /** The page the script text was read from. */
+  sourceUrl?: string;
+  /** The quick edit an edit job makes, and its setting. */
+  op?: string;
+  opValue?: string;
+  /** Built-in clip behind a loop video. */
+  backgroundId?: string;
+  /** The person's own clip behind a loop video. */
+  backgroundKey?: string;
   tier?: string;
   resolution?: string;
   imageKey?: string;
@@ -47,10 +67,14 @@ export interface VideoJobInput {
   directionKeys?: string[];
   sceneKeys?: string[];
   songId?: string;
-  cuts?: { seconds: number; camera: string; images?: number[] }[];
+  cuts?: { seconds: number; camera: string; images?: number[]; action?: string; samePlace?: boolean }[];
+  /** Spoken lines from the brief. `none` keeps only the footage sound. */
+  vo?: string;
   brief?: PromptBrief;
   attachmentRoles?: AttachmentAssignment[];
   creditsHeld?: number;
+  /** Clips the person chose. Unset means the fewest the model needs. */
+  clips?: number;
 }
 
 export const createQueuedVideoJob = async (userId: string, input: VideoJobInput) => {
@@ -86,6 +110,14 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           duration: input.length,
           model: input.model,
           mode: input.mode ?? "",
+          tool: input.tool ?? "",
+          media: input.media ?? "",
+          verbatim: input.verbatim === true,
+          sourceUrl: input.sourceUrl ?? "",
+          op: input.op ?? "",
+          opValue: input.opValue ?? "",
+          backgroundId: input.backgroundId ?? "",
+          backgroundKey: input.backgroundKey ?? "",
           tier: input.tier ?? "",
           resolution: input.resolution ?? "",
           imageKey: input.imageKey ?? input.mediaKey ?? "",
@@ -99,7 +131,9 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           directionKeys: input.directionKeys ?? [],
           sceneKeys: input.sceneKeys ?? [],
           songId: input.songId ?? "",
+          vo: input.vo ?? "",
           cuts: input.cuts ?? [],
+          clips: input.clips ?? 0,
           brief: input.brief
             ? {
                 subject: input.brief.subject,
@@ -190,6 +224,58 @@ export const cancelVideoJobForUser = async (userId: string, jobId: string) => {
   return { result: "canceled" as const };
 };
 
+const OPEN_JOB: ReadonlySet<JobStatus> = new Set(["queued", "running", "paused"]);
+
+/**
+ * Removes one video for good: the library row, the job, provider rows, and the
+ * stored files. An in-progress job is canceled first so held credits come back
+ * and filming stops. Credit history stays.
+ */
+export const deleteVideoForUser = async (userId: string, id: string) => {
+  const [video, job] = await Promise.all([
+    db.video.findFirst({ where: { id, userId }, select: { id: true } }),
+    db.videoJob.findFirst({ where: { id, userId }, select: { id: true, status: true } }),
+  ]);
+  if (!video && !job) return false;
+
+  if (job && isJobStatus(job.status) && OPEN_JOB.has(job.status)) {
+    try {
+      await transitionVideoJob(job.id, "canceled", { error: "You deleted this video." });
+    } catch (error) {
+      const finished =
+        error instanceof JobTransitionError ||
+        (error instanceof Error &&
+          (error.message === "Video job not found." ||
+            error.message === "The video job changed before the status could be saved."));
+      if (!finished) throw error;
+    }
+  }
+
+  const removed = await db.$transaction(async (tx) => {
+    // Lock the job row so a render that is mid-save cannot write the video back after this.
+    await tx.videoJob.updateMany({ where: { id, userId }, data: { heartbeatAt: new Date() } });
+    await tx.editProject.updateMany({
+      where: { userId, exportVideoId: id },
+      data: { exportVideoId: null, exportVersion: null },
+    });
+    await tx.coachThread.updateMany({
+      where: { userId, videoJobId: id },
+      data: { videoJobId: null },
+    });
+    await tx.providerJob.deleteMany({ where: { jobId: id } });
+    const videos = await tx.video.deleteMany({ where: { id, userId } });
+    const jobs = await tx.videoJob.deleteMany({ where: { id, userId } });
+    return videos.count + jobs.count > 0;
+  });
+
+  if (removed) {
+    await deleteStoredVideoFiles(id).catch((error) => {
+      console.error("Could not delete the video files", error);
+    });
+  }
+  return removed;
+};
+
 /** Finish the clip already at the model, then stitch what is done and wait. */
 export const requestStopAfterClip = async (userId: string, jobId: string) => {
   const job = await db.videoJob.findFirst({ where: { id: jobId, userId } });
@@ -226,6 +312,8 @@ export const resumeFailedVideoJob = async (userId: string, jobId: string) => {
   assertJobTransition(job.status, "running");
   const credits = videoJobCredits({
     mode: input.mode,
+    media: input.media,
+    pictures: stillPictureCount(input),
     tier: input.tier,
     modelSlug: input.model,
     resolution: input.resolution,
@@ -233,6 +321,7 @@ export const resumeFailedVideoJob = async (userId: string, jobId: string) => {
     referenceCount: input.referenceKeys.length,
     songReady: Boolean(input.songId),
     cuts: input.cuts,
+    clips: input.clips || undefined,
   });
   const nextAttempt = job.attempt + 1;
   await db.$transaction(async (tx) => {
@@ -265,6 +354,41 @@ export const resumeFailedVideoJob = async (userId: string, jobId: string) => {
     if (updated.count !== 1) throw new Error("This video changed. Try again.");
   });
   return { result: "running" as const, clipsReady, clipTotal };
+};
+
+/**
+ * Switches a paused job onto another footage model and films the clips that are left.
+ * The earlier credit hold stays. Finished clips are kept.
+ */
+export const continueVideoWithModel = async (userId: string, jobId: string, modelId: string) => {
+  const model = generationModelById(modelId);
+  if (!model) return { result: "invalid" as const };
+  const job = await db.videoJob.findFirst({ where: { id: jobId, userId } });
+  if (!job) return { result: "missing" as const };
+  if (!isJobStatus(job.status)) throw new Error(`Video job ${jobId} has an unknown status.`);
+  if (job.status !== "paused" || !isModelChoice(job.errorDetail)) {
+    return { result: "finished" as const, status: job.status };
+  }
+  const input = readJobInput(job.input);
+  if (!(model.aspectRatios as readonly string[]).includes(input.format)) {
+    return { result: "format" as const, name: model.name };
+  }
+  if (model.slug === input.model) return { result: "same" as const };
+  const raw =
+    job.input && typeof job.input === "object" && !Array.isArray(job.input)
+      ? (job.input as Record<string, unknown>)
+      : {};
+  const updated = await db.videoJob.updateMany({
+    where: { id: jobId, userId, status: "paused" },
+    data: {
+      input: { ...raw, model: model.slug },
+      error: null,
+      errorDetail: { code: "cleared" },
+    },
+  });
+  if (updated.count !== 1) return { result: "finished" as const, status: job.status };
+  await transitionVideoJob(jobId, "running", { error: null });
+  return { result: "running" as const };
 };
 
 /** Continues a paused video at the next clip that was not filmed. */
@@ -302,9 +426,11 @@ type JobRow = {
   createdAt: Date;
   updatedAt: Date;
   startedAt: Date | null;
+  heartbeatAt: Date | null;
   input: Prisma.JsonValue;
   artifacts: Prisma.JsonValue;
   stopAfterClip: boolean;
+  errorDetail: Prisma.JsonValue | null;
 };
 
 const loadJobLabels = async (userId: string, inputs: JobInputFields[]) => {
@@ -349,7 +475,8 @@ const viewsFor = async (userId: string, jobs: JobRow[], readyByJob?: Map<string,
  * so the library list does not stat every shot on each poll.
  */
 const filmingPreviewIndexes = async (job: JobRow): Promise<readonly number[] | null> => {
-  if (job.status !== "running") return null;
+  const waitingForModel = job.status === "paused" && isModelChoice(job.errorDetail);
+  if (job.status !== "running" && !waitingForModel) return null;
   if (job.currentStep !== "videos" && job.currentStep !== "render") return null;
   const input = readJobInput(job.input);
   const slots = clipPreviewSlots(job.artifacts, input, new Set());
@@ -427,6 +554,8 @@ const toView = (
     clipTotal,
     clipsDone,
     stopping: job.stopAfterClip,
+    needsModel: job.status === "paused" && isModelChoice(job.errorDetail),
+    stalled: isFilmingStalled(job.status, job.heartbeatAt),
     songUrl: readStoredSong(job.artifacts) ? `/api/videos/${job.id}/song` : null,
     clips: readyIndexes ? clipPreviewSlots(job.artifacts, input, new Set(readyIndexes)) : [],
     details: jobDetailRows({ ...input, presetName, characterName }),

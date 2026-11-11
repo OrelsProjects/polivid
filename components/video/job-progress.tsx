@@ -7,15 +7,18 @@ import { BackLink } from "@/components/back-link";
 import { ProgressFill } from "@/components/motion/motion";
 import { ExpandableText } from "@/components/expandable-text";
 import { JobHoldControls } from "@/components/job-hold-controls";
+import { ModelContinue } from "@/components/video/model-continue";
 import { JobMoreMenu } from "@/components/job-more-menu";
 import { JobStageList } from "@/components/job-stage-list";
 import { ClipPreview } from "@/components/video/clip-preview";
 import { VideoStage } from "@/components/video/video-stage";
+import { DeleteVideoButton } from "@/components/delete-video-button";
 import { Button } from "@/components/ui/button";
 import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
 import { useCancelVideoMutation, useGetVideoJobQuery, videosApi } from "@/lib/store/endpoints/videos";
 import { useAppSelector } from "@/lib/store/hooks";
 import { isJobStep, type VideoJobView } from "@/lib/video/job-status";
+import type { GenerationModelId } from "@/lib/video/models";
 import { STEP_LABEL } from "@/lib/video/job-stages";
 
 const POLL_MS = 3000;
@@ -57,7 +60,19 @@ const formatElapsed = (startedAt: string, now: number) => {
   return `${minutes}:${pad(seconds)}`;
 };
 
-export function VideoJobProgress({ job: initialJob, createdLabel }: { job: VideoJobView; createdLabel: string }) {
+export function VideoJobProgress({
+  job: initialJob,
+  createdLabel,
+  models,
+  backHref = "/studio/projects",
+  backLabel = "Projects",
+}: {
+  job: VideoJobView;
+  createdLabel: string;
+  models?: readonly GenerationModelId[];
+  backHref?: string;
+  backLabel?: string;
+}) {
   const router = useRouter();
   const [now, setNow] = useState<number | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
@@ -104,7 +119,7 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-3">
-        <BackLink href="/videos">My videos</BackLink>
+        <BackLink href={backHref}>{backLabel}</BackLink>
         <h1 className="text-3xl font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
           <ExpandableText text={title} limit={140} placement="below" />
         </h1>
@@ -123,12 +138,13 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
               <ExpandableText text={job.error} />
             </span>
           ) : null}
+          <DeleteVideoButton id={job.id} title={title} redirectTo={backHref} />
         </div>
       ) : (
         <section className="relative flex max-w-md flex-col gap-3 rounded-2xl border border-border bg-card px-6 pt-14 pb-8 shadow-sm">
           <JobMoreMenu title={title} rows={job.details ?? []} />
           <span className="absolute top-3.5 right-3 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
-            {paused ? "PAUSED" : job.status === "queued" ? "STARTING" : job.status === "succeeded" ? "FINISHING" : "IN PROGRESS"}
+            {job.stalled ? "NOT FILMING" : paused ? "PAUSED" : job.status === "queued" ? "STARTING" : job.status === "succeeded" ? "FINISHING" : "IN PROGRESS"}
           </span>
           <div className="flex flex-col items-center gap-3 text-center">
             {paused && job.outputUrl ? (
@@ -183,12 +199,18 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
             ) : null}
               </>
             )}
-            {paused ? (
+            {paused && !job.needsModel ? (
               <p className="text-xs text-muted-foreground">
                 Stopped after clip {job.clipsDone} of {job.clipTotal}. Continue films the rest.
               </p>
             ) : null}
-            {job.currentStep === "videos" && !paused ? (
+            {job.needsModel ? <ModelContinue job={job} models={models} /> : null}
+            {job.stalled ? (
+              <p className="text-xs text-muted-foreground">
+                This video is marked running, but nothing is working on it. This page tries again on its own.
+              </p>
+            ) : null}
+            {job.currentStep === "videos" && !paused && !job.stalled ? (
               <p className="text-xs text-muted-foreground">
                 {job.mode === "lyrics" && job.clipTotal > 1
                   ? job.stopping
@@ -203,19 +225,22 @@ export function VideoJobProgress({ job: initialJob, createdLabel }: { job: Video
             ) : null}
             <JobHoldControls job={job} />
             {open ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={canceling}
-                aria-label={`Cancel ${title}`}
-                aria-busy={canceling}
-                onClick={() => {
-                  void handleCancel();
-                }}
-              >
-                {canceling ? "Canceling…" : "Cancel"}
-              </Button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={canceling}
+                  aria-label={`Cancel ${title}`}
+                  aria-busy={canceling}
+                  onClick={() => {
+                    void handleCancel();
+                  }}
+                >
+                  {canceling ? "Canceling…" : "Cancel"}
+                </Button>
+                <DeleteVideoButton id={job.id} title={title} redirectTo={backHref} filming />
+              </div>
             ) : null}
             {cancelError ? (
               <p className="text-xs text-destructive" role="alert">

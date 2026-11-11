@@ -2,6 +2,7 @@
 
 import { ChevronDown, MessagesSquare, Plus } from "lucide-react";
 import { useId, useState } from "react";
+import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
 export interface CoachThreadItem {
@@ -32,9 +33,7 @@ export function CoachThreadList({
       aria-label="Coach chats"
       className="flex w-full shrink-0 flex-col gap-3 border-b border-border bg-sidebar p-3 pr-28 md:h-full md:w-64 md:border-r md:border-b-0 md:p-4"
     >
-      <p aria-hidden className="hidden px-1 font-label text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase md:block">
-        Coach
-      </p>
+      <LogoMark className="hidden size-6 md:block" />
       <div className="flex gap-2">
         <button
           type="button"

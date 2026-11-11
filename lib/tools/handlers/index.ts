@@ -36,6 +36,7 @@ import {
 } from "./jobs";
 import {
   addCaptionsHandler,
+  quickEditVideoHandler,
   createVideoHandler,
   makeAvatarVideoHandler,
   makeAvCutHandler,
@@ -45,9 +46,10 @@ import {
   makeMusicVideoHandler,
   makePromptVideoHandler,
   makeVoiceoverVideoHandler,
+  makeShortsVideoHandler,
   startProductionHandler,
 } from "./make";
-import { improveNarrationHandler, planShotsHandler, polishLookHandler, savePresetHandler } from "./plan";
+import { improveNarrationHandler, makeStoryboardHandler, planShotsHandler, polishLookHandler, savePresetHandler } from "./plan";
 import {
   estimateCreditsHandler,
   getCreditBalanceHandler,
@@ -65,6 +67,7 @@ import {
 export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_prompt_video: makePromptVideoHandler,
   make_voiceover_video: makeVoiceoverVideoHandler,
+  make_shorts_video: makeShortsVideoHandler,
   make_motion_graphics: makeMotionGraphicsHandler,
   make_music_video: makeMusicVideoHandler,
   make_avatar_video: makeAvatarVideoHandler,
@@ -72,8 +75,10 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_av_cut: makeAvCutHandler,
   make_lyrics_video: makeLyricsVideoHandler,
   add_captions: addCaptionsHandler,
+  quick_edit_video: quickEditVideoHandler,
   create_video: createVideoHandler,
   start_production: startProductionHandler,
+  make_storyboard: makeStoryboardHandler,
   plan_shots: planShotsHandler,
   improve_narration: improveNarrationHandler,
   polish_look: polishLookHandler,

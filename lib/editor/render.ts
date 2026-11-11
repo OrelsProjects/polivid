@@ -4,12 +4,17 @@ import os from "node:os";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
+import { backgroundById } from "@/lib/video/backgrounds";
 import { saveFootage } from "@/lib/video/footage";
 import { markVideoJobProgress } from "@/lib/video/jobs";
 import { assetUrlMap } from "./asset-url";
 import { publicAppUrl, signAssetToken } from "./asset-token";
 import { chromeForRender } from "./chrome-executable";
 import type { Timeline } from "./schema";
+
+/** Maps a render fraction onto a band of the job's progress bar. */
+export const renderProgress = (from: number, to: number, done: number) =>
+  Math.round(from + (to - from) * Math.min(1, Math.max(0, done)));
 
 let bundleLocation: Promise<string> | null = null;
 
@@ -35,12 +40,26 @@ const remotionBundle = () => {
   return bundleLocation;
 };
 
-export const renderEditProject = async (userId: string, jobId: string, timeline: Timeline) => {
+/**
+ * Renders a timeline to the job's video file.
+ * `progress` is the band of the job's progress bar the render fills. An export owns the whole bar.
+ */
+export const renderEditProject = async (
+  userId: string,
+  jobId: string,
+  timeline: Timeline,
+  progress: { from: number; to: number } = { from: 10, to: 90 },
+) => {
   const serveUrl = await remotionBundle();
   const origin = publicAppUrl();
   const inputProps = {
     timeline,
     assetUrls: assetUrlMap(timeline, (asset) => {
+      // Built-in clips are public files. Everything else is the person's own and needs a signed link.
+      if (asset.source.type === "library") {
+        const file = backgroundById(asset.source.id)?.file;
+        return file ? `${origin}${file}` : null;
+      }
       const token = signAssetToken(userId, asset.source);
       return `${origin}/api/editor/assets/${encodeURIComponent(token)}`;
     }),
@@ -62,8 +81,8 @@ export const renderEditProject = async (userId: string, jobId: string, timeline:
       outputLocation,
       inputProps,
       browserExecutable,
-      onProgress: ({ progress }) => {
-        void markVideoJobProgress(jobId, "render", Math.max(10, Math.round(progress * 90)));
+      onProgress: ({ progress: done }) => {
+        void markVideoJobProgress(jobId, "render", renderProgress(progress.from, progress.to, done));
       },
     });
     await saveFootage(jobId, new Uint8Array(await readFile(outputLocation)));

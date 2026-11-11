@@ -1,3 +1,6 @@
+import { describeEdit, EDIT_CREDITS, EDIT_OPS, editValueFor, isEditOp } from "@/lib/video/edit-ops";
+import { BACKGROUND_IDS } from "@/lib/video/backgrounds";
+import { VISUAL_MEDIA } from "@/lib/video/stills";
 import { z } from "zod";
 import { defineModeTool, defineTool } from "@/lib/tools/define";
 import {
@@ -35,8 +38,10 @@ export const makeTools = [
     whenToUse: [
       "They want a filmed clip from a description, with no upload required.",
       "Optional reference pictures can lock a person or a look. Copy attached picture keys into referenceKeys.",
-      "A character narrates when the mode is prompt and the character has a voice. Pass characterId.",
-      "Write one action per beat. Create films this as 5–7 second clips that continue from the previous last frame.",
+      "A character with a voice is added after filming as its own Voiceover clip. The footage itself has no voiceover. Pass characterId.",
+      "Write the video prompt as numbered beats, one action each, in order. Do not describe later beats inside an earlier one.",
+      "Pass vo as the brief's spoken lines, one beat per line. Pass none when the brief has no voiceover.",
+      "When a brief lists frames:, pass those keys as referenceKeys in the same order.",
     ],
     avoidWhen: [
       "They pasted a script to be spoken. Use make_voiceover_video.",
@@ -44,11 +49,17 @@ export const makeTools = [
       "They want a multi-scene film with dialogue control. Use start_production.",
     ],
     inputSchema: z.object({
-      prompt: promptField("What to film. Subject, one action, setting, camera, light, and mood."),
+      prompt: promptField("What to film. Numbered beats, one action each, in order."),
       ...filmed(),
       showText: z.boolean().optional().describe("Whether on-screen text is allowed. Defaults to yes."),
       characterId: characterField(),
       referenceKeys: referenceKeysField(),
+      vo: z
+        .string()
+        .trim()
+        .max(2000)
+        .optional()
+        .describe("Spoken lines, one beat per line. Pass none when the brief has no voiceover."),
     }),
     approvalDetail: videoApprovalDetail("prompt"),
     examples: [
@@ -64,6 +75,10 @@ export const makeTools = [
     whenToUse: [
       "They have a script, or a link's worth of words, that should be spoken over footage.",
       "Aim for 150–170 spoken words per minute. Pass characterId when a saved character or the studio narrator should speak.",
+      "Pass media stills for drawn, slowly moving pictures at a fraction of the cost of filming. Pass media loop to read the words over a looping background, the cheapest option. Both need a voice.",
+      "Pass verbatim true when they want their words read exactly as written. The length then follows the script.",
+      "In a verbatim script, text in [brackets] is never read. With media stills, each line is one picture and a bracket note says what it shows. [pause 1s] holds a silence with stills and loop.",
+      "A prompt that is only a link is read and turned into the script.",
     ],
     avoidWhen: [
       "The words are lyrics for a music video. Use make_lyrics_video.",
@@ -73,8 +88,52 @@ export const makeTools = [
       prompt: promptField("The script to speak, or the article text to turn into narration."),
       ...filmed(),
       characterId: characterField(),
+      media: z
+        .enum(VISUAL_MEDIA)
+        .optional()
+        .describe("What illustrates it: video films every scene, stills draws and animates pictures, loop plays a background clip. Defaults to video."),
+      verbatim: z
+        .boolean()
+        .optional()
+        .describe("Read the prompt word for word instead of rewriting it to fit the length."),
+      backgroundId: z
+        .enum(BACKGROUND_IDS)
+        .optional()
+        .describe("Built-in background for media loop. Defaults to aurora."),
     }),
     approvalDetail: videoApprovalDetail("voiceover"),
+  }),
+  defineModeTool({
+    modeId: "shorts",
+    name: "make_shorts_video",
+    whenToUse: [
+      "They want a Short, TikTok, or Reel where their character says a script to camera.",
+      "Pass the script word for word as prompt. The character's voice speaks it as written.",
+      "Pass characterId. It must be a saved character with a picture, not off or the studio narrator.",
+      "Pass presetId for the look. Pass one picture key in referenceKeys only when they gave a background picture.",
+    ],
+    avoidWhen: [
+      "No character should appear on screen. Use make_voiceover_video.",
+      "They gave a photo of someone who is not a saved character. Use make_avatar_video.",
+      "They want several scenes or dialogue. Use start_production.",
+    ],
+    inputSchema: z.object({
+      prompt: promptField("The script, word for word. The character says exactly this."),
+      ...filmed(),
+      characterId: characterField(),
+      referenceKeys: z
+        .array(z.string().trim().min(1))
+        .max(1)
+        .optional()
+        .describe("Optional. One picture key for the background. Leave it out to let the look decide the setting."),
+    }),
+    approvalDetail: videoApprovalDetail("shorts"),
+    examples: [
+      {
+        request: "Make a 20 second TikTok where Orel reads this script in a bright office.",
+        input: { prompt: "Writing your Notes around you is costing you subscribers.", format: "9:16", length: 20, tier: "pro" },
+      },
+    ],
   }),
   defineModeTool({
     modeId: "motion-graphics",
@@ -173,6 +232,7 @@ export const makeTools = [
       "The prompt is the lyric lines. Optional pictures lock a singer or a look. Copy attached picture keys into referenceKeys.",
       "On this mode the character voice performs the lyric lines. Pass characterId, and pass songId when compose_song or list_songs already made the take.",
       "Lyrics stay on screen. Do not turn this into a silent clip.",
+      "When a brief lists frames:, pass those keys as referenceKeys in the same order.",
     ],
     avoidWhen: [
       "They uploaded a finished song file. Use make_music_video.",
@@ -209,6 +269,28 @@ export const makeTools = [
       tier: tierField(),
     }),
     approvalDetail: videoApprovalDetail("captions"),
+  }),
+  defineModeTool({
+    modeId: "edit",
+    name: "quick_edit_video",
+    whenToUse: [
+      "They want one plain change to a video they uploaded: rotate it, flip it, resize it, loop it, or change its volume.",
+      "mediaKey is that video. If you omit it, the attached video is used.",
+      "Pass op and value together. rotate: 90, 180, 270. flip: horizontal, vertical. resize: 9:16:crop, 9:16:pad, 1:1:crop, 1:1:pad, 16:9:crop, 16:9:pad. loop: 2 to 5. volume: 0 (mute), 50, 150, 200.",
+    ],
+    avoidWhen: [
+      "There is no video file. Do not invent one.",
+      "They want captions. Use add_captions.",
+      "They want to cut, reorder, or add layers. Open the editor instead.",
+    ],
+    inputSchema: z.object({
+      mediaKey: mediaKeyField("Video upload key. Omit to use the attached video."),
+      op: z.enum(EDIT_OPS).describe("The change to make."),
+      opValue: z.string().trim().max(20).optional().describe("The setting for that change. Omit for its default."),
+    }),
+    approvalDetail: (value) =>
+      isEditOp(value.op) ? `${describeEdit(value.op, editValueFor(value.op, String(value.opValue ?? "")))} · ${EDIT_CREDITS} credits` : "Quick edit",
+    examples: [{ request: "This clip is sideways, fix it.", input: { op: "rotate", opValue: "90" } }],
   }),
   defineTool({
     name: "create_video",
@@ -252,6 +334,7 @@ export const makeTools = [
     whenToUse: [
       "They asked for a multi-scene film, dialogue, or tighter control than a single Create video.",
       "Pass characterId when an attached character should speak every line and add its picture as a reference.",
+      "Set voiceover to false when they want no spoken lines. Omit it so the plan keeps its voices.",
     ],
     avoidWhen: [
       "A short first cut is enough. Use the matching make_* tool.",
@@ -265,6 +348,10 @@ export const makeTools = [
       presetId: presetField(),
       visualDirection: visualDirectionField(),
       characterId: characterField(),
+      voiceover: z
+        .boolean()
+        .optional()
+        .describe("Set false when they want no spoken voiceover. Omit to keep the voices written into the plan."),
     }),
     effects: { readOnly: false, spendsCredits: true, destructive: false, longRunning: true },
     approval: "user",
@@ -273,6 +360,7 @@ export const makeTools = [
     approvalDetail: (input) => {
       const parts = [String(input.format ?? "9:16"), `${String(input.durationSec ?? 30)}s`];
       if (typeof input.characterId === "string" && input.characterId && input.characterId !== "off") parts.push("character");
+      if (input.voiceover === false) parts.push("no voiceover");
       return parts.join(" · ");
     },
     examples: [

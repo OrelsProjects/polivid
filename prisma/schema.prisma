@@ -13,19 +13,19 @@ datasource db {
 }
 
 model User {
-  id                 String    @id @default(cuid())
+  id                 String         @id @default(cuid())
   name               String?
-  email              String    @unique
+  email              String         @unique
   emailVerified      DateTime?
   image              String?
-  stripeCustomerId   String?   @unique
-  plan               String    @default("free")
+  stripeCustomerId   String?        @unique
+  plan               String         @default("free")
   subscriptionId     String?
   subscriptionStatus String?
   billingInterval    String?
   currentPeriodEnd   DateTime?
-  planCredits        Int       @default(0)
-  bonusCredits       Int       @default(100)
+  planCredits        Int            @default(0)
+  bonusCredits       Int            @default(100)
   creditsRefillAt    DateTime?
   accounts           Account[]
   sessions           Session[]
@@ -37,8 +37,9 @@ model User {
   stylePresets       StylePreset[]
   characters         Character[]
   coachThreads       CoachThread[]
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  sources            Source[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 }
 
 /// One credit grant, hold, refund, or refill. Stripe event IDs are idempotency keys.
@@ -99,9 +100,9 @@ model VerificationToken {
 
 /// A generated video. facts/quotes/plan are JSON matching lib/video/schema.ts.
 model Video {
-  id                String   @id @default(uuid())
+  id                String        @id @default(uuid())
   userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   prompt            String
   format            String // "9:16" | "16:9" | "1:1"
   length            Int // target seconds: 30 | 60 | 90
@@ -113,37 +114,37 @@ model Video {
   searchSources     Json // SearchSource[]: URLs the web search returned
   unverifiedFactIds String[]
   model             String // OpenRouter model slug, or "demo"
-  demo              Boolean  @default(false)
+  demo              Boolean       @default(false)
   error             String?
   parentVideoId     String?
-  parentVideo       Video?   @relation("VideoLineage", fields: [parentVideoId], references: [id], onDelete: SetNull)
-  childVideos       Video[]  @relation("VideoLineage")
+  parentVideo       Video?        @relation("VideoLineage", fields: [parentVideoId], references: [id], onDelete: SetNull)
+  childVideos       Video[]       @relation("VideoLineage")
   editProjectId     String?
-  editProject       EditProject? @relation("EditExports", fields: [editProjectId], references: [id], onDelete: SetNull)
+  editProject       EditProject?  @relation("EditExports", fields: [editProjectId], references: [id], onDelete: SetNull)
   sourceProjects    EditProject[] @relation("EditSource")
-  createdAt         DateTime @default(now())
+  createdAt         DateTime      @default(now())
 
   @@index([userId, createdAt])
 }
 
 /// A timeline the user is editing. Copy-on-edit: the source video is never written.
 model EditProject {
-  id            String   @id @default(uuid())
+  id            String        @id @default(uuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   sourceVideoId String?
-  sourceVideo   Video?   @relation("EditSource", fields: [sourceVideoId], references: [id], onDelete: SetNull)
+  sourceVideo   Video?        @relation("EditSource", fields: [sourceVideoId], references: [id], onDelete: SetNull)
   title         String
   format        String
   timeline      Json
-  version       Int      @default(1)
+  version       Int           @default(1)
   /// Last finished MP4 for this edit. It matches the timeline at exportVersion.
   exportVideoId String?
   exportVersion Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  exports       Video[]  @relation("EditExports")
-  productions   Production[] @relation("ProductionEdit")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  exports       Video[]       @relation("EditExports")
+  productions   Production[]  @relation("ProductionEdit")
   coachThreads  CoachThread[]
 
   @@index([userId, updatedAt])
@@ -152,29 +153,29 @@ model EditProject {
 
 /// One user-facing video request. The row is the source of truth for progress.
 model VideoJob {
-  id           String    @id @default(uuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status       String // queued | running | paused | succeeded | failed | canceled
-  currentStep  String? // script | images | videos | render | finalize
-  progressPct  Int       @default(0)
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status        String // queued | running | paused | succeeded | failed | canceled
+  currentStep   String? // script | images | videos | render | finalize
+  progressPct   Int           @default(0)
   /// Finish the clip already filming, then stitch what exists and wait.
-  stopAfterClip Boolean  @default(false)
-  input        Json
-  artifacts    Json      @default("{}")
-  outputUrl    String?
-  error        String?
-  errorDetail  Json?
-  attempt      Int       @default(0)
-  costUsd      Decimal   @default(0) @db.Decimal(10, 4)
-  creditsHeld  Int       @default(0)
-  triggerRunId String?
-  heartbeatAt  DateTime?
-  startedAt    DateTime?
-  finishedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  providerJobs ProviderJob[]
+  stopAfterClip Boolean       @default(false)
+  input         Json
+  artifacts     Json          @default("{}")
+  outputUrl     String?
+  error         String?
+  errorDetail   Json?
+  attempt       Int           @default(0)
+  costUsd       Decimal       @default(0) @db.Decimal(10, 4)
+  creditsHeld   Int           @default(0)
+  triggerRunId  String?
+  heartbeatAt   DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  providerJobs  ProviderJob[]
 
   @@index([userId, status])
   @@index([status, heartbeatAt])
@@ -183,10 +184,10 @@ model VideoJob {
 
 /// One provider video job (OpenRouter or Google). Providers accept no custom metadata, so this row maps the job back to a scene.
 model ProviderJob {
-  providerJobId String   @id
-  provider      String   @default("openrouter")
+  providerJobId String    @id
+  provider      String    @default("openrouter")
   jobId         String
-  job           VideoJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job           VideoJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
   sceneIdx      Int
   waitToken     String?
   status        String // pending | in_progress | completed | failed | cancelled | expired
@@ -196,12 +197,12 @@ model ProviderJob {
   startedAt     DateTime?
   /// When the clip was ready, or the provider declined it.
   finishedAt    DateTime?
-  costUsd       Decimal? @db.Decimal(10, 4)
+  costUsd       Decimal?  @db.Decimal(10, 4)
   contentUrl    String?
   storedUrl     String?
   lastPolledAt  DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@unique([jobId, sceneIdx])
   @@map("provider_jobs")
@@ -218,18 +219,18 @@ model WebhookEvent {
 
 /// A staged AI video production. The database is authoritative for every stage.
 model Production {
-  id                 String   @id @default(uuid())
+  id                 String                 @id @default(uuid())
   userId             String
-  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   title              String
   status             String // drafting | awaiting_answers | preview | generating | reviewing | assembling | ready | failed | canceled
   stage              String // intake | develop | structure | preview | references | speech | shots | review | music | assemble | done
   mode               String // review | auto
-  creativeDelegation Boolean  @default(false)
+  creativeDelegation Boolean                @default(false)
   plannerProvider    String // claude | openai
-  budgetUsd          Decimal  @default(10) @db.Decimal(10, 4)
-  spentUsd           Decimal  @default(0) @db.Decimal(10, 4)
-  creditsHeld        Int      @default(0)
+  budgetUsd          Decimal                @default(10) @db.Decimal(10, 4)
+  spentUsd           Decimal                @default(0) @db.Decimal(10, 4)
+  creditsHeld        Int                    @default(0)
   format             String
   targetDurationSec  Int
   presetId           String?
@@ -237,11 +238,11 @@ model Production {
   /// Saved character used for speech and reference. Null keeps the plan voice.
   characterId        String?
   editProjectId      String?
-  editProject        EditProject? @relation("ProductionEdit", fields: [editProjectId], references: [id], onDelete: SetNull)
+  editProject        EditProject?           @relation("ProductionEdit", fields: [editProjectId], references: [id], onDelete: SetNull)
   error              String?
   runStartedAt       DateTime? // when the current live run (drafting/generating/...) began; null while idle
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
   entities           ProductionEntity[]
   assets             ProductionAsset[]
   steps              ProductionStep[]
@@ -254,14 +255,14 @@ model Production {
 }
 
 model ProductionEntity {
-  id                String   @id @default(uuid())
+  id                String          @id @default(uuid())
   productionId      String
-  production        Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  production        Production      @relation(fields: [productionId], references: [id], onDelete: Cascade)
   kind              String
   stableKey         String
   currentVersionId  String?
   acceptedVersionId String?
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
   versions          EntityVersion[]
 
   @@unique([productionId, kind, stableKey])
@@ -270,7 +271,7 @@ model ProductionEntity {
 }
 
 model EntityVersion {
-  id              String   @id @default(uuid())
+  id              String           @id @default(uuid())
   entityId        String
   entity          ProductionEntity @relation(fields: [entityId], references: [id], onDelete: Cascade)
   version         Int
@@ -278,7 +279,7 @@ model EntityVersion {
   origin          String // user | planner | observed | system
   createdByStepId String?
   status          String // draft | accepted | superseded | stale
-  createdAt       DateTime @default(now())
+  createdAt       DateTime         @default(now())
 
   @@unique([entityId, version])
   @@index([entityId, status])
@@ -286,41 +287,41 @@ model EntityVersion {
 }
 
 model ProductionAsset {
-  id              String   @id @default(uuid())
+  id              String     @id @default(uuid())
   productionId    String
   production      Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
   storageKey      String
   kind            String // image | video | audio | caption
   mime            String
   sha256          String
-  probe           Json     @default("{}")
+  probe           Json       @default("{}")
   producedByJobId String?
   inputVersionIds String[]
   status          String // candidate | accepted | rejected | alternate
-  createdAt       DateTime @default(now())
+  createdAt       DateTime   @default(now())
 
   @@index([productionId, kind])
   @@map("production_assets")
 }
 
 model ProductionStep {
-  id              String    @id @default(uuid())
-  productionId    String
-  production      Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
-  kind            String
-  status          String // pending | ready | leased | waiting_provider | succeeded | failed | canceled | blocked
-  dependsOn       String[]
-  leaseUntil      DateTime?
-  workerId        String?
-  attempt         Int       @default(0)
-  maxAttempts     Int       @default(2)
-  idempotencyKey  String    @unique
-  inputHash       String
-  targetKey       String    @default("")
-  error           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  jobs            GenerationJob[]
+  id             String          @id @default(uuid())
+  productionId   String
+  production     Production      @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  kind           String
+  status         String // pending | ready | leased | waiting_provider | succeeded | failed | canceled | blocked
+  dependsOn      String[]
+  leaseUntil     DateTime?
+  workerId       String?
+  attempt        Int             @default(0)
+  maxAttempts    Int             @default(2)
+  idempotencyKey String          @unique
+  inputHash      String
+  targetKey      String          @default("")
+  error          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  jobs           GenerationJob[]
 
   @@index([productionId, status])
   @@index([status, leaseUntil])
@@ -328,27 +329,27 @@ model ProductionStep {
 }
 
 model GenerationJob {
-  id                 String    @id @default(uuid())
+  id                 String         @id @default(uuid())
   productionId       String
-  production         Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  production         Production     @relation(fields: [productionId], references: [id], onDelete: Cascade)
   stepId             String
   step               ProductionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
   provider           String
   route              String
   modelId            String
   request            Json
-  settings           Json      @default("{}")
+  settings           Json           @default("{}")
   interactionContext Json?
   providerJobId      String?
   status             String // pending | submitting | in_progress | completed | failed | canceled | expired | needs_reconcile
-  outputs            Json      @default("[]")
-  usage              Json      @default("{}")
-  estimatedUsd       Decimal   @default(0) @db.Decimal(10, 4)
-  actualUsd          Decimal   @default(0) @db.Decimal(10, 4)
+  outputs            Json           @default("[]")
+  usage              Json           @default("{}")
+  estimatedUsd       Decimal        @default(0) @db.Decimal(10, 4)
+  actualUsd          Decimal        @default(0) @db.Decimal(10, 4)
   submittedAt        DateTime?
   completedAt        DateTime?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([productionId, status])
   @@index([providerJobId])
@@ -356,14 +357,14 @@ model GenerationJob {
 }
 
 model ProductionDependency {
-  id               String   @id @default(uuid())
-  productionId     String
-  production       Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
-  fromKind         String // entity_version | asset | timeline_span
-  fromId           String
-  toKind           String
-  toId             String
-  createdAt        DateTime @default(now())
+  id           String     @id @default(uuid())
+  productionId String
+  production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
+  fromKind     String // entity_version | asset | timeline_span
+  fromId       String
+  toKind       String
+  toId         String
+  createdAt    DateTime   @default(now())
 
   @@index([productionId, fromId])
   @@index([productionId, toId])
@@ -371,15 +372,15 @@ model ProductionDependency {
 }
 
 model UsageLedger {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   productionId String
   production   Production @relation(fields: [productionId], references: [id], onDelete: Cascade)
   jobId        String?
   provider     String
   model        String
-  units        Json     @default("{}")
-  usd          Decimal  @default(0) @db.Decimal(10, 4)
-  createdAt    DateTime @default(now())
+  units        Json       @default("{}")
+  usd          Decimal    @default(0) @db.Decimal(10, 4)
+  createdAt    DateTime   @default(now())
 
   @@index([productionId, createdAt])
   @@map("usage_ledger")
@@ -448,4 +449,19 @@ model CoachMessage {
 
   @@index([threadId, createdAt])
   @@map("coach_messages")
+}
+
+/// Writing the user saved. Concepts and the videos made from them live in `concepts`.
+model Source {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  concepts  Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@map("sources")
 }

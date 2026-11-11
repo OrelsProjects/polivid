@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PoliVid Studio — Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F6F9;color:#141321;font-family:Geist,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.5}
+a{color:#4A23C9}a:hover{color:#3A1AA6}
+:focus-visible{outline:2px solid #5B2EE6;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; background: #F6F6F9">
+
+<aside aria-label="Studio navigation" style="flex: 1 1 220px; max-width: 248px; background: #FFFFFF; border-right: 1px solid #E4E4EC; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <a href="Home.dc.html" aria-label="PoliVid home" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #141321; padding: 4px 8px">
+    <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 8px; background: #5B2EE6; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-family: Syne, sans-serif; font-weight: 700; font-size: 15px">P</span>
+    <span style="font-family: Syne, sans-serif; font-weight: 600; font-size: 17px">PoliVid</span>
+  </a>
+  <a href="Create.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; border-radius: 999px; background: #5B2EE6; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Create video
+  </a>
+  <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 2px">
+    <a href="Home.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; background: #EFEAFE; color: #4A23C9; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      Home
+    </a>
+    <a href="Projects.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16M16 4v16"/></svg>
+      Projects
+    </a>
+    <a href="Sources.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h8"/></svg>
+      Sources
+    </a>
+    <a href="Publish.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+      Publish
+    </a>
+    <a href="Automations.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M21 8a9 9 0 0 0-15.5-3.5L3 8M3 16a9 9 0 0 0 15.5 3.5L21 16"/></svg>
+      Automations
+    </a>
+  </nav>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6A7B; padding: 8px 10px 4px; font-weight: 600">Workspace</div>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+      Characters &amp; voices
+    </button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      Brand assets
+    </button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+      Billing
+    </button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+      Settings
+    </button>
+  </div>
+  <div style="margin-top: auto; display: flex; flex-direction: column; gap: 12px">
+    <div style="border: 1px solid #E4E4EC; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; background: #FAFAFC">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span style="font-weight: 600">Ultra plan</span><span style="font-size: 11px; color: #6B6A7B; border: 1px solid #E4E4EC; border-radius: 999px; padding: 1px 8px">Sample</span></div>
+      <div style="font-size: 13px; color: #3F3D4F"><strong style="font-weight: 600; color: #141321">8,198</strong> credits left</div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 6px">
+      <span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 999px; background: #FFE2CF; color: #9A3B00; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px">O</span>
+      <div style="display: flex; flex-direction: column; line-height: 1.25"><span style="font-size: 13px; font-weight: 500">Orel Zilberman</span><span style="font-size: 12px; color: #6B6A7B">Workspace owner</span></div>
+    </div>
+  </div>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 28px 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+
+  <header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <h1 style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 32px; line-height: 1.15">Good evening, Orel.</h1>
+      <p style="margin: 0; color: #6B6A7B; font-size: 15px">What should we make today?</p>
+    </div>
+    <span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #6B6A7B; background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 999px; padding: 4px 10px">
+      <span aria-hidden="true" style="width: 8px; height: 8px; border-radius: 999px; background: #9A5B00"></span>
+      Prototype · sample data, nothing is generated
+    </span>
+  </header>
+
+  <section aria-labelledby="start-title" style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 20px; padding: 20px 22px 18px; display: flex; flex-direction: column; gap: 14px">
+    <h2 id="start-title" style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6B6A7B">Start a video</h2>
+    <label for="home-input" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">What is the video about</label>
+    <textarea id="home-input" rows="3" placeholder="An idea, an exact script, a pasted article or link, or a song. One line is enough to start." style="width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid #E4E4EC; border-radius: 14px; padding: 14px 16px; font: inherit; font-size: 15px; color: #141321; background: #FAFAFC; min-height: 96px"></textarea>
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px">
+      <div role="group" aria-label="What you are starting from" style="display: flex; flex-wrap: wrap; gap: 8px">
+        <button type="button" aria-pressed="true" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #5B2EE6; background: #EFEAFE; color: #4A23C9; font: inherit; font-weight: 500; cursor: pointer">Idea</button>
+        <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Exact script</button>
+        <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Article or link</button>
+        <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Music or audio</button>
+        <button type="button" aria-pressed="false" style="height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Your media</button>
+      </div>
+      <a href="Create.dc.html" style="display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px; border-radius: 999px; background: #5B2EE6; color: #FFFFFF; text-decoration: none; font-weight: 500">
+        Continue to Create
+        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </section>
+
+  <section aria-labelledby="attention-title" style="display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <h2 id="attention-title" style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 20px">Needs you</h2>
+      <a href="Projects.dc.html" style="font-size: 13px; text-decoration: none; font-weight: 500">All projects</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 14px">
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <span style="align-self: flex-start; font-size: 12px; font-weight: 600; color: #9A5B00; background: #FFF1D6; border-radius: 999px; padding: 2px 10px">1 script awaiting approval</span>
+        <h3 style="margin: 0; font-size: 15px; font-weight: 600">October newsletter → 3 shorts</h3>
+        <p style="margin: 0; color: #6B6A7B; font-size: 13px">Batch · 2 of 3 approved · 1 ready to download</p>
+        <a href="Batch.dc.html" style="margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #5B2EE6; color: #4A23C9; text-decoration: none; font-weight: 500">Review script</a>
+      </article>
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <span style="align-self: flex-start; font-size: 12px; font-weight: 600; color: #C2263A; background: #FDE8EA; border-radius: 999px; padding: 2px 10px">Scene 2 failed to render</span>
+        <h3 style="margin: 0; font-size: 15px; font-weight: 600">Why sleep matters for memory</h3>
+        <p style="margin: 0; color: #6B6A7B; font-size: 13px">Video · 2 of 3 scenes rendered · credits for scene 2 refunded</p>
+        <a href="ProjectRecovery.dc.html" style="margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #5B2EE6; color: #4A23C9; text-decoration: none; font-weight: 500">Retry scene</a>
+      </article>
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <span style="align-self: flex-start; font-size: 12px; font-weight: 600; color: #157347; background: #E3F5EA; border-radius: 999px; padding: 2px 10px">Ready · v1</span>
+        <h3 style="margin: 0; font-size: 15px; font-weight: 600">Click, Then Sleep</h3>
+        <p style="margin: 0; color: #6B6A7B; font-size: 13px">Video · 9:16 · 15s · rendered 2 h ago</p>
+        <a href="Project.dc.html" style="margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border-radius: 999px; background: #5B2EE6; color: #FFFFFF; text-decoration: none; font-weight: 500">Open &amp; download</a>
+      </article>
+    </div>
+  </section>
+
+  <section aria-labelledby="continue-title" style="display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <h2 id="continue-title" style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 20px">Continue</h2>
+      <a href="Projects.dc.html" style="font-size: 13px; text-decoration: none; font-weight: 500">View all</a>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 14px">
+      <a href="Project.dc.html" style="display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px">
+        <div aria-label="Preview placeholder" role="img" style="aspect-ratio: 9 / 16; max-height: 220px; border-radius: 10px; background: #E9E8F1; display: flex; align-items: center; justify-content: center; color: #6B6A7B; font-size: 12px">9:16 preview</div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px 4px"><span style="font-weight: 600; font-size: 14px">Click, Then Sleep</span><span style="font-size: 12px; color: #157347; font-weight: 500">Ready · v1</span></div>
+      </a>
+      <a href="ProjectRecovery.dc.html" style="display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px">
+        <div aria-label="Preview placeholder" role="img" style="aspect-ratio: 9 / 16; max-height: 220px; border-radius: 10px; background: #E9E8F1; display: flex; align-items: center; justify-content: center; color: #6B6A7B; font-size: 12px">9:16 preview</div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px 4px"><span style="font-weight: 600; font-size: 14px">Why sleep matters for memory</span><span style="font-size: 12px; color: #C2263A; font-weight: 500">1 scene failed</span></div>
+      </a>
+      <a href="Batch.dc.html" style="display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px">
+        <div aria-label="Preview placeholder" role="img" style="aspect-ratio: 9 / 16; max-height: 220px; border-radius: 10px; background: #E9E8F1; display: flex; align-items: center; justify-content: center; color: #6B6A7B; font-size: 12px">3 videos</div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px 4px"><span style="font-weight: 600; font-size: 14px">October newsletter → 3 shorts</span><span style="font-size: 12px; color: #9A5B00; font-weight: 500">Batch · 1 awaiting approval</span></div>
+      </a>
+      <a href="Projects.dc.html" style="display: flex; flex-direction: column; gap: 10px; text-decoration: none; color: inherit; background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px">
+        <div aria-label="Preview placeholder" role="img" style="aspect-ratio: 9 / 16; max-height: 220px; border-radius: 10px; background: #E9E8F1; display: flex; align-items: center; justify-content: center; color: #6B6A7B; font-size: 12px">1:1 preview</div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 0 4px 4px"><span style="font-weight: 600; font-size: 14px">The letter</span><span style="font-size: 12px; color: #6B6A7B; font-weight: 500">Draft · script not approved</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section aria-labelledby="showcase-title" style="display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <h2 id="showcase-title" style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 20px">Start from a showcase</h2>
+      <p style="margin: 0; color: #6B6A7B; font-size: 13px">Opens Create with the prompt and settings prefilled.</p>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 14px">
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px; display: flex; gap: 12px">
+        <div aria-label="Preview placeholder" role="img" style="width: 96px; aspect-ratio: 9 / 16; border-radius: 10px; background: #141321; color: #FFFFFF; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box; font-family: Syne, sans-serif; font-weight: 700; font-size: 13px">BOLD</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 4px 0; flex: 1 1 auto"><span style="font-weight: 600; font-size: 14px">What is a transformer?</span><span style="font-size: 12px; color: #6B6A7B">Topic · 60s · 9:16 · Motion graphics</span><a href="Create.dc.html" style="margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 500; text-decoration: none">Create similar</a></div>
+      </article>
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px; display: flex; gap: 12px">
+        <div aria-label="Preview placeholder" role="img" style="width: 96px; aspect-ratio: 9 / 16; border-radius: 10px; background: #FBF4E7; color: #141321; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box; font-family: Georgia, serif; font-style: italic; font-size: 13px">Editorial</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 4px 0; flex: 1 1 auto"><span style="font-weight: 600; font-size: 14px">A short history of the espresso</span><span style="font-size: 12px; color: #6B6A7B">Topic · 60s · 9:16 · Motion graphics</span><a href="Create.dc.html" style="margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 500; text-decoration: none">Create similar</a></div>
+      </article>
+      <article style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 16px; padding: 10px; display: flex; gap: 12px">
+        <div aria-label="Preview placeholder" role="img" style="width: 96px; aspect-ratio: 9 / 16; border-radius: 10px; background: #E9E8F1; color: #3F3D4F; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box; font-size: 12px">Minimal</div>
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 4px 4px 4px 0; flex: 1 1 auto"><span style="font-weight: 600; font-size: 14px">Our October newsletter, as a video</span><span style="font-size: 12px; color: #6B6A7B">Article · 90s · 16:9 · Motion graphics</span><a href="Create.dc.html" style="margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 500; text-decoration: none">Create similar</a></div>
+      </article>
+    </div>
+  </section>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

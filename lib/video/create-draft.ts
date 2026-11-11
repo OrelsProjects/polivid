@@ -1,7 +1,10 @@
 import { isCharacterId } from "@/lib/voice/constants";
+import { backgroundById, DEFAULT_BACKGROUND_ID } from "./backgrounds";
+import { editValueFor, isEditOp, type EditOp } from "./edit-ops";
 import { GENERATION_MODEL_IDS, type GenerationModelId } from "./models";
 import { isVideoTier, type VideoTier } from "./modes";
 import { MAX_VISUAL_DIRECTION } from "./presets";
+import { isVisualMedia, type VisualMedia } from "./stills";
 import {
   isVideoLength,
   MAX_LYRICS_NOTE,
@@ -31,6 +34,16 @@ export interface CreateDraft {
   scene: string;
   directionKeys: string[];
   sceneKeys: string[];
+  /** How the video is illustrated. Older drafts have no value and mean filmed. */
+  media: VisualMedia;
+  verbatim: boolean;
+  /** Built-in clip behind a loop video. */
+  backgroundId: string;
+  /** The person's own clip behind a loop video. */
+  backgroundKey: string | null;
+  /** The quick edit chosen, and its setting. */
+  op: EditOp;
+  opValue: string;
 }
 
 const isFormat = (value: unknown): value is VideoFormat =>
@@ -70,6 +83,7 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       : isCharacterId(data.voiceSettingId)
         ? data.voiceSettingId
         : "";
+    const op = isEditOp(data.op) ? data.op : "rotate";
     const note = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_LYRICS_NOTE) : "");
     const pictureKeys = (value: unknown) =>
       Array.isArray(value) ? value.filter(isUploadKey).slice(0, MAX_LYRICS_REFERENCES) : [];
@@ -90,6 +104,12 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       scene: note(data.scene),
       directionKeys: pictureKeys(data.directionKeys),
       sceneKeys: pictureKeys(data.sceneKeys),
+      media: isVisualMedia(data.media) ? data.media : "video",
+      verbatim: data.verbatim === true,
+      backgroundId: backgroundById(typeof data.backgroundId === "string" ? data.backgroundId : "")?.id ?? DEFAULT_BACKGROUND_ID,
+      backgroundKey: isUploadKey(data.backgroundKey) ? data.backgroundKey : null,
+      op,
+      opValue: editValueFor(op, typeof data.opValue === "string" ? data.opValue : undefined),
     };
   } catch {
     return null;

@@ -10,7 +10,7 @@ The registry is the source. Do not keep a second list of MCP tools.
 
 - `status` is live (legacy tools such as `create_video` are out)
 - `runsOn` is `server` (browser navigation has no meaning for a remote client)
-- `category` is not `ask` (`app_ask_question` is a chat card)
+- `category` is not `ask` (`app_ask_question` and `app_confirm_preset` are chat cards)
 - `surfaces` includes `"mcp"`
 
 `mcpToolSpecs()` in `lib/tools/to-json-schema.ts` maps each of those to:

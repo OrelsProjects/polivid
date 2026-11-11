@@ -15,7 +15,8 @@ export const effectNotes = (definition: ToolDefinition) => {
   if (definition.effects.destructive) notes.push("Destructive");
   if (definition.effects.longRunning) notes.push("Long-running");
   if (definition.approval === "user" && definition.effects.spendsCredits) {
-    notes.push(`Needs approval at ${AUTO_APPROVE_UNDER_CREDITS} credits or more`);
+    const at = definition.approvalCredits ?? AUTO_APPROVE_UNDER_CREDITS;
+    notes.push(`Needs approval at ${at} credits or more`);
   } else if (definition.approval === "user") {
     notes.push("Needs approval");
   }

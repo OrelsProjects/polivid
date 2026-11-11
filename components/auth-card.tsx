@@ -14,7 +14,7 @@ export function AuthCard({
   notice?: React.ReactNode;
 }) {
   return (
-    <main id="main" className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-16">
+    <main id="main" className="dark relative flex flex-1 items-center justify-center overflow-hidden bg-background px-4 py-16 text-foreground">
       <div aria-hidden className="pointer-events-none absolute inset-0 bg-grid" />
       <div
         aria-hidden

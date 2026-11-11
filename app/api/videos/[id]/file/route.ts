@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { footageResponse } from "@/lib/video/footage";
-import { isVideoId } from "@/lib/video/media-store";
+import { footageResponse, sourceFootageKey } from "@/lib/video/footage";
+import { isVideoId, videoMediaResponse } from "@/lib/video/media-store";
 
 const downloadFilename = (value: string | null) => {
   const cleaned = (value ?? "")
@@ -26,10 +26,16 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   const row = await db.video.findFirst({ where: { id, userId }, select: { id: true } });
   if (!row) return new Response("Not found.", { status: 404 });
 
-  const response = await footageResponse(id, request.headers.get("range"));
+  const range = request.headers.get("range");
+  const url = new URL(request.url);
+  if (url.searchParams.get("layer") === "source") {
+    const source = await videoMediaResponse(sourceFootageKey(id), "video/mp4", range);
+    if (source) return source;
+  }
+
+  const response = await footageResponse(id, range);
   if (!response) return new Response("This video has no filmed clip.", { status: 404 });
 
-  const url = new URL(request.url);
   if (url.searchParams.get("download") !== "1") return response;
   const filename = downloadFilename(url.searchParams.get("name"));
   const headers = new Headers(response.headers);

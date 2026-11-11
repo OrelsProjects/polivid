@@ -4,10 +4,13 @@ import {
   Image,
   Mic,
   Music,
+  Scissors,
+  Smartphone,
   Sparkles,
   Type,
   UserRound,
   WandSparkles,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -20,6 +23,7 @@ import {
   type GenerationModel,
   type GenerationModelId,
 } from "./models";
+import type { VisualMedia } from "./stills";
 
 export const VIDEO_TIERS = ["low", "pro", "ultra"] as const;
 export type VideoTier = (typeof VIDEO_TIERS)[number];
@@ -34,10 +38,14 @@ export const VIDEO_MODE_IDS = [
   "av-to-video",
   "lyrics",
   "captions",
+  "shorts",
+  "edit",
+  "direct",
 ] as const;
 export type VideoModeId = (typeof VIDEO_MODE_IDS)[number];
 
-export type ModeEngine = "video" | "motion";
+/** `compose` modes film nothing: they cut, caption, or assemble what the person already has. */
+export type ModeEngine = "video" | "motion" | "compose";
 export type ModeUpload = "none" | "image" | "audio" | "video" | "media";
 
 export interface ModeTier {
@@ -61,6 +69,10 @@ export interface VideoMode {
   promptOptional?: boolean;
   /** Takes optional reference pictures for subject or style. Every tier model must accept them. */
   referenceImages?: boolean;
+  /** What can illustrate this mode. Unset means it is always filmed. */
+  media?: readonly VisualMedia[];
+  /** The main box holds words to be spoken, so they can be read exactly as written. */
+  spokenScript?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -74,6 +86,13 @@ const T2V_TIERS: Record<VideoTier, ModeTier> = {
   low: { model: "wan", resolution: "480p", strength: "Fast and inexpensive drafts." },
   pro: { model: "hailuo", resolution: "2K", strength: "Realistic motion at high resolution." },
   ultra: { model: "seedance", resolution: "720p", strength: "Cinematic scenes and longer clips." },
+};
+
+/** Shorts put a real person on camera, so they skip Seedance, which turns down real people. */
+const SHORTS_TIERS: Record<VideoTier, ModeTier> = {
+  low: { model: "wan", resolution: "480p", strength: "Fast, inexpensive drafts. One clip up to 30 seconds." },
+  pro: { model: "hailuo", resolution: "2K", strength: "Realistic presenter motion at high resolution." },
+  ultra: { model: "wan", resolution: "1080p", strength: "Sharp 1080p in one clip up to 30 seconds." },
 };
 
 const IMAGE_TIERS: Record<VideoTier, ModeTier> = {
@@ -100,6 +119,20 @@ const MOTION_TIERS: Record<VideoTier, ModeTier> = {
 
 export const VIDEO_MODES: readonly VideoMode[] = [
   {
+    id: "shorts",
+    title: "Shorts / TikToks",
+    description: "Your character says your script to camera, in the look you pick. Add a background if you want one.",
+    icon: Smartphone,
+    tint: "from-pink-300 to-violet-200",
+    status: "live",
+    phase: 3,
+    engine: "video",
+    upload: "none",
+    placeholder: "Paste the script. Your character says it word for word.",
+    referenceImages: true,
+    tiers: SHORTS_TIERS,
+  },
+  {
     id: "voiceover",
     title: "Voiceover Video",
     description: "Turn a script or a link into a spoken video with an AI voice.",
@@ -110,6 +143,8 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     engine: "video",
     upload: "none",
     placeholder: "Paste a script, or a link to an article. Mention the audience if it matters.",
+    media: ["video", "stills", "loop"],
+    spokenScript: true,
     tiers: T2V_TIERS,
   },
   {
@@ -210,18 +245,51 @@ export const VIDEO_MODES: readonly VideoMode[] = [
   {
     id: "captions",
     title: "Add Captions to Video",
-    description: "Add AI-generated captions to an uploaded video.",
+    description: "Captions drawn into a video you upload, timed to the words as they are spoken.",
     icon: Captions,
     tint: "from-violet-500 to-fuchsia-300",
     status: "live",
     phase: 5,
-    engine: "video",
+    engine: "compose",
     upload: "video",
-    placeholder: "Optional notes. Leave blank to caption the upload as-is.",
+    placeholder: "",
     promptOptional: true,
-    tiers: REFERENCE_TIERS,
+    tiers: null,
+  },
+  {
+    id: "edit",
+    title: "Quick Edit",
+    description: "Rotate, flip, resize, loop, or change the volume of a video you upload.",
+    icon: Scissors,
+    tint: "from-slate-300 to-sky-100",
+    status: "live",
+    phase: 5,
+    engine: "compose",
+    upload: "video",
+    placeholder: "",
+    promptOptional: true,
+    tiers: null,
+  },
+  {
+    id: "direct",
+    title: "Direct Prompt",
+    description: "Your prompt goes to the video model exactly as you typed it. Nothing is planned, rewritten, or added.",
+    icon: Zap,
+    tint: "from-amber-200 to-lime-100",
+    status: "live",
+    phase: 5,
+    engine: "video",
+    upload: "none",
+    placeholder: "Write the whole prompt for the video model. It is sent exactly as typed.",
+    tiers: T2V_TIERS,
   },
 ];
+
+/**
+ * A direct prompt reaches the video model untouched: no look, no added lines,
+ * no shot plan, no voice, and one clip.
+ */
+export const isDirectMode = (mode?: string | null) => mode === "direct";
 
 export const isVideoModeId = (value: string): value is VideoModeId =>
   (VIDEO_MODE_IDS as readonly string[]).includes(value);
@@ -235,10 +303,18 @@ export const modeNeedsUpload = (mode: VideoMode) => mode.upload !== "none";
 
 export const modeAcceptsReferenceImages = (mode: VideoMode) => mode.referenceImages === true;
 
+/** Whether this mode can be made from animated pictures instead of filmed clips. */
+export const modeAllowsStills = (mode: VideoMode | null | undefined) => mode?.media?.includes("stills") === true;
+
+/** Whether this mode can be made this way at all. Filming is always allowed. */
+export const modeAllowsMedia = (mode: VideoMode | null | undefined, media: VisualMedia) =>
+  media === "video" || mode?.media?.includes(media) === true;
+
 export const defaultPromptForMode = (mode: VideoMode) => {
   if (mode.id === "captions") return "Add captions to this video.";
   if (mode.id === "music") return "A music video that follows this track.";
   if (mode.id === "av-to-video") return "Edit this source into a short, watchable clip.";
+  if (mode.id === "edit") return "Quick edit";
   return "";
 };
 
@@ -254,8 +330,13 @@ export interface ResolvedModeTier {
 /** Maps a live mode and tier to the OpenRouter model and resolution. Soon modes return null. */
 export const resolveModeTier = (modeId: string, tier: string): ResolvedModeTier | null => {
   const mode = videoModeById(modeId);
-  if (!mode || mode.status !== "live" || !mode.tiers) return null;
+  if (!mode || mode.status !== "live") return null;
   if (!isVideoTier(tier)) return null;
+  // Nothing is filmed, so there is no model to pick. The tier is carried but changes nothing.
+  if (mode.engine === "compose") {
+    return { mode, tier, mapping: { resolution: "", strength: "" }, model: null, resolution: "" };
+  }
+  if (!mode.tiers) return null;
   const mapping = mode.tiers[tier];
   const model = mapping.model ? generationModelById(mapping.model) : null;
   if (!model && !mapping.chatModel) return null;
@@ -266,6 +347,42 @@ export const resolveModeTier = (modeId: string, tier: string): ResolvedModeTier 
         ? clipResolution(model.resolutions)
         : mapping.resolution;
   return { mode, tier, mapping, model, chatModel: mapping.chatModel, resolution };
+};
+
+export interface ResolvedFilming {
+  model: GenerationModel | null;
+  resolution?: string;
+  chatModel?: string;
+}
+
+/**
+ * Footage model for a mode and tier. An explicit model films instead of the tier's model.
+ * Motion graphics keeps its chat model. Resolution stays on the tier when that model can film it.
+ */
+export const resolveFilming = (input: {
+  mode?: string;
+  tier?: string;
+  modelId?: string;
+}): ResolvedFilming => {
+  const resolved = input.mode && input.tier ? resolveModeTier(input.mode, input.tier) : null;
+  if (resolved?.chatModel) {
+    return { model: null, chatModel: resolved.chatModel, resolution: resolved.resolution };
+  }
+  const explicit = input.modelId ? generationModelById(input.modelId) : null;
+  const model = explicit ?? resolved?.model ?? null;
+  if (!model) return { model: null, resolution: resolved?.resolution };
+  if (!explicit || explicit.id === resolved?.model?.id) {
+    return { model, resolution: resolved?.resolution ?? clipResolution(model.resolutions) };
+  }
+  const tierResolution = resolved?.resolution;
+  if (
+    tierResolution &&
+    model.resolutions.includes(tierResolution) &&
+    typeof priceForResolution(model, tierResolution) === "number"
+  ) {
+    return { model, resolution: tierResolution };
+  }
+  return { model, resolution: clipResolution(model.resolutions) };
 };
 
 export const describeModeTier = (mapping: ModeTier) => {

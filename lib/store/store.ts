@@ -1,8 +1,9 @@
 import { combineSlices, configureStore } from "@reduxjs/toolkit";
 import { api } from "./api";
 import { editorSlice } from "./editor-slice";
+import { studioSlice } from "./studio-slice";
 
-const rootReducer = combineSlices(api, editorSlice);
+const rootReducer = combineSlices(api, editorSlice, studioSlice);
 
 /**
  * Undo history holds up to 100 full timelines, too large to walk on every

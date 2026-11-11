@@ -29,6 +29,7 @@ const CreateSchema = z.object({
   presetId: z.string().trim().max(80).optional(),
   visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
   characterId: z.string().trim().max(80).optional().default(""),
+  voiceover: z.boolean().optional().default(true),
 });
 
 export async function GET() {
@@ -81,6 +82,7 @@ export async function POST(request: Request) {
         presetId: parsed.data.presetId,
         visualDirection: parsed.data.visualDirection,
         characterId: character.characterId,
+        voiceover: parsed.data.voiceover,
       });
       emit({
         type: "created",

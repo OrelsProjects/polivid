@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { MediaUpload } from "@/components/media-upload";
 import { PresetPicker } from "@/components/preset-picker";
 import { CharacterPicker } from "@/components/characters/character-picker";
-import { STUDIO_VOICE_ID } from "@/lib/voice/constants";
+import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { VisualDirectionField } from "@/components/visual-direction-field";
 import { StatusTimeline } from "@/components/production/status-timeline";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,7 @@ export function NewProductionForm() {
           presetId,
           visualDirection,
           characterId,
+          voiceover: characterId !== OFF_VOICE_ID,
         }),
       });
       if (!isNdjson(response)) {
@@ -218,9 +219,16 @@ export function NewProductionForm() {
             value={characterId}
             onChange={setCharacterId}
             disabled={pending}
-            allowOff={false}
             studioLabel="Plan voice"
-            detail="A character speaks every line and adds their picture as a reference. Plan voice keeps the voice written into the plan."
+            offLabel="No voiceover"
+            offDetail="No spoken lines"
+            detail={
+              characterId === OFF_VOICE_ID
+                ? "No one speaks. Music, ambience, and effects stay."
+                : characterId === STUDIO_VOICE_ID
+                  ? "A character speaks every line and adds their picture as a reference. Plan voice keeps the voice written into the plan."
+                  : "This character speaks every line and adds their picture as a reference."
+            }
           />
         </div>
       </div>

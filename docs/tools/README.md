@@ -28,7 +28,7 @@ Each tool sets:
 
 A tool that spends credits or is destructive must use `approval: "user"`. The registry test fails otherwise.
 
-In the Coach, a credit spend under 200 runs without asking. The estimate comes from the tool input, or from the saved job for a retry or a production approval. At 200 credits or more, and for every destructive tool, the person still approves. That check is `coachToolApproval`. An MCP client should keep confirming every `approval: "user"` tool.
+In the Coach, a video or production tool waits unless the person approved a brief or asked to run wild. With either of those, a spend under 200 runs without another ask, and 200 or more still asks. A storyboard asks only at 30 credits or more. The estimate comes from the tool input, or from the saved job for a retry or a production approval. Destructive tools always ask. That check is `coachToolApproval`. An MCP client should keep confirming every `approval: "user"` tool.
 
 `runsOn: "server"` needs a handler. `runsOn: "client"` is finished in the browser (`app_open_*`). Ask tools are client tools with `awaitsPerson: true`: the person answers, and the browser does not run them automatically.
 

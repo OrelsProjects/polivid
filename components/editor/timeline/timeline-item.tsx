@@ -47,7 +47,14 @@ export function TimelineItemView({
   const filmstripSrc =
     item.kind === "video" && asset?.source.type === "production" ? productionFilmstripUrl(asset.source.assetId) : null;
   const imageSrc = item.kind === "image" && asset ? browserAssetUrl(asset) : null;
-  const label = item.kind === "text" ? item.text : item.kind === "scene" ? item.scene.headline : KIND_LABEL[item.kind];
+  const label =
+    item.kind === "text"
+      ? item.text
+      : item.kind === "scene"
+        ? item.scene.headline
+        : item.kind === "audio" && asset?.name
+          ? asset.name
+          : KIND_LABEL[item.kind];
 
   const handlePointerDown = (event: React.PointerEvent<HTMLElement>, mode: "move" | "start" | "end") => {
     if (track.locked) return;

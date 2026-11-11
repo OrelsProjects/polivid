@@ -2,15 +2,18 @@
 
 import type { UIMessage } from "ai";
 import { motion } from "motion/react";
-import { useState, type ReactNode, type RefObject, type UIEvent } from "react";
+import { useRef, useState, type CSSProperties, type ReactNode, type RefObject, type UIEvent } from "react";
 import { CoachThreadList, type CoachThreadItem } from "@/components/coach/coach-thread-list";
 import { EditorProvider } from "@/components/editor/editor-provider";
 import { TimelinePanel } from "@/components/editor/timeline/timeline";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { useEditorShortcuts } from "@/components/editor/use-editor-shortcuts";
 import { useMotionSafe } from "@/components/motion/motion";
+import { cn } from "@/lib/utils";
 import type { EditProjectView } from "@/lib/editor/types";
 import type { VideoJobView } from "@/lib/video/job-status";
+import type { GenerationModelId } from "@/lib/video/models";
+import { PanelResizeHandle, SIDE_PANEL, TIMELINE_PANEL, useDynamicPanelSize, type PanelSize } from "./panel-resize";
 import { ProjectChatPanel } from "./project-chat-panel";
 import { ProjectPendingBar, ProjectTopBar } from "./project-top-bar";
 import { ProjectPlayer, ProjectRenderingStage } from "./project-stage";
@@ -89,6 +92,7 @@ function ReadyBody({
   onChats,
   mobile,
   onMobile,
+  side,
 }: {
   messages: UIMessage[];
   flushRef: RefObject<(() => Promise<void>) | null>;
@@ -100,29 +104,55 @@ function ReadyBody({
   onChats: () => void;
   mobile: "chat" | "timeline";
   onMobile: (value: "chat" | "timeline") => void;
+  side: PanelSize;
 }) {
   useAutosave(flushRef);
   useEditorShortcuts();
   useRemoteEdits(messages);
   const safe = useMotionSafe();
+  const columnRef = useRef<HTMLDivElement>(null);
+  const timeline = useDynamicPanelSize(TIMELINE_PANEL, columnRef, "y");
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ProjectTopBar onChats={onChats} />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div ref={columnRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <ProjectPlayer />
-          <motion.div
-            className={mobile === "timeline" ? "min-h-0 flex-1 md:flex-none" : "hidden md:block"}
-            initial={safe ? { opacity: 0, y: 24 } : false}
-            animate={{ opacity: 1, y: 0 }}
-            transition={safe ? { ...spring, delay: 0.06 } : { duration: 0 }}
+          <div
+            className={cn(
+              "relative min-h-0",
+              mobile === "timeline" ? "flex flex-1 flex-col" : "hidden",
+              "md:flex md:h-[var(--timeline-height)] md:max-h-[calc(100%-15rem)] md:flex-none md:flex-col",
+            )}
+            style={{ "--timeline-height": `${timeline.size}px` } as CSSProperties}
           >
-            <TimelinePanel className="h-full md:h-64" />
-          </motion.div>
+            <PanelResizeHandle
+              axis="y"
+              label="Resize timeline"
+              panel={timeline}
+              className="absolute inset-x-0 top-0 z-30 hidden h-3 -translate-y-1/2 md:block"
+            />
+            <motion.div
+              className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+              initial={safe ? { opacity: 0, y: 24 } : false}
+              animate={{ opacity: 1, y: 0 }}
+              transition={safe ? { ...spring, delay: 0.06 } : { duration: 0 }}
+            >
+              <TimelinePanel className="h-full min-h-0 flex-1" />
+            </motion.div>
+          </div>
         </div>
         <div className={mobile === "timeline" ? "hidden md:contents" : "flex min-h-0 flex-1 flex-col md:contents"}>
-          <ProjectChatPanel log={log} composer={composer} notice={notice} canInspect scrollRef={scrollRef} onScroll={onScroll} />
+          <ProjectChatPanel
+            log={log}
+            composer={composer}
+            notice={notice}
+            canInspect
+            scrollRef={scrollRef}
+            onScroll={onScroll}
+            side={side}
+          />
         </div>
       </div>
       <MobileSwitch value={mobile} onChange={onMobile} />
@@ -145,6 +175,7 @@ export function CoachProjectView({
   notice,
   scrollRef,
   onScroll,
+  models,
 }: {
   project: EditProjectView | null;
   job: VideoJobView | null;
@@ -160,8 +191,10 @@ export function CoachProjectView({
   notice?: ReactNode;
   scrollRef?: RefObject<HTMLDivElement | null>;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  models?: readonly GenerationModelId[];
 }) {
-  const safe = useMotionSafe();
+  const frameRef = useRef<HTMLDivElement>(null);
+  const side = useDynamicPanelSize(SIDE_PANEL, frameRef, "x");
   const [chatsOpen, setChatsOpen] = useState(false);
   const [mobile, setMobile] = useState<"chat" | "timeline">("chat");
   const sheet = (
@@ -175,26 +208,35 @@ export function CoachProjectView({
     />
   );
 
-  if (!project) {
-    return (
+  return (
+    <div ref={frameRef} className="h-full min-h-0">
+      {project ? (
+        <EditorProvider project={project}>
+          <div className="relative h-full bg-background">
+            <ReadyBody
+              messages={messages}
+              flushRef={flushRef}
+              log={log}
+              composer={composer}
+              notice={notice}
+              scrollRef={scrollRef}
+              onScroll={onScroll}
+              onChats={() => setChatsOpen(true)}
+              mobile={mobile}
+              onMobile={setMobile}
+              side={side}
+            />
+            {sheet}
+          </div>
+        </EditorProvider>
+      ) : (
         <div className="relative flex h-full min-h-0 flex-col bg-background">
           <ProjectPendingBar title={title} onChats={() => setChatsOpen(true)} />
           <div className="flex min-h-0 flex-1 flex-col md:flex-row">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {job ? <ProjectRenderingStage job={job} /> : <div className="min-h-0 flex-1" />}
-              <motion.div
-                className={`border-t border-border p-3 ${mobile === "timeline" ? "min-h-40 flex-1 md:flex-none" : "hidden md:block"}`}
-                initial={safe ? { opacity: 0, y: 24 } : false}
-                animate={{ opacity: 1, y: 0 }}
-                transition={safe ? spring : { duration: 0 }}
-                aria-hidden
-              >
-                <div className="mb-2 h-8 rounded-md bg-primary/30" />
-                <div className="mb-2 h-6 w-2/3 rounded-md bg-primary/20" />
-                <div className="h-6 rounded-md bg-muted" />
-              </motion.div>
+              {job ? <ProjectRenderingStage job={job} models={models} /> : <div className="min-h-0 flex-1" />}
             </div>
-            <div className={mobile === "timeline" ? "hidden md:contents" : "flex min-h-0 flex-1 flex-col md:contents"}>
+            <div className="flex min-h-0 flex-1 flex-col md:contents">
               <ProjectChatPanel
                 log={log}
                 composer={composer}
@@ -202,32 +244,13 @@ export function CoachProjectView({
                 canInspect={false}
                 scrollRef={scrollRef}
                 onScroll={onScroll}
+                side={side}
               />
             </div>
           </div>
-          <MobileSwitch value={mobile} onChange={setMobile} />
           {sheet}
         </div>
-    );
-  }
-
-  return (
-      <EditorProvider project={project}>
-        <div className="relative h-full bg-background">
-          <ReadyBody
-            messages={messages}
-            flushRef={flushRef}
-            log={log}
-            composer={composer}
-            notice={notice}
-            scrollRef={scrollRef}
-            onScroll={onScroll}
-            onChats={() => setChatsOpen(true)}
-            mobile={mobile}
-            onMobile={setMobile}
-          />
-          {sheet}
-        </div>
-      </EditorProvider>
+      )}
+    </div>
   );
 }

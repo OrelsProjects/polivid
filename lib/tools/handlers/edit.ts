@@ -18,11 +18,17 @@ import {
 import { applyProjectEdit, getProjectForUser } from "@/lib/editor/projects";
 import { timelineDurationInFrames, type Asset, type Timeline } from "@/lib/editor/schema";
 import type { EditProjectView } from "@/lib/editor/types";
+import { getCharacter } from "@/lib/characters/store";
+import { db } from "@/lib/db";
 import { readSongDraft } from "@/lib/music/song-draft";
 import { isOwnedUploadKey } from "@/lib/storage/upload-key";
 import type { ToolContext, ToolHandler } from "@/lib/tools/types";
+import { describeClipSound, spokenFromArtifacts } from "@/lib/video/clip-sound";
+import { hasVoiceLayer } from "@/lib/video/footage";
+import { readJobInput } from "@/lib/video/job-status";
 import { readVideoMedia } from "@/lib/video/media-store";
 import { FPS } from "@/lib/video/schema";
+import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { getVideoForUser } from "@/lib/videos";
 import { asRecord, text } from "./support";
 
@@ -63,12 +69,44 @@ const runEdit = async (
   }
 };
 
+const voiceWasUsed = async (userId: string, characterId: string) => {
+  if (!characterId || characterId === OFF_VOICE_ID) return false;
+  if (characterId === STUDIO_VOICE_ID) return true;
+  const character = await getCharacter(userId, characterId);
+  return Boolean(character?.providerVoiceId);
+};
+
+/** Footage has no voiceover. A character voice is stored beside it and played as its own clip. */
+const soundForProject = async (userId: string, sourceVideoId: string | null) => {
+  if (!sourceVideoId) return describeClipSound({ found: false, hasVoice: false });
+  const job = await db.videoJob.findFirst({
+    where: { id: sourceVideoId, userId },
+    select: { input: true, artifacts: true },
+  });
+  if (!job) return describeClipSound({ found: false, hasVoice: false });
+  const fields = readJobInput(job.input);
+  const spoken = spokenFromArtifacts(job.artifacts);
+  const layered = await hasVoiceLayer(sourceVideoId);
+  return describeClipSound({
+    found: true,
+    mode: fields.mode,
+    spoken,
+    hasVoice: layered || (await voiceWasUsed(userId, fields.characterId)),
+    layered,
+  });
+};
+
 export const editReadTimelineHandler: ToolHandler = async (input, ctx) => {
   const projectId = projectIdOf(asRecord(input), ctx);
   if (!projectId) return { error: "This chat has no video project yet." };
   const project = await getProjectForUser(ctx.userId, projectId);
   if (!project) return { error: "That project was not found." };
-  return readTimeline(project.timeline);
+  const timeline = readTimeline(project.timeline);
+  const items = timeline.tracks.flatMap((track) => track.items);
+  const videoItemId = items.find((item) => item.kind === "video")?.id ?? null;
+  const voiceItemId = items.find((item) => item.kind === "audio" && item.name?.startsWith("Voiceover"))?.id ?? null;
+  const sound = await soundForProject(ctx.userId, project.sourceVideoId);
+  return { ...timeline, sound: { ...sound, videoItemId, voiceItemId } };
 };
 
 export const editAddTextHandler: ToolHandler = async (input, ctx) => {

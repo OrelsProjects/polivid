@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { CardLink } from "@/components/motion/motion";
 import { cn } from "@/lib/utils";
-import type { VideoMode } from "@/lib/video/modes";
+import { isToolLive, type CreateTool } from "@/lib/video/tool-catalog";
 
 type ToolCardProps = {
   title: string;
@@ -45,14 +45,15 @@ export function ToolCard({ title, description, icon: Icon, tint, href }: ToolCar
   );
 }
 
-export function ModeCard({ mode }: { mode: VideoMode }) {
+/** A catalog tool. It opens the create form with that tool's copy and starting values. */
+export function ToolTile({ tool }: { tool: CreateTool }) {
   return (
     <ToolCard
-      title={mode.title}
-      description={mode.description}
-      icon={mode.icon}
-      tint={mode.tint}
-      href={mode.status === "soon" ? undefined : `/create/${mode.id}`}
+      title={tool.title}
+      description={tool.description}
+      icon={tool.icon}
+      tint={tool.tint}
+      href={isToolLive(tool) ? `/create/${tool.slug}` : undefined}
     />
   );
 }

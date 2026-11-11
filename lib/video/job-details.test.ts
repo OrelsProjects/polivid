@@ -56,3 +56,31 @@ test("uses a saved preset name when the style is not built in", () => {
   const rows = jobDetailRows({ ...base, presetId: "custom-1", presetName: "Night market" });
   assert.equal(rows.find((row) => row.label === "Style")?.value, "Night market");
 });
+
+test("names the catalog tool only when it is not the mode itself", () => {
+  const made = (tool: string) => jobDetailRows({ ...base, tool }).find((row) => row.label === "Made with")?.value;
+  assert.equal(made("product-ad"), "Product Ad");
+  assert.equal(made("prompt"), undefined);
+  assert.equal(made(""), undefined);
+  assert.equal(made("not-a-tool"), undefined);
+  assert.equal(readJobInput({ prompt: "x", tool: "product-ad" }).tool, "product-ad");
+  assert.equal(readJobInput({ prompt: "x" }).tool, "");
+});
+
+test("describes an animated-stills job without a footage model", () => {
+  const rows = jobDetailRows({ ...base, mode: "voiceover", model: "stills", media: "stills", tier: "low", verbatim: true });
+  const value = (label: string) => rows.find((row) => row.label === label)?.value;
+  assert.equal(value("Name"), "Animated stills");
+  assert.equal(value("Pictures"), "Draft quality");
+  assert.equal(value("Script"), "Read word for word");
+  assert.equal(value("Price"), undefined);
+});
+
+test("describes a background-loop job and names its background", () => {
+  const value = (job: Parameters<typeof jobDetailRows>[0], label: string) =>
+    jobDetailRows(job).find((row) => row.label === label)?.value;
+  const loop = { ...base, mode: "voiceover", model: "loop", media: "loop" };
+  assert.equal(value({ ...loop, backgroundId: "ember" }, "Name"), "Background loop");
+  assert.equal(value({ ...loop, backgroundId: "ember" }, "Background"), "Ember");
+  assert.equal(value({ ...loop, backgroundKey: "uploads/u1/clip.mp4" }, "Background"), "Your own clip");
+});

@@ -33,7 +33,7 @@ const bytesFromImage = async (image: { b64_json?: string; url?: string } | undef
     return { mime: "image/png", bytes: Buffer.from(image.b64_json, "base64") };
   }
   if (image?.url) {
-    const file = await fetch(image.url);
+    const file = await fetch(image.url, { signal: AbortSignal.timeout(IMAGE_REQUEST_TIMEOUT_MS) });
     if (!file.ok) return { mime: "image/png", bytes: new Uint8Array() };
     return {
       mime: file.headers.get("content-type") ?? "image/png",
@@ -43,12 +43,23 @@ const bytesFromImage = async (image: { b64_json?: string; url?: string } | undef
   return { mime: "image/png", bytes: new Uint8Array() };
 };
 
+/** An image request that takes longer than this is abandoned so the caller can try again. */
+export const IMAGE_REQUEST_TIMEOUT_MS = 90_000;
+
+export class ImageTimeoutError extends Error {
+  constructor(ms = IMAGE_REQUEST_TIMEOUT_MS) {
+    super(`The image request took longer than ${ms / 1000} seconds.`);
+    this.name = "ImageTimeoutError";
+  }
+}
+
 export const createImageAdapter = (): MediaAdapter => ({
   id: "images",
   estimate: (request) => capabilityById(request.modelId.includes("sunburst") ? "image-sunburst" : "image-flare")?.pricing.usd ?? 0.05,
   submit: async (request, idempotencyKey) => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set.");
+    const timeoutMs = request.timeoutMs ?? IMAGE_REQUEST_TIMEOUT_MS;
     const response = await fetch("https://openrouter.ai/api/v1/images", {
       method: "POST",
       headers: {
@@ -57,6 +68,12 @@ export const createImageAdapter = (): MediaAdapter => ({
         "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify(imageRequestBody(request)),
+      signal: AbortSignal.timeout(timeoutMs),
+    }).catch((error: unknown) => {
+      if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+        throw new ImageTimeoutError(timeoutMs);
+      }
+      throw error;
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");

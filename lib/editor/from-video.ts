@@ -1,9 +1,13 @@
 import { FPS, type VideoRecord } from "@/lib/video/schema";
-import { defaultTransform, emptyTimeline, newId, type Timeline, type VideoItem } from "./schema";
+import { createAudioItem } from "./operations";
+import { defaultTransform, emptyTimeline, newId, type Asset, type Timeline, type VideoItem } from "./schema";
 
 type SourceVideo = Pick<VideoRecord, "id" | "title" | "format" | "length" | "plan" | "facts" | "quotes">;
 
-export const timelineFromVideo = (video: SourceVideo, options: { hasFootage?: boolean } = {}): Timeline => {
+export const timelineFromVideo = (
+  video: SourceVideo,
+  options: { hasFootage?: boolean; hasSource?: boolean; voice?: { name: string } | null } = {},
+): Timeline => {
   const timeline = emptyTimeline(video.format);
   if (options.hasFootage) {
     const durationInFrames = Math.max(1, Math.round(video.length * FPS));
@@ -21,20 +25,36 @@ export const timelineFromVideo = (video: SourceVideo, options: { hasFootage?: bo
       transform: defaultTransform(),
       opacity: 1,
     };
-    return {
-      ...timeline,
-      assets: [
-        {
-          id: assetId,
-          kind: "video",
-          source: { type: "video", videoId: video.id },
-          name: video.title,
+    const videoAsset: Asset = {
+      id: assetId,
+      kind: "video",
+      source: options.hasSource ? { type: "video", videoId: video.id, layer: "source" } : { type: "video", videoId: video.id },
+      name: video.title,
+      durationInFrames,
+      width: null,
+      height: null,
+    };
+    const voiceAsset: Asset | null = options.voice
+      ? {
+          id: newId(),
+          kind: "audio",
+          source: { type: "voice", videoId: video.id },
+          name: options.voice.name,
           durationInFrames,
           width: null,
           height: null,
-        },
-      ],
-      tracks: timeline.tracks.map((track, index) => (index === 0 ? { ...track, items: [item] } : track)),
+        }
+      : null;
+    const voiceItem = voiceAsset ? createAudioItem(voiceAsset, 0) : null;
+    const audioItems = voiceItem ? [voiceItem] : [];
+    return {
+      ...timeline,
+      assets: [videoAsset, voiceAsset].filter((entry) => entry !== null),
+      tracks: timeline.tracks.map((track, index) => {
+        if (index === 0) return { ...track, items: [item] };
+        if (audioItems.length > 0 && track.kind === "audio") return { ...track, items: audioItems };
+        return track;
+      }),
     };
   }
 

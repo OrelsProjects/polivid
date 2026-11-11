@@ -8,7 +8,6 @@ import {
   Pause,
   Play,
   RotateCcw,
-  RotateCw,
   Volume2,
   VolumeX,
 } from "lucide-react";
@@ -27,6 +26,28 @@ import { cn } from "@/lib/utils";
  */
 
 const RATES = [1, 1.25, 1.5, 2] as const;
+const SKIP_SECONDS = 5;
+
+/** Circular arrow with the skip amount inset so the numeral never touches the stroke. */
+const SkipSecondsIcon = ({ direction }: { direction: "back" | "forward" }) => (
+  <svg viewBox="0 0 32 32" className="size-8" fill="none" aria-hidden>
+    <g transform={direction === "forward" ? "translate(32 0) scale(-1 1)" : undefined}>
+      <path d="M23.07 7.57a11 11 0 1 1-14.14 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M9.95 9.72 11.53 5.38 6.99 6.19" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+    <text
+      x="16"
+      y="17.4"
+      textAnchor="middle"
+      fill="currentColor"
+      fontSize="11"
+      fontWeight="700"
+      fontFamily="var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif"
+    >
+      5
+    </text>
+  </svg>
+);
 
 const formatTime = (seconds: number) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -110,6 +131,12 @@ export function VideoStage({
     }
   };
 
+  // A cached file can know its length before the duration event is attached.
+  useEffect(() => {
+    const video = ownRef.current;
+    if (video && Number.isFinite(video.duration)) setDuration(video.duration);
+  }, [src]);
+
   // Keep the clock and seek fill locked to the film, frame by frame.
   useEffect(() => {
     if (!playing) return;
@@ -153,8 +180,12 @@ export function VideoStage({
 
   const skip = (seconds: number) => {
     const video = ownRef.current;
-    if (!video || duration <= 0) return;
-    video.currentTime = Math.min(duration, Math.max(0, video.currentTime + seconds));
+    const length = video && Number.isFinite(video.duration) ? video.duration : duration;
+    if (!video || length <= 0) return;
+    const next = Math.min(length, Math.max(0, video.currentTime + seconds));
+    video.currentTime = next;
+    setDuration(length);
+    setCurrent(next);
     showBar();
   };
 
@@ -212,14 +243,14 @@ export function VideoStage({
     if (event.key === " " || event.key.toLowerCase() === "k") {
       event.preventDefault();
       void toggle();
-    } else if (event.key === "ArrowRight") skip(5);
-    else if (event.key === "ArrowLeft") skip(-5);
+    } else if (event.key === "ArrowRight") skip(SKIP_SECONDS);
+    else if (event.key === "ArrowLeft") skip(-SKIP_SECONDS);
     else if (event.key.toLowerCase() === "m") toggleMute();
     else if (event.key.toLowerCase() === "f") toggleFull();
   };
 
   const barButton =
-    "grid size-10 cursor-pointer place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white disabled:opacity-50";
+    "grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white disabled:opacity-50";
 
   return (
     <div
@@ -235,7 +266,7 @@ export function VideoStage({
         if (!event.currentTarget.contains(event.relatedTarget)) showBar();
       }}
       className={cn(
-        "relative overflow-hidden bg-black text-white select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+        "@container/stage relative overflow-hidden bg-black text-white select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         !barVisible && playing && "cursor-none",
         className,
       )}
@@ -340,7 +371,7 @@ export function VideoStage({
       {!failed ? (
         <div
           className={cn(
-            "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-2.5 pt-10 pb-2 transition-opacity duration-200 sm:px-3",
+            "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pt-14 pb-3 transition-opacity duration-200",
             barVisible || !playing ? "opacity-100" : "pointer-events-none opacity-0",
           )}
         >
@@ -374,21 +405,15 @@ export function VideoStage({
             />
           </div>
 
-          <div className="flex items-center gap-0.5 sm:gap-1">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5">
             <button type="button" onClick={() => void toggle()} aria-label={playing ? `Pause ${label}` : `Play ${label}`} className={barButton}>
               {playing ? <Pause className="size-5 fill-current" aria-hidden /> : <Play className="ml-0.5 size-5 fill-current" aria-hidden />}
             </button>
-            <button type="button" onClick={() => skip(-10)} aria-label="Back 10 seconds" className={cn(barButton, "relative hidden sm:grid")}>
-              <RotateCcw className="size-[18px]" aria-hidden />
-              <span className="absolute inset-0 grid place-items-center pt-[9px] text-[6.5px] font-bold" aria-hidden>
-                10
-              </span>
+            <button type="button" onClick={() => skip(-SKIP_SECONDS)} aria-label="Back 5 seconds" className={barButton}>
+              <SkipSecondsIcon direction="back" />
             </button>
-            <button type="button" onClick={() => skip(10)} aria-label="Forward 10 seconds" className={cn(barButton, "relative hidden sm:grid")}>
-              <RotateCw className="size-[18px]" aria-hidden />
-              <span className="absolute inset-0 grid place-items-center pt-[9px] text-[6.5px] font-bold" aria-hidden>
-                10
-              </span>
+            <button type="button" onClick={() => skip(SKIP_SECONDS)} aria-label="Forward 5 seconds" className={barButton}>
+              <SkipSecondsIcon direction="forward" />
             </button>
             <button type="button" onClick={toggleMute} aria-label={muted ? `Unmute ${label}` : `Mute ${label}`} className={barButton}>
               {muted || volume === 0 ? <VolumeX className="size-5" aria-hidden /> : <Volume2 className="size-5" aria-hidden />}
@@ -401,9 +426,9 @@ export function VideoStage({
               value={muted ? 0 : volume}
               onChange={(event) => changeVolume(Number(event.target.value))}
               aria-label={`Volume for ${label}`}
-              className="hidden w-16 cursor-pointer accent-[oklch(0.52_0.23_294)] md:block"
+              className="hidden h-10 w-16 shrink-0 cursor-pointer accent-[oklch(0.52_0.23_294)] @min-[26rem]/stage:block"
             />
-            <span className="ml-1 text-xs whitespace-nowrap tabular-nums" aria-hidden>
+            <span className="px-1.5 text-xs whitespace-nowrap tabular-nums" aria-hidden>
               {formatTime(current)} / {formatTime(duration)}
             </span>
             <span className="flex-1" />
@@ -411,7 +436,7 @@ export function VideoStage({
               type="button"
               onClick={cycleRate}
               aria-label={`Playback speed ${rate} times. Change speed`}
-              className="grid h-10 min-w-10 cursor-pointer place-items-center rounded-full px-1.5 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
+              className="grid h-10 min-w-10 shrink-0 cursor-pointer place-items-center rounded-full px-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
             >
               {rate}×
             </button>

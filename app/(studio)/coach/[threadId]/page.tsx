@@ -7,6 +7,7 @@ import { ensureThreadProject } from "@/lib/coach/project";
 import { getCoachThread, loadCoachMessages } from "@/lib/coach/store";
 import { getProjectForUser } from "@/lib/editor/projects";
 import { getCurrentUser } from "@/lib/session";
+import { availableGenerationModelIds } from "@/lib/video/available-models";
 import { getVideoJobForUser } from "@/lib/video/jobs";
 
 export const metadata: Metadata = { title: "Coach" };
@@ -28,5 +29,13 @@ async function CoachThreadLoader({ params }: { params: Promise<{ threadId: strin
   const job = thread.videoJobId ? await getVideoJobForUser(user.id, thread.videoJobId) : null;
   let project = thread.editProjectId ? await getProjectForUser(user.id, thread.editProjectId) : null;
   if (!project && job?.status === "succeeded") project = await ensureThreadProject(user.id, threadId);
-  return <CoachPage initialThreadId={threadId} initialMessages={messages} initialJob={job} initialProject={project} />;
+  return (
+    <CoachPage
+      initialThreadId={threadId}
+      initialMessages={messages}
+      initialJob={job}
+      initialProject={project}
+      models={availableGenerationModelIds()}
+    />
+  );
 }

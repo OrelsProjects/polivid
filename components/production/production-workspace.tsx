@@ -89,13 +89,15 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
   const entity = (kind: string, key?: string) =>
     production.entities.find((entry) => entry.kind === kind && (!key || entry.stableKey === key))?.current?.data;
 
+  const input = entity("input") as InputRecord | undefined;
+  const silent = input?.voiceover === false;
   const script = entity("script") as Script | undefined;
   const brief = entity("brief") as CreativeBrief | undefined;
   const assumptions = entity("assumptions") as AssumptionsRecord | undefined;
   const questions = entity("questions") as QuestionsRecord | undefined;
   const requirements = entity("requirements") as Requirements | undefined;
   const shots = production.entities.filter((entry) => entry.kind === "shot").map((entry) => entry.current?.data as Shot);
-  const references = referencePictures(entity("input") as InputRecord | undefined);
+  const references = referencePictures(input);
 
   const doneSteps = production.steps.filter((step) => step.status === "succeeded").length;
   const live = isLiveProductionStatus(production.status) || busy === "answers";
@@ -372,6 +374,9 @@ export function ProductionWorkspace({ initial }: { initial: ProductionView }) {
             <CardDescription>{script.logline}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            {silent ? (
+              <p className="text-sm text-muted-foreground">No voiceover. Music, ambience, and effects carry the sound.</p>
+            ) : null}
             {script.scenes.map((scene) => (
               <article key={scene.id} className="rounded-xl bg-muted/40 p-3">
                 <h3 className="text-sm font-medium">{scene.heading}</h3>

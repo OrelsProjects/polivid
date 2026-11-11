@@ -39,12 +39,17 @@ export function VoiceRecorder({
   disabled = false,
   takes,
   onTakesChange,
+  onDiscard,
+  notice,
 }: {
   disabled?: boolean;
   takes: (VoiceTake | null)[];
   onTakesChange: (takes: (VoiceTake | null)[]) => void;
+  onDiscard?: () => void;
+  notice?: string;
 }) {
   const [recordingIndex, setRecordingIndex] = useState<number | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [inputs, setInputs] = useState<InputDevice[]>([]);
@@ -104,6 +109,7 @@ export function VoiceRecorder({
 
   const handleRecord = async (index: number) => {
     if (disabled || recordingIndex !== null) return;
+    setConfirmDiscard(false);
     setError(null);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setError("This browser can't record audio. Try Chrome, Safari, or Firefox.");
@@ -267,6 +273,37 @@ export function VoiceRecorder({
           );
         })}
       </ol>
+      {notice ? <p className="text-xs text-muted-foreground">{notice}</p> : null}
+      {onDiscard && takes.some(Boolean) ? (
+        confirmDiscard ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm">Discard the recordings on this device?</p>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={disabled || recordingIndex !== null}
+              onClick={() => {
+                setConfirmDiscard(false);
+                onDiscard();
+              }}
+            >
+              Discard
+            </Button>
+            <Button type="button" variant="ghost" disabled={disabled} onClick={() => setConfirmDiscard(false)}>
+              Keep
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="w-fit cursor-pointer text-xs font-medium text-foreground underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={disabled || recordingIndex !== null}
+            onClick={() => setConfirmDiscard(true)}
+          >
+            Discard recordings
+          </button>
+        )
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

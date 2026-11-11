@@ -8,11 +8,13 @@ export function ClipWaveform({
   startSeconds,
   durationSeconds,
   width,
+  hideEmpty = false,
 }: {
   videoId: string;
   startSeconds: number;
   durationSeconds: number;
   width: number;
+  hideEmpty?: boolean;
 }) {
   const [bars, setBars] = useState<number[] | null>(null);
 
@@ -33,6 +35,7 @@ export function ClipWaveform({
 
   if (bars === null) return null;
   if (bars.length === 0) {
+    if (hideEmpty) return null;
     return <span className="px-2 text-[10px] font-medium text-white/70">No audio</span>;
   }
 

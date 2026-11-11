@@ -92,6 +92,10 @@ export interface VideoJobView {
   clipsDone: number;
   /** Finish the open clip, then stop before the next one. */
   stopping: boolean;
+  /** The model failed three times. Filming waits until the person picks another. */
+  needsModel: boolean;
+  /** Running, but no worker has touched it recently. The progress check tries again. */
+  stalled: boolean;
   /** The composed song of a lyrics video, playable once it is written. */
   songUrl: string | null;
   /** Shots already stored while filming. Empty before then, and for a single clip. */
@@ -107,6 +111,21 @@ export interface JobInputFields {
   length: number;
   model: string;
   mode: string;
+  /** Catalog tool the form was opened with. Empty when it was just the mode. */
+  tool: string;
+  /** `stills` when pictures are drawn and animated, `loop` for a background clip. Empty when the video is filmed. */
+  media: string;
+  /** The quick edit an edit job makes, and its setting. */
+  op: string;
+  opValue: string;
+  /** Built-in clip behind a loop video. */
+  backgroundId: string;
+  /** The person's own clip behind a loop video. */
+  backgroundKey: string;
+  /** The script is read word for word. */
+  verbatim: boolean;
+  /** The page the script text was read from. Empty when it was typed or pasted. */
+  sourceUrl: string;
   tier: string;
   resolution: string;
   imageKey: string;
@@ -125,8 +144,12 @@ export interface JobInputFields {
   sceneKeys: string[];
   /** Song take approved on the create page. Empty when the job composes its own. */
   songId: string;
+  /** Spoken lines. Empty when the job did not name any. `none` means no voiceover. */
+  vo: string;
   /** On-screen cuts. Empty for modes that do not plan shots, and for older jobs. */
   cuts: SongCut[];
+  /** Clips the person chose for a stitched video. 0 means the fewest the model needs. */
+  clips: number;
   /** How a prompt video was divided. Empty outside prompt videos. */
   brief: PromptBrief;
   attachmentRoles: AttachmentAssignment[];
@@ -138,6 +161,14 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   length: 0,
   model: "",
   mode: "",
+  tool: "",
+  media: "",
+  op: "",
+  opValue: "",
+  backgroundId: "",
+  backgroundKey: "",
+  verbatim: false,
+  sourceUrl: "",
   tier: "",
   resolution: "",
   imageKey: "",
@@ -153,7 +184,9 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   directionKeys: [],
   sceneKeys: [],
   songId: "",
+  vo: "",
   cuts: [],
+  clips: 0,
   brief: emptyPromptBrief(),
   attachmentRoles: [],
 };
@@ -172,6 +205,14 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const length = typeof record.duration === "number" && Number.isInteger(record.duration) ? record.duration : 0;
   const model = typeof record.model === "string" ? record.model : "";
   const mode = typeof record.mode === "string" ? record.mode : "";
+  const tool = typeof record.tool === "string" ? record.tool : "";
+  const media = record.media === "stills" || record.media === "loop" ? record.media : "";
+  const op = typeof record.op === "string" ? record.op : "";
+  const opValue = typeof record.opValue === "string" ? record.opValue.slice(0, 20) : "";
+  const backgroundId = typeof record.backgroundId === "string" ? record.backgroundId : "";
+  const backgroundKey = typeof record.backgroundKey === "string" ? record.backgroundKey : "";
+  const verbatim = record.verbatim === true;
+  const sourceUrl = typeof record.sourceUrl === "string" ? record.sourceUrl.slice(0, 2000) : "";
   const tier = typeof record.tier === "string" ? record.tier : "";
   const resolution = typeof record.resolution === "string" ? record.resolution : "";
   const imageKey = typeof record.imageKey === "string" ? record.imageKey : "";
@@ -195,6 +236,8 @@ export const readJobInput = (input: unknown): JobInputFields => {
         ? record.voiceSettingId
         : "";
   const songId = typeof record.songId === "string" ? record.songId : "";
+  const clips = typeof record.clips === "number" && Number.isInteger(record.clips) && record.clips > 0 ? record.clips : 0;
+  const vo = typeof record.vo === "string" ? record.vo.trim().slice(0, 2000) : "";
   const note = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, MAX_LYRICS_NOTE) : "");
   const pictureKeys = (value: unknown) =>
     Array.isArray(value)
@@ -212,6 +255,8 @@ export const readJobInput = (input: unknown): JobInputFields => {
       parsed.push({
         seconds: cut.seconds,
         camera: typeof cut.camera === "string" ? cut.camera.trim().slice(0, 200) : "",
+        ...(typeof cut.action === "string" && cut.action.trim() ? { action: cut.action.trim().slice(0, 400) } : {}),
+        ...(typeof cut.samePlace === "boolean" ? { samePlace: cut.samePlace } : {}),
         ...readCutImages(cut.images),
       });
       if (parsed.length >= MAX_CUTS) break;
@@ -224,6 +269,14 @@ export const readJobInput = (input: unknown): JobInputFields => {
     length,
     model,
     mode,
+    tool,
+    media,
+    op,
+    opValue,
+    backgroundId,
+    backgroundKey,
+    verbatim,
+    sourceUrl,
     tier,
     resolution,
     imageKey,
@@ -239,7 +292,9 @@ export const readJobInput = (input: unknown): JobInputFields => {
     directionKeys: pictureKeys(record.directionKeys),
     sceneKeys: pictureKeys(record.sceneKeys),
     songId,
+    vo,
     cuts: cuts(record.cuts),
+    clips,
     brief: readBrief(record.brief),
     attachmentRoles: readAttachmentRoles(record.attachmentRoles),
   };
@@ -293,6 +348,15 @@ export const stepIsComplete = (step: JobStep, current: JobStep | null, progressP
   return progressPct >= (next ? progressFor(next) : 100);
 };
 /** Progress band for a step. Within videos, pass how many clips are already stored. */
+/** A running job with no worker touch for this long is not actually filming. */
+export const FILMING_STALL_MS = 2 * 60 * 1000;
+
+export const isFilmingStalled = (status: string, heartbeatAt: Date | null, now = Date.now()) => {
+  if (status !== "running") return false;
+  if (!heartbeatAt) return true;
+  return now - heartbeatAt.getTime() > FILMING_STALL_MS;
+};
+
 export const progressFor = (step: JobStep, clipsDone = 0, clipsTotal = 1) => {
   if (step === "script") return 10;
   if (step === "images") return 40;

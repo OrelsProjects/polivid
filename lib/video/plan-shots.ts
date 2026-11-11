@@ -127,6 +127,8 @@ const planPrompt = async (data: PlanInput, model: GenerationModel, resolution: s
         seconds: cut.seconds,
         camera: cut.camera,
         filmSec: filmSecondsFor(cut.seconds, model.durations),
+        ...(cut.action ? { action: cut.action } : {}),
+        ...(typeof cut.samePlace === "boolean" ? { samePlace: cut.samePlace } : {}),
         ...(cut.images ? { images: cut.images } : {}),
       })),
       filmedSeconds,

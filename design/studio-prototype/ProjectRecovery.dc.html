@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PoliVid Studio — Project with failures</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Syne:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F6F6F9;color:#141321;font-family:Geist,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.5}
+a{color:#4A23C9}a:hover{color:#3A1AA6}
+:focus-visible{outline:2px solid #5B2EE6;outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</helmet>
+<div style="display: flex; flex-wrap: wrap; min-height: 100vh; background: #F6F6F9">
+
+<aside aria-label="Studio navigation" style="flex: 1 1 220px; max-width: 248px; background: #FFFFFF; border-right: 1px solid #E4E4EC; padding: 20px 14px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+  <a href="Home.dc.html" aria-label="PoliVid home" style="display: flex; align-items: center; gap: 10px; text-decoration: none; color: #141321; padding: 4px 8px">
+    <span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 8px; background: #5B2EE6; color: #FFFFFF; display: inline-flex; align-items: center; justify-content: center; font-family: Syne, sans-serif; font-weight: 700; font-size: 15px">P</span>
+    <span style="font-family: Syne, sans-serif; font-weight: 600; font-size: 17px">PoliVid</span>
+  </a>
+  <a href="Create.dc.html" style="display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; border-radius: 999px; background: #5B2EE6; color: #FFFFFF; text-decoration: none; font-weight: 500; font-size: 14px">
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    Create video
+  </a>
+  <nav aria-label="Main" style="display: flex; flex-direction: column; gap: 2px">
+    <a href="Home.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      Home
+    </a>
+    <a href="Projects.dc.html" aria-current="page" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; background: #EFEAFE; color: #4A23C9; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v16M16 4v16"/></svg>
+      Projects
+    </a>
+    <a href="Sources.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h8"/></svg>
+      Sources
+    </a>
+    <a href="Publish.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+      Publish
+    </a>
+    <a href="Automations.dc.html" style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border-radius: 10px; color: #3F3D4F; text-decoration: none; font-weight: 500">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6M3 22v-6h6"/><path d="M21 8a9 9 0 0 0-15.5-3.5L3 8M3 16a9 9 0 0 0 15.5 3.5L21 16"/></svg>
+      Automations
+    </a>
+  </nav>
+  <div style="display: flex; flex-direction: column; gap: 2px">
+    <div style="font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6A7B; padding: 8px 10px 4px; font-weight: 600">Workspace</div>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">Characters &amp; voices</button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">Brand assets</button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">Billing</button>
+    <button type="button" disabled style="display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: #8A8899; font: inherit; font-weight: 500; text-align: left; cursor: not-allowed">Settings</button>
+  </div>
+  <div style="margin-top: auto; border: 1px solid #E3C78A; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; background: #FFF8EA">
+    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px"><span style="font-weight: 600">Starter plan</span><span style="font-size: 11px; color: #6B6A7B; border: 1px solid #E3C78A; border-radius: 999px; padding: 1px 8px">Sample</span></div>
+    <div style="font-size: 13px; color: #3F3D4F"><strong style="font-weight: 600; color: #9A5B00">{{balance}}</strong> credits left · low</div>
+  </div>
+</aside>
+
+<main style="flex: 999 1 560px; min-width: 0; padding: 28px 40px 48px; box-sizing: border-box; display: flex; flex-direction: column; gap: 20px">
+
+  <nav aria-label="Breadcrumb" style="font-size: 13px; color: #6B6A7B; display: flex; gap: 6px; align-items: center">
+    <a href="Projects.dc.html" style="text-decoration: none">Projects</a><span aria-hidden="true">/</span><span>Why sleep matters for memory</span>
+  </nav>
+
+  <header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 16px">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+        <span style="font-size: 12px; font-weight: 600; color: {{headFg}}; background: {{headBg}}; border-radius: 999px; padding: 2px 10px">{{headStatus}}</span>
+        <span style="font-size: 12px; color: #6B6A7B">Started from an idea · {{renderedCount}} of 3 scenes rendered · 40 credits held, 20 refunded (sample)</span>
+      </div>
+      <h1 style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 30px; line-height: 1.15">Why sleep matters for memory</h1>
+      <p style="margin: 0; color: #6B6A7B; font-size: 14px">9:16 · 30s · Generated scenes · Rounded 3D · Narrator voice</p>
+    </div>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px">
+      <button type="button" disabled="{{noOutput}}" onClick="{{download}}" style="height: 44px; padding: 0 20px; border-radius: 999px; border: 0; background: {{dlBg}}; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer">{{dlLabel}}</button>
+      <button type="button" disabled style="height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #8A8899; font: inherit; font-weight: 500; cursor: not-allowed">Open timeline editor</button>
+    </div>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+
+    <section aria-label="What needs attention" style="flex: 999 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+      <h2 style="margin: 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 18px">What needs attention</h2>
+
+      <sc-if value="{{sceneFailed}}" hint-placeholder-val="{{true}}">
+      <article aria-label="Scene 2 failed" style="background: #FFFFFF; border: 1px solid #F3B8C0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 10px; align-items: flex-start">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C2263A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex: 0 0 20px; margin-top: 2px"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <h3 style="margin: 0; font-size: 15px; font-weight: 600">Scene 2 did not render</h3>
+            <p style="margin: 0; font-size: 13px; color: #3F3D4F">The model refused the combination of a reference picture and a storyboard frame in one request. Scenes 1 and 3 are fine and kept. The 20 credits for this scene were refunded.</p>
+          </div>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+          <button type="button" onClick="{{retryScene}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 0; background: #5B2EE6; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer">Retry scene 2 · 20 credits</button>
+          <button type="button" onClick="{{simplify}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Drop the reference picture and retry</button>
+          <button type="button" onClick="{{exportPartial}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Export without scene 2</button>
+        </div>
+      </article>
+      </sc-if>
+
+      <sc-if value="{{lowCredits}}" hint-placeholder-val="{{false}}">
+      <article aria-label="Not enough credits" style="background: #FFFFFF; border: 1px solid #E3C78A; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 600">Retrying needs 20 credits. You have {{balance}}.</h3>
+          <p style="margin: 0; font-size: 13px; color: #3F3D4F">Nothing was charged. Your rendered scenes and the script are safe. Choose a cheaper way to finish, or top up.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" onClick="{{topUp}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 0; background: #5B2EE6; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer">Buy credits (sample)</button>
+          <button type="button" onClick="{{shorten}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Shorten scene 2 to 5s · 10 credits</button>
+          <button type="button" onClick="{{dismissCredits}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #3F3D4F; font: inherit; font-weight: 500; cursor: pointer">Not now</button>
+        </div>
+      </article>
+      </sc-if>
+
+      <sc-if value="{{exportFailed}}" hint-placeholder-val="{{false}}">
+      <article aria-label="Export failed" style="background: #FFFFFF; border: 1px solid #F3B8C0; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 600">The MP4 export failed after rendering</h3>
+          <p style="margin: 0; font-size: 13px; color: #3F3D4F">Stitching the scenes timed out. Every rendered scene is kept, so retrying the export costs nothing.</p>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px">
+          <button type="button" onClick="{{retryExport}}" style="height: 40px; padding: 0 16px; border-radius: 999px; border: 0; background: #5B2EE6; color: #FFFFFF; font: inherit; font-weight: 500; cursor: pointer">Retry export · free</button>
+          <button type="button" disabled style="height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #E4E4EC; background: #FFFFFF; color: #8A8899; font: inherit; font-weight: 500; cursor: not-allowed">Download scenes separately</button>
+        </div>
+      </article>
+      </sc-if>
+
+      <sc-if value="{{allGood}}" hint-placeholder-val="{{false}}">
+      <article aria-label="Resolved" style="background: #FFFFFF; border: 1px solid #B8E0C6; border-radius: 16px; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px">
+        <h3 style="margin: 0; font-size: 15px; font-weight: 600; color: #157347">Nothing left to fix</h3>
+        <p style="margin: 0; font-size: 13px; color: #3F3D4F">All three scenes rendered and the MP4 is ready. (Simulated.)</p>
+      </article>
+      </sc-if>
+
+      <sc-if value="{{simMessage}}" hint-placeholder-val="{{false}}">
+        <p role="status" style="margin: 0; font-size: 13px; color: #9A5B00; font-weight: 500">{{simMessage}}</p>
+      </sc-if>
+
+      <h2 style="margin: 8px 0 0; font-family: Syne, sans-serif; font-weight: 600; font-size: 18px">Scenes</h2>
+      <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px">
+        <sc-for list="{{scenes}}" as="sc" hint-placeholder-count="3">
+          <li style="display: flex; gap: 12px; align-items: center; padding: 12px; border-radius: 14px; background: #FFFFFF; border: 1px solid #E4E4EC">
+            <span aria-hidden="true" style="width: 48px; height: 48px; flex: 0 0 48px; border-radius: 10px; background: {{sc.thumb}}; display: inline-flex; align-items: center; justify-content: center; font-weight: 600; color: #3F3D4F">{{sc.n}}</span>
+            <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto"><span style="font-weight: 600; font-size: 14px">{{sc.title}}</span><span style="font-size: 12px; color: #6B6A7B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sc.text}}</span></span>
+            <span style="font-size: 12px; font-weight: 600; color: {{sc.fg}}; background: {{sc.bg}}; border-radius: 999px; padding: 2px 10px; white-space: nowrap">{{sc.status}}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </section>
+
+    <aside aria-label="Output and details" style="flex: 1 1 260px; max-width: 340px; display: flex; flex-direction: column; gap: 14px">
+      <section style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 12px">
+        <div role="img" aria-label="Output placeholder" style="aspect-ratio: 9 / 16; max-height: 340px; border-radius: 12px; background: #E9E8F1; color: #6B6A7B; display: flex; align-items: center; justify-content: center; text-align: center; padding: 16px; box-sizing: border-box; font-size: 13px">{{outputNote}}</div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <span style="font-size: 13px; font-weight: 600">Versions</span>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding: 8px 10px; border-radius: 10px; background: #FAFAFC; border: 1px solid #E4E4EC"><span>v1</span><span style="color: {{versionFg}}; font-weight: 500">{{versionNote}}</span></div>
+        </div>
+      </section>
+      <section style="background: #FFFFFF; border: 1px solid #E4E4EC; border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px">
+        <h2 style="margin: 0; font-size: 13px; font-weight: 600">Credits on this project</h2>
+        <dl style="margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13px">
+          <dt style="color: #6B6A7B">Held at start</dt><dd style="margin: 0">60</dd>
+          <dt style="color: #6B6A7B">Charged</dt><dd style="margin: 0">40 · scenes 1 and 3</dd>
+          <dt style="color: #6B6A7B">Refunded</dt><dd style="margin: 0">20 · scene 2</dd>
+          <dt style="color: #6B6A7B">Balance</dt><dd style="margin: 0">{{balance}} (sample)</dd>
+        </dl>
+        <p style="margin: 0; font-size: 12px; color: #6B6A7B">Render status and publish status are separate. Nothing here is scheduled.</p>
+      </section>
+    </aside>
+  </div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { scene2: 'failed', exportState: 'none', balance: 12, lowCredits: false, sim: '' };
+    this.timer = null;
+  }
+  componentWillUnmount() { if (this.timer) clearTimeout(this.timer); }
+  startScene2(cost) {
+    this.setState({ scene2: 'rendering', lowCredits: false, balance: this.state.balance - cost, sim: 'Simulated render of scene 2 · no model is called' });
+    this.timer = setTimeout(() => this.setState({ scene2: 'rendered', exportState: 'failed', sim: 'Scene 2 rendered (simulated). The export step then failed, to show that recovery path.' }), 1800);
+  }
+  renderVals() {
+    const s = this.state;
+    const sceneFailed = s.scene2 === 'failed';
+    const rendered = (s.scene2 === 'rendered' ? 3 : 2);
+    const exportFailed = s.exportState === 'failed';
+    const exportReady = s.exportState === 'ready';
+    const allGood = s.scene2 === 'rendered' && exportReady;
+    const partial = s.exportState === 'partial';
+    const sceneStatus = (st) => st === 'rendered' ? { status: 'Rendered', fg: '#157347', bg: '#E3F5EA', thumb: '#DDEBFF' }
+      : st === 'rendering' ? { status: 'Rendering (simulated)', fg: '#1D5FD6', bg: '#E6EEFC', thumb: '#E9E8F1' }
+      : st === 'dropped' ? { status: 'Left out of export', fg: '#6B6A7B', bg: '#EFEFF3', thumb: '#E9E8F1' }
+      : { status: 'Failed · refunded', fg: '#C2263A', bg: '#FDE8EA', thumb: '#FDE8EA' };
+    const scenes = [
+      Object.assign({ n: 1, title: 'Hook', text: 'You forget forty percent of what you learned today unless you sleep on it.' }, sceneStatus('rendered')),
+      Object.assign({ n: 2, title: 'Replay', text: 'While you are out cold, the hippocampus replays the day and files the keepers.' }, sceneStatus(partial ? 'dropped' : s.scene2)),
+      Object.assign({ n: 3, title: 'Takeaway', text: 'Study, then sleep. One night beats one more hour of cramming.' }, sceneStatus('rendered'))
+    ];
+    const head = allGood ? { headStatus: 'Ready · v1', headFg: '#157347', headBg: '#E3F5EA' }
+      : partial ? { headStatus: 'Partial export · v1 (2 scenes)', headFg: '#9A5B00', headBg: '#FFF1D6' }
+      : exportFailed ? { headStatus: 'Export failed', headFg: '#C2263A', headBg: '#FDE8EA' }
+      : s.scene2 === 'rendering' ? { headStatus: 'Rendering scene 2', headFg: '#1D5FD6', headBg: '#E6EEFC' }
+      : { headStatus: '1 scene failed', headFg: '#C2263A', headBg: '#FDE8EA' };
+    const noOutput = !(allGood || partial);
+    return Object.assign(head, {
+      sceneFailed, lowCredits: s.lowCredits, exportFailed, allGood, simMessage: s.sim,
+      renderedCount: rendered, balance: s.balance,
+      noOutput, dlBg: noOutput ? '#B9B4D6' : '#5B2EE6',
+      dlLabel: allGood ? 'Download MP4' : partial ? 'Download partial MP4' : 'No MP4 yet',
+      outputNote: allGood ? 'v1 · 30s · ready' : partial ? 'v1 · 20s · scenes 1 and 3' : exportFailed ? 'Scenes rendered · MP4 not built' : 'No output until every scene renders or you export without scene 2',
+      versionFg: noOutput ? '#9A5B00' : '#157347', versionNote: noOutput ? 'Not built' : 'Current',
+      scenes,
+      retryScene: () => { if (s.balance < 20) this.setState({ lowCredits: true, sim: '' }); else this.startScene2(20); },
+      simplify: () => { if (s.balance < 20) this.setState({ lowCredits: true, sim: '' }); else this.startScene2(20); },
+      exportPartial: () => this.setState({ exportState: 'partial', lowCredits: false, sim: 'Exported scenes 1 and 3 (simulated). Scene 2 stays retryable.' }),
+      topUp: () => this.setState({ balance: 112, lowCredits: false, sim: 'Credits added (simulated). Retry scene 2 is now possible.' }),
+      shorten: () => this.startScene2(10),
+      dismissCredits: () => this.setState({ lowCredits: false }),
+      retryExport: () => this.setState({ exportState: 'ready', sim: 'Export rebuilt (simulated) · v1 ready to download.' }),
+      download: () => this.setState({ sim: 'Download started (simulated).' })
+    });
+  }
+}
+</script>
+</body>
+</html>

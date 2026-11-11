@@ -98,6 +98,7 @@ const planFromInput = async (productionId: string, userId: string, options: Plan
     answers: options.answers,
     delegated: productionMode.creativeDelegation,
     styleLock,
+    voiceover: input.voiceover,
   });
   if (options.answers) {
     developResult = {
@@ -137,9 +138,13 @@ const finishFromDevelop = async (
   };
   const productionMode = (await (await import("@/lib/db")).db.production.findUnique({ where: { id: productionId } }))!;
   const planner = getPlanner();
+  const source = await currentEntityData<InputRecord>(productionId, "input", "input");
   report("structure");
   await updateProduction(productionId, { status: "drafting", stage: "structure", error: null });
-  const structured = await runStructurePass(planner, develop, { retryNotes: options.retryNotes });
+  const structured = await runStructurePass(planner, develop, {
+    retryNotes: options.retryNotes,
+    voiceover: source?.voiceover,
+  });
   if (!structured.validation.ok) {
     return fail(structured.validation.issues.map((issue) => issue.message).join(" "));
   }

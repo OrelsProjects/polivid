@@ -7,7 +7,7 @@ test("every catalog mode is live and resolves a Pro tier", () => {
     assert.equal(mode.status, "live", mode.id);
     const resolved = resolveModeTier(mode.id, "pro");
     assert.ok(resolved, mode.id);
-    assert.ok(resolved?.model || resolved?.chatModel, mode.id);
+    assert.ok(resolved?.model || resolved?.chatModel || mode.engine === "compose", mode.id);
   }
 });
 
@@ -41,4 +41,29 @@ test("unknown tiers do not resolve", () => {
   assert.equal(resolveModeTier("prompt", "turbo"), null);
   assert.equal(resolveModeTier("unknown", "low"), null);
   assert.equal(videoModeById("unknown"), null);
+});
+
+test("a mode that films nothing resolves without a model", () => {
+  const resolved = resolveModeTier("edit", "pro");
+  assert.ok(resolved);
+  assert.equal(resolved.model, null);
+  assert.equal(resolved.chatModel, undefined);
+  assert.equal(resolveModeTier("edit", "turbo"), null);
+});
+
+test("a direct prompt films with a video model, takes no pictures, and carries no voice", async () => {
+  const { isDirectMode, modeAllowsMedia } = await import("./modes");
+  const { modeCanNarrate } = await import("@/lib/voice/constants");
+  const { isStitchedMode } = await import("./segments");
+  const direct = videoModeById("direct");
+  assert.ok(direct);
+  assert.equal(isDirectMode("direct"), true);
+  assert.equal(isDirectMode("prompt"), false);
+  assert.equal(direct.engine, "video");
+  assert.equal(direct.upload, "none");
+  assert.equal(modeAcceptsReferenceImages(direct), false);
+  assert.equal(modeAllowsMedia(direct, "stills"), false);
+  assert.equal(modeCanNarrate("direct"), false);
+  assert.equal(isStitchedMode("direct"), false, "one clip, never split into several");
+  for (const tier of VIDEO_TIERS) assert.ok(resolveModeTier("direct", tier)?.model, tier);
 });

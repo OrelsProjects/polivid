@@ -44,6 +44,10 @@ export interface TimelineReading {
       endSec: number;
       text?: string;
       name?: string;
+      /** Present on video and audio clips. 0 is silent. */
+      volume?: number;
+      /** `footage` is the filmed clip's own sound. */
+      sound?: "footage";
     }[];
   }[];
 }
@@ -57,6 +61,12 @@ const requireItem = (timeline: Timeline, itemId: string) => {
   const found = findItem(timeline, itemId);
   if (!found) throw new Error("That clip is not on the timeline. Read the timeline and use an id from it.");
   return found;
+};
+
+const footageSound = (timeline: Timeline, item: TimelineItem) => {
+  if (item.kind !== "video") return false;
+  const source = assetById(timeline, item.assetId)?.source;
+  return source?.type === "video" && source.layer === "source";
 };
 
 const itemName = (timeline: Timeline, item: TimelineItem) => {
@@ -83,6 +93,8 @@ export const readTimeline = (timeline: Timeline): TimelineReading => ({
       endSec: seconds(item.from + item.durationInFrames),
       text: item.kind === "text" ? item.text : undefined,
       name: itemName(timeline, item),
+      ...(item.kind === "video" || item.kind === "audio" ? { volume: item.volume } : {}),
+      ...(footageSound(timeline, item) ? { sound: "footage" as const } : {}),
     })),
   })),
 });

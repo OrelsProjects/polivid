@@ -53,8 +53,47 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Dark only: shadcn primitives read their `dark:` variants, so <html> carries the `dark` class. */
-:root,
+/* Light is the default. Existing shells opt into `.dark` so the previous palette stays put. */
+:root {
+  color-scheme: light;
+  --background: #f6f6f9;
+  --foreground: #141321;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #141321;
+  --popover: #ffffff;
+  --popover-foreground: #141321;
+  --primary: #5b2ee6;
+  --primary-foreground: #ffffff;
+  --secondary: #efeff3;
+  --secondary-foreground: #3f3d4f;
+  --muted: #f6f6f9;
+  --muted-foreground: #6b6a7b;
+  --accent: #efeafd;
+  --accent-foreground: #4a23c9;
+  --destructive: #c2263a;
+  --border: #e4e4ec;
+  --input: #e4e4ec;
+  --ring: #5b2ee6;
+  --glow: #5b2ee6;
+  --hot: #c2263a;
+  --chart-1: #5b2ee6;
+  --chart-2: #1d5fd6;
+  --chart-3: #157347;
+  --chart-4: #9a5b00;
+  --chart-5: #6b6a7b;
+  --radius: 0.8rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #141321;
+  --sidebar-primary: #5b2ee6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efeafd;
+  --sidebar-accent-foreground: #4a23c9;
+  --sidebar-border: #e4e4ec;
+  --sidebar-ring: #5b2ee6;
+}
+
+/* FOR DELETION: the old dark palette. Only the marketing page, sign-in and two internal preview pages still use it; remove it once they are restyled. See "For deletion" in docs/STUDIO.md. */
 .dark {
   color-scheme: dark;
   --background: oklch(0.155 0.02 295);
@@ -151,6 +190,15 @@
 .audio-eq-bar {
   transform-origin: bottom;
   animation: audio-eq 0.8s ease-in-out infinite;
+}
+
+@keyframes frame-sweep {
+  0% {
+    transform: translateX(-140%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

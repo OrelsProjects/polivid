@@ -31,9 +31,17 @@ export type TextAnimationType = (typeof TEXT_ANIMATIONS)[number];
 
 export const AssetSourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("upload"), key: z.string().min(1) }),
-  z.object({ type: z.literal("video"), videoId: z.string().min(1) }),
+  z.object({
+    type: z.literal("video"),
+    videoId: z.string().min(1),
+    /** `source` is the filmed clip before a voice was added. Omitted means the finished file. */
+    layer: z.literal("source").optional(),
+  }),
+  z.object({ type: z.literal("voice"), videoId: z.string().min(1) }),
   z.object({ type: z.literal("production"), assetId: z.string().min(1) }),
   z.object({ type: z.literal("song"), songId: z.string().min(1) }),
+  /** A clip that ships with the app, such as a background loop. */
+  z.object({ type: z.literal("library"), id: z.string().min(1).max(60) }),
 ]);
 export type AssetSource = z.infer<typeof AssetSourceSchema>;
 
@@ -98,12 +106,23 @@ export const VideoItemSchema = z.object({
 });
 export type VideoItem = z.infer<typeof VideoItemSchema>;
 
+export const IMAGE_MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"] as const;
+export type ImageMotionKind = (typeof IMAGE_MOTIONS)[number];
+
+/** A slow camera move over a still. `amount` is how far it travels, as a share of the frame. */
+export const ImageMotionSchema = z.object({
+  kind: z.enum(IMAGE_MOTIONS),
+  amount: z.number().min(0).max(0.5),
+});
+export type ImageMotion = z.infer<typeof ImageMotionSchema>;
+
 export const ImageItemSchema = z.object({
   ...ItemBaseSchema,
   kind: z.literal("image"),
   assetId: z.string().min(1),
   transform: TransformSchema,
   opacity: z.number().min(0).max(1),
+  motion: ImageMotionSchema.optional(),
 });
 export type ImageItem = z.infer<typeof ImageItemSchema>;
 

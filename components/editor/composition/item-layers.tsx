@@ -12,7 +12,16 @@ import {
 } from "remotion";
 import { SceneFrame } from "@/components/video/composition";
 import { coverFrame } from "@/lib/editor/framing";
-import type { Asset, AudioItem, ImageItem, SceneItem, TextItem, Transform, VideoItem } from "@/lib/editor/schema";
+import type {
+  Asset,
+  AudioItem,
+  ImageItem,
+  ImageMotion,
+  SceneItem,
+  TextItem,
+  Transform,
+  VideoItem,
+} from "@/lib/editor/schema";
 
 const transformStyle = (transform: Transform, opacity: number) => ({
   position: "absolute" as const,
@@ -58,7 +67,30 @@ export function VideoLayer({
   );
 }
 
+/**
+ * Where a moving still sits at `progress` (0 at its first frame, 1 at its last).
+ * Pans stay zoomed in by the travel distance, so the edge of the picture never shows.
+ */
+export const imageMotionTransform = (motion: ImageMotion | undefined, progress: number) => {
+  if (!motion || motion.amount <= 0) return "none";
+  const t = Math.min(1, Math.max(0, progress));
+  const { kind, amount } = motion;
+  if (kind === "zoom-in") return `scale(${1 + amount * t})`;
+  if (kind === "zoom-out") return `scale(${1 + amount * (1 - t)})`;
+  const travel = amount * 50 * (1 - 2 * t);
+  const shift =
+    kind === "pan-left"
+      ? `translateX(${travel}%)`
+      : kind === "pan-right"
+        ? `translateX(${-travel}%)`
+        : kind === "pan-up"
+          ? `translateY(${travel}%)`
+          : `translateY(${-travel}%)`;
+  return `${shift} scale(${1 + amount})`;
+};
+
 export function ImageLayer({ item, src, name }: { item: ImageItem; src: string | null; name?: string }) {
+  const frame = useCurrentFrame();
   if (!src) {
     return (
       <AbsoluteFill style={{ background: "#222", color: "#fff", alignItems: "center", justifyContent: "center" }}>
@@ -67,8 +99,16 @@ export function ImageLayer({ item, src, name }: { item: ImageItem; src: string |
     );
   }
   return (
-    <AbsoluteFill style={transformStyle(item.transform, item.opacity)}>
-      <Img src={src} style={{ width: "100%", height: "100%", objectFit: item.transform.fit }} />
+    <AbsoluteFill style={{ ...transformStyle(item.transform, item.opacity), overflow: "hidden" }}>
+      <Img
+        src={src}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: item.transform.fit,
+          transform: imageMotionTransform(item.motion, frame / Math.max(1, item.durationInFrames - 1)),
+        }}
+      />
     </AbsoluteFill>
   );
 }

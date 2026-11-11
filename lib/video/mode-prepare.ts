@@ -1,14 +1,15 @@
 import "server-only";
-import { transcribeMedia } from "@/lib/ai/transcribe";
 import { writeVoiceover } from "@/lib/ai/voiceover";
 import { getUpload, toDataUrl } from "@/lib/storage/s3";
-import { isAudioKey, isImageKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
+import { isAudioKey, isImageKey, isOwnedUploadKey } from "@/lib/storage/upload-key";
 import { OFF_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
+import { narrationSource, trimToWords, wordsForSeconds } from "./beat-text";
 import { writeBeats } from "./beats";
 import type { FootageRequest } from "./footage";
-import { defaultPromptForMode, modeAcceptsReferenceImages, videoModeById, type VideoMode } from "./modes";
+import { defaultPromptForMode, isDirectMode, modeAcceptsReferenceImages, videoModeById, type VideoMode } from "./modes";
 import { withOnScreenText } from "./on-screen-text";
 import { AUTO_PRESET_ID, withVisualStyle, type GenerationPreset } from "./presets";
+import { spokenScript } from "./script-markup";
 import { suggestPreset } from "./suggest-preset";
 import { resolvePreset } from "./style-lock";
 import {
@@ -33,6 +34,8 @@ export interface PreparedJob {
   reuseUploadAsFootage?: boolean;
   mediaBytes?: Uint8Array;
   spoken?: string;
+  /** One spoken line per clip, already trimmed to that clip's length. */
+  spokenBeats?: string[];
   /** One reference list per shot. When set, later shots are not left without their pictures. */
   shotReferences?: Record<string, unknown>[][];
 }
@@ -55,7 +58,11 @@ export const prepareModeJob = async (
     segments?: number[];
     existingBeats?: string[];
     existingSpoken?: string;
-    cuts?: { seconds: number; camera: string; images?: number[] }[];
+    existingSpokenBeats?: string[];
+    vo?: string;
+    /** Read the script word for word instead of rewriting it to fit the length. */
+    verbatim?: boolean;
+    cuts?: { seconds: number; camera: string; images?: number[]; action?: string; samePlace?: boolean }[];
     brief?: PromptBrief;
     attachmentRoles?: AttachmentAssignment[];
   },
@@ -65,8 +72,10 @@ export const prepareModeJob = async (
   const rawPrompt = (input.prompt.trim() || (mode ? defaultPromptForMode(mode) : "")).trim();
   const savedBeats = input.existingBeats?.filter((beat) => beat.trim().length > 0) ?? [];
   const split = savedBeats.length === 0 && (input.segments?.length ?? 1) > 1;
+  // A direct prompt is sent as typed, so no look is chosen for it and nothing is added to it.
+  const direct = isDirectMode(mode?.id);
   const preset =
-    savedBeats.length > 0
+    savedBeats.length > 0 || direct
       ? null
       : await resolveJobPreset({
           userId,
@@ -90,9 +99,12 @@ export const prepareModeJob = async (
   const content =
     savedBeats.length > 0
       ? rawPrompt
-      : mode?.id === "voiceover"
+      : mode?.id === "voiceover" && !input.verbatim
         ? await writeVoiceover(rawPrompt, input.length)
-        : rawPrompt;
+        : mode?.id === "voiceover"
+          ? // Read word for word: notes in brackets and pause marks are directions, not words.
+            spokenScript(rawPrompt) || rawPrompt
+          : rawPrompt;
   const actions =
     savedBeats.length > 0
       ? savedBeats
@@ -101,32 +113,46 @@ export const prepareModeJob = async (
             promptShotPrompt({
               brief,
               camera: cut.camera,
+              action: "action" in cut ? cut.action : undefined,
               referenceNote: referencePlan[index]?.note ?? "",
               fallbackAction: content,
               continued: index > 0,
+              samePlace: "samePlace" in cut ? cut.samePlace === true : false,
             }),
           )
-        : split
-          ? await writeBeats({ prompt: content, segments: input.segments ?? [], mode: mode?.id })
-          : [content];
+        : mode?.id === "shorts"
+          ? (split ? (input.segments ?? []) : [input.length]).map((_, index) =>
+              presenterAction(input.referenceKeys?.length ?? 0, index > 0),
+            )
+          : split
+            ? await writeBeats({ prompt: content, segments: input.segments ?? [], mode: mode?.id })
+            : [content];
   const lockSinger = mode?.id === "lyrics" && (input.referenceKeys?.length ?? 0) > 0;
   const beats =
     savedBeats.length > 0
       ? savedBeats
-      : actions.map((action) =>
+      : direct
+        ? [rawPrompt]
+        : actions.map((action) =>
           dressBeat(action, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger),
         );
   const prompt =
-    beats[0] ?? dressBeat(content, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger);
+    beats[0] ??
+    (direct ? rawPrompt : dressBeat(content, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger));
   const voiceOn = Boolean(input.characterId && input.characterId !== OFF_VOICE_ID);
-  const spoken = await spokenScript({
+  const spokenBeats = await spokenBeatsFor({
     existing: input.existingSpoken,
+    existingBeats: input.existingSpokenBeats,
     voiceOn,
     mode: mode?.id,
-    voiceover: mode?.id === "voiceover" ? content : "",
+    vo: input.vo,
     prompt: rawPrompt,
+    voiceover: mode?.id === "voiceover" ? content : "",
+    actions: (input.cuts ?? []).map((cut) => ("action" in cut && cut.action?.trim()) || cut.camera || rawPrompt),
+    seconds: (input.cuts ?? []).map((cut) => cut.seconds),
     length: input.length,
   });
+  const spoken = spokenBeats?.filter(Boolean).join(" ") || undefined;
   const base = {
     prompt,
     beats,
@@ -135,6 +161,7 @@ export const prepareModeJob = async (
     model: input.model,
     resolution: input.resolution,
     spoken,
+    spokenBeats,
   };
 
   if (promptPlanned) {
@@ -147,7 +174,7 @@ export const prepareModeJob = async (
     };
   }
 
-  if (!mode || mode.id === "prompt" || mode.id === "lyrics") {
+  if (!mode || mode.id === "prompt" || mode.id === "lyrics" || mode.id === "shorts") {
     return withReferencePictures(userId, mode, input.referenceKeys, base);
   }
 
@@ -187,26 +214,6 @@ export const prepareModeJob = async (
       prompt: `Edit this source into a short video. ${prompt}`,
       beats: [`Edit this source into a short video. ${prompt}`],
       inputReferences: [mediaReference(media)],
-    };
-  }
-
-  if (mode.id === "captions") {
-    if (!media || !isVideoKey(input.mediaKey ?? "")) throw new Error("Upload a video to caption.");
-    let transcript = rawPrompt;
-    try {
-      transcript = await transcribeMedia(media.dataUrl, media.contentType);
-    } catch (error) {
-      console.error("Transcription failed; using the prompt as captions.", error);
-      if (transcript === defaultPromptForMode(mode)) transcript = "";
-    }
-    const caption = transcript || rawPrompt;
-    return {
-      ...base,
-      prompt: caption,
-      beats: [caption],
-      transcript: caption,
-      reuseUploadAsFootage: true,
-      mediaBytes: media.bytes,
     };
   }
 
@@ -258,21 +265,52 @@ const mediaReference = (media: { dataUrl: string; contentType: string }) => {
   return { type: "video_url", video_url: { url: media.dataUrl } };
 };
 
-const spokenScript = async (input: {
+const spokenBeatsFor = async (input: {
   existing?: string;
+  existingBeats?: string[];
   voiceOn: boolean;
   mode?: string;
-  voiceover: string;
+  vo?: string;
   prompt: string;
+  voiceover: string;
+  actions: string[];
+  seconds: number[];
   length: number;
 }) => {
+  const savedBeats = input.existingBeats?.map((beat) => beat.trim()).filter(Boolean) ?? [];
+  if (savedBeats.length > 0) return savedBeats;
   const saved = input.existing?.trim() ?? "";
-  if (saved) return saved;
+  if (saved) return [saved];
   if (!input.voiceOn || !modeCanNarrate(input.mode)) return undefined;
-  if (input.mode === "voiceover") return input.voiceover.trim() || undefined;
-  if (input.mode === "lyrics") return input.prompt.trim() || undefined;
-  return writeVoiceover(input.prompt, input.length);
+  const source = narrationSource({
+    mode: input.mode,
+    vo: input.vo,
+    prompt: input.prompt,
+    voiceover: input.voiceover,
+    actions: input.actions,
+  });
+  if (!source) return undefined;
+  if (input.mode === "lyrics") return [source];
+  const seconds = input.seconds.length > 0 ? input.seconds : [input.length];
+  const split = await writeBeats({ prompt: source, segments: seconds, mode: "voiceover" });
+  const fitted = split.map((beat, index) => trimToWords(beat, wordsForSeconds(seconds[index] ?? input.length)));
+  return fitted.some(Boolean) ? fitted : undefined;
 };
+
+/**
+ * What a Shorts clip films. The script itself is spoken by the character's voice afterwards,
+ * so the footage only needs the person talking. The character's picture is always first.
+ */
+const presenterAction = (pictures: number, continued: boolean) =>
+  [
+    continued
+      ? "The same presenter keeps talking straight to camera in the same place, picking up where the last shot ended."
+      : "A presenter talks straight to camera for a vertical social video: steady eye contact, natural expressions, small hand gestures, mouth moving as they speak.",
+    pictures > 0 ? "The presenter is the person in the first reference picture. Keep the same face, hair, and clothes." : "",
+    pictures > 1 ? "Behind them is the place in the second reference picture. Keep that background." : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 const SINGER_LOCK =
   "The singer is the person in the reference pictures. Keep the same face, hair, and clothes in every shot.";

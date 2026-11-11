@@ -13,7 +13,7 @@ export function CoachPresetCard({
   return (
     <aside className="mt-3 flex gap-3 rounded-2xl border border-border bg-card p-3">
       <div className="w-16 shrink-0">
-        <PresetPoster preset={preset} />
+        <PresetPoster preset={preset} className="aspect-square" />
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium">{preset.name}</p>

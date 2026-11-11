@@ -18,13 +18,16 @@ import {
   hasApprovableBrief,
   isBriefApprovalMessage,
 } from "@/lib/coach/brief-blocks";
+import { confirmedLookForMessage, confirmedLookMessage, isLookConfirmationMessage } from "@/lib/coach/preset-confirm";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import {
   useCreateCoachThreadMutation,
   useEnsureCoachProjectMutation,
   useGetCoachThreadsQuery,
   useRetryCoachPictureMutation,
+  useRetryStoryboardFrameMutation,
 } from "@/lib/store/endpoints/coach";
+import { useGetPresetsQuery } from "@/lib/store/endpoints/presets";
 import { useGetVideoJobQuery } from "@/lib/store/endpoints/videos";
 import { uploadsApi, type LibraryUpload } from "@/lib/store/endpoints/uploads";
 import { useAppDispatch } from "@/lib/store/hooks";
@@ -38,32 +41,51 @@ import {
   referenceKeysFromMessages,
   referencePictureNote,
 } from "@/lib/coach/reference-notes";
+import { runWildNote } from "@/lib/coach/run-wild-notes";
 import { voiceNote } from "@/lib/coach/voice-notes";
 import { OFF_VOICE_ID } from "@/lib/voice/constants";
 import { useCharacters } from "@/components/characters/use-characters";
+import { LogoMark } from "@/components/logo";
 import { CoachComposer } from "@/components/coach/coach-composer";
 import { CoachEmptyState } from "@/components/coach/coach-empty-state";
 import { CoachMessage } from "@/components/coach/coach-message";
+import { picturesFromMessages } from "@/lib/coach/picture-mentions";
+import { briefEditNote, type BriefEdits } from "@/lib/coach/brief-edit-notes";
+import { modelFromMessage, modelNote } from "@/lib/coach/model-notes";
+import { revisedAnswerMessage } from "@/lib/coach/revised-answer";
 import type { PictureLibraryState } from "@/components/coach/coach-picture";
 import { CoachThreadList, type CoachThreadItem } from "@/components/coach/coach-thread-list";
 import { useMotionSafe } from "@/components/motion/motion";
 import { useCoachClientTools } from "@/components/coach/use-coach-client-tools";
 import { CoachProjectView } from "@/components/coach/project/coach-project-view";
 import { videoJobIdFromMessages } from "@/lib/coach/linked-job";
+import { isCoachProjectMode, visibleCoachProject } from "@/lib/coach/project-surface";
+import { showCoachThreadInAddressBar } from "@/lib/coach/thread-url";
 import type { EditProjectView } from "@/lib/editor/types";
 import type { VideoJobView } from "@/lib/video/job-status";
+import { GENERATION_MODEL_IDS, type GenerationModelId } from "@/lib/video/models";
 
 const NO_THREADS: CoachThreadItem[] = [];
-/** Briefs this session already continued, so a remount does not queue the same job twice. */
-const continuedBriefs = new Set<string>();
+const runWildKey = (id: string) => `polivid.coach.runWild.${id}`;
 /** How close to the bottom still counts as following the conversation. */
 const STICK_PX = 96;
+
+/** The open chat. The address bar can still say /coach when the first message is sent. */
+let coachRequestThreadId: string | null = null;
+
+/** Setup the next request waits on: a pending edit save and, in a new chat, the thread itself. */
+let coachRequestReady: Promise<unknown> | null = null;
+
+const threadIdFromLocation = () => window.location.pathname.match(/^\/coach\/([^/]+)/)?.[1] ?? null;
 
 /** The thread id lives in the URL: a new chat replaces it with /coach/{id} before the first send. */
 const transport = new DefaultChatTransport({
   api: "/api/coach/threads/_/messages",
-  prepareSendMessagesRequest: ({ messages }) => {
-    const id = window.location.pathname.match(/^\/coach\/([^/]+)/)?.[1];
+  prepareSendMessagesRequest: async ({ messages }) => {
+    const ready = coachRequestReady;
+    coachRequestReady = null;
+    if (ready) await ready;
+    const id = coachRequestThreadId ?? threadIdFromLocation();
     if (!id) throw new Error("Start a chat first.");
     return {
       api: `/api/coach/threads/${id}/messages`,
@@ -80,13 +102,17 @@ export function CoachPage({
   initialMessages = [],
   initialJob = null,
   initialProject = null,
+  models = [...GENERATION_MODEL_IDS],
 }: {
   initialThreadId?: string;
   initialMessages?: UIMessage[];
   initialJob?: VideoJobView | null;
   initialProject?: EditProjectView | null;
+  /** Footage models this server can film with. */
+  models?: GenerationModelId[];
 }) {
   const { data: threads = NO_THREADS } = useGetCoachThreadsQuery();
+  const { data: customPresets = [] } = useGetPresetsQuery();
   const [createThread] = useCreateCoachThreadMutation();
   const [threadId, setThreadId] = useState(initialThreadId);
   const [input, setInput] = useState("");
@@ -96,8 +122,11 @@ export function CoachPage({
   const [referencesBusy, setReferencesBusy] = useState(false);
   const [characterId, setCharacterId] = useState(OFF_VOICE_ID);
   const [characterName, setCharacterName] = useState("");
+  const [runWild, setRunWild] = useState(false);
+  const runWildRef = useRef(false);
   const characters = useCharacters();
   const threadIdRef = useRef(initialThreadId);
+  coachRequestThreadId = threadIdRef.current ?? null;
   const referenceKeysRef = useRef<string[]>([]);
   const sentReferenceKeysRef = useRef<string[]>([]);
   const mediaKeyRef = useRef<string | null>(null);
@@ -113,12 +142,15 @@ export function CoachPage({
 
   const flushEditRef = useRef<(() => Promise<void>) | null>(null);
   const [project, setProject] = useState<EditProjectView | null>(initialProject);
+  /** The project a newer video covered. Cancel puts it back. */
+  const heldProjectRef = useRef<EditProjectView | null>(null);
   const [ensureProject] = useEnsureCoachProjectMutation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const dispatch = useAppDispatch();
   const [retryPicture] = useRetryCoachPictureMutation();
+  const [retryFrame] = useRetryStoryboardFrameMutation();
   const [libraryState, setLibraryState] = useState<Record<string, PictureLibraryState>>({});
   const [retryingToolCallId, setRetryingToolCallId] = useState<string | null>(null);
   const [pictureErrors, setPictureErrors] = useState<Record<string, string>>({});
@@ -139,6 +171,20 @@ export function CoachPage({
       });
     },
   });
+
+  useEffect(() => {
+    runWildRef.current = runWild;
+  }, [runWild]);
+
+  useEffect(() => {
+    if (!threadId) return;
+    const stored = window.localStorage.getItem(runWildKey(threadId));
+    if (stored === null) {
+      if (runWildRef.current) window.localStorage.setItem(runWildKey(threadId), "on");
+      return;
+    }
+    setRunWild(stored === "on");
+  }, [threadId]);
 
   useEffect(() => {
     referenceKeysRef.current = mergeReferenceKeys(
@@ -198,15 +244,19 @@ export function CoachPage({
   }, [messages, addToolApprovalResponse]);
 
   const ensureThread = async () => {
-    if (threadIdRef.current) return threadIdRef.current;
+    if (threadIdRef.current) {
+      coachRequestThreadId = threadIdRef.current;
+      return threadIdRef.current;
+    }
     const thread = await createThread()
       .unwrap()
       .catch((cause: unknown) => {
         throw new Error(apiErrorMessage(cause, "Couldn't start a chat."));
       });
     threadIdRef.current = thread.id;
+    coachRequestThreadId = thread.id;
     setThreadId(thread.id);
-    window.history.replaceState(null, "", `/coach/${thread.id}`);
+    showCoachThreadInAddressBar(thread.id);
     return thread.id;
   };
 
@@ -223,14 +273,7 @@ export function CoachPage({
     mediaKeyRef.current = file ?? sentMediaKeyRef.current;
     if (video) sentVideoKeyRef.current = video;
     videoKeyRef.current = video ?? sentVideoKeyRef.current;
-    if (flushEditRef.current) {
-      try {
-        await flushEditRef.current();
-      } catch {
-        return;
-      }
-    }
-    await ensureThread();
+    const flushEdit = flushEditRef.current;
     voiceRef.current = characterId;
     briefApprovedRef.current = false;
     stickRef.current = true;
@@ -241,8 +284,18 @@ export function CoachPage({
       ...(file ? [{ type: "text" as const, text: attachedFileNote(file) }] : []),
       ...(video ? [{ type: "text" as const, text: attachedFileNote(video) }] : []),
       { type: "text" as const, text: voiceNote(characterId, characterName) },
+      ...(runWildRef.current ? [{ type: "text" as const, text: runWildNote() }] : []),
     ];
-    sendMessage({ role: "user", parts });
+    // The message shows now. The request waits for the edit save and the thread.
+    coachRequestReady = (async () => {
+      if (flushEdit) await flushEdit();
+      const id = await ensureThread();
+      window.localStorage.setItem(runWildKey(id), runWildRef.current ? "on" : "off");
+    })();
+    coachRequestReady.catch(() => {
+      setInput((current) => current || text);
+    });
+    void sendMessage({ role: "user", parts });
     setInput("");
     setReferenceKeys([]);
     setMediaKey(null);
@@ -252,28 +305,22 @@ export function CoachPage({
   const busy = status === "submitted" || status === "streaming";
   const lastMessage = messages.at(-1);
   const lastBrief = lastMessage ? briefFromParts(lastMessage.parts) : null;
-  const lastIsNew = messages.length - 1 >= landedCount;
-  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user");
-  const nudged = lastUserMessage ? isBriefApprovalMessage(lastUserMessage) : false;
   const approvableBriefId =
-    !busy &&
-    !referencesBusy &&
-    lastMessage &&
-    lastBrief &&
-    hasApprovableBrief(lastMessage) &&
-    (briefNeedsApproval(lastBrief) || !lastIsNew || nudged)
+    !busy && !referencesBusy && lastMessage && lastBrief && briefNeedsApproval(lastBrief) && hasApprovableBrief(lastMessage)
       ? lastMessage.id
       : null;
 
-  const handleApproveBrief = async (messageId: string, source: "person" | "auto" = "person") => {
+  const handleApproveBrief = async (messageId: string, modelId?: GenerationModelId, edits?: BriefEdits) => {
     if (busy || approvedBriefId) return false;
+    let id: string;
     try {
-      await ensureThread();
+      id = await ensureThread();
     } catch {
       return false;
     }
+    window.localStorage.setItem(runWildKey(id), runWildRef.current ? "on" : "off");
     voiceRef.current = characterId;
-    briefApprovedRef.current = source === "person";
+    briefApprovedRef.current = true;
     stickRef.current = true;
     setApprovedBriefId(messageId);
     sendMessage({
@@ -281,53 +328,85 @@ export function CoachPage({
       parts: [
         { type: "text", text: BRIEF_APPROVAL_TEXT },
         { type: "text", text: voiceNote(characterId, characterName) },
+        ...(modelId ? [{ type: "text" as const, text: modelNote(modelId) }] : []),
+        ...(edits && briefEditNote(edits) ? [{ type: "text" as const, text: briefEditNote(edits) }] : []),
+        ...(runWildRef.current ? [{ type: "text" as const, text: runWildNote() }] : []),
       ],
     });
     return true;
   };
-  const approveBriefRef = useRef(handleApproveBrief);
-  approveBriefRef.current = handleApproveBrief;
 
-  useEffect(() => {
-    if (busy || referencesBusy || approvedBriefId) return;
-    if (input.trim() || referenceKeys.length > 0 || mediaKey || videoKey) return;
-    const last = messages.at(-1);
-    if (!last || messages.length - 1 < landedCount || !hasApprovableBrief(last)) return;
-    const brief = briefFromParts(last.parts);
-    if (!brief || briefNeedsApproval(brief)) return;
-    const previousUser = [...messages].reverse().find((message) => message.role === "user");
-    if (previousUser && isBriefApprovalMessage(previousUser)) return;
-    if (continuedBriefs.has(last.id)) return;
-    continuedBriefs.add(last.id);
-    void approveBriefRef.current(last.id, "auto").then((started) => {
-      if (!started) continuedBriefs.delete(last.id);
+  const handleConfirmLook = async (presetId: string) => {
+    if (busy || !presetId) return;
+    try {
+      const id = await ensureThread();
+      window.localStorage.setItem(runWildKey(id), runWildRef.current ? "on" : "off");
+    } catch {
+      return;
+    }
+    voiceRef.current = characterId;
+    stickRef.current = true;
+    sendMessage({
+      role: "user",
+      parts: [
+        { type: "text", text: confirmedLookMessage(presetId) },
+        { type: "text", text: voiceNote(characterId, characterName) },
+        ...(runWildRef.current ? [{ type: "text" as const, text: runWildNote() }] : []),
+      ],
     });
-  }, [approvedBriefId, busy, input, mediaKey, messages, referenceKeys, referencesBusy, videoKey, landedCount]);
+  };
+
+  const approvedModelFor = (messageId: string) => {
+    const index = messages.findIndex((message) => message.id === messageId);
+    if (index < 0) return undefined;
+    for (let cursor = index + 1; cursor < messages.length; cursor += 1) {
+      const next = messages[cursor];
+      if (!next || next.role !== "user") continue;
+      if (!isBriefApprovalMessage(next)) return undefined;
+      const model = modelFromMessage(next);
+      return model || undefined;
+    }
+    return undefined;
+  };
 
   const briefApprovalFor = (messageId: string): BriefApproval | undefined => {
-    const index = messages.findIndex((message) => message.id === messageId);
-    const message = index >= 0 ? messages[index] : undefined;
-    const brief = message ? briefFromParts(message.parts) : null;
-    const cheapNew = Boolean(brief && !briefNeedsApproval(brief) && index >= landedCount);
-    if (cheapNew && !nudged) return undefined;
     if (messageId === approvedBriefId) return "sent";
     if (messageId === approvableBriefId) return "ready";
     return undefined;
   };
 
-  const waitingForReply = busy && (lastMessage?.role !== "assistant" || status === "submitted");
+  // The reply draws its own mark once the assistant message exists. A second mark here doubled it during the pause before the next step.
+  const waitingForReply = busy && lastMessage?.role !== "assistant";
   const activeJobId = videoJobIdFromMessages(messages) ?? initialJob?.id ?? null;
+  const jobStatusRef = useRef(initialJob?.id === activeJobId ? initialJob.status : null);
   const { data: liveJob } = useGetVideoJobQuery(activeJobId ?? "", {
     skip: !activeJobId,
-    pollingInterval: activeJobId && !project ? 3000 : 0,
+    pollingInterval: activeJobId && !project && jobStatusRef.current !== "canceled" ? 3000 : 0,
   });
   const job = liveJob ?? (initialJob?.id === activeJobId ? initialJob : null);
-  const projectMode = Boolean(activeJobId || project);
+  jobStatusRef.current = job?.status ?? null;
+  const filming = job?.status === "queued" || job?.status === "running";
+  const visibleProject = visibleCoachProject({
+    project,
+    heldProject: heldProjectRef.current,
+    activeJobId,
+    jobStatus: job?.status ?? null,
+  });
+  const projectMode = isCoachProjectMode({
+    visibleProject: Boolean(visibleProject),
+    activeJobId,
+    jobStatus: job?.status ?? null,
+  });
 
   useEffect(() => {
+    if (job?.status === "canceled") {
+      if (!project && heldProjectRef.current) setProject(heldProjectRef.current);
+      return;
+    }
     if (!project || !activeJobId || project.sourceVideoId === activeJobId) return;
+    heldProjectRef.current = project;
     setProject(null);
-  }, [activeJobId, project]);
+  }, [activeJobId, job?.status, project]);
 
   useEffect(() => {
     if (!threadId || project || job?.status !== "succeeded") return;
@@ -422,6 +501,48 @@ export function CoachPage({
     }
   };
 
+  const handleRegenerateFrame = async (frame: { messageId: string; toolCallId: string; frameIndex: number }) => {
+    const busyKey = `${frame.toolCallId}:${frame.frameIndex}`;
+    if (!threadId || busy || retryingToolCallId) return;
+    setRetryingToolCallId(busyKey);
+    setPictureErrors((current) => {
+      const next = { ...current };
+      delete next[busyKey];
+      return next;
+    });
+    try {
+      const { frame: made } = await retryFrame({ threadId, ...frame }).unwrap();
+      setMessages((current) =>
+        current.map((message) => {
+          if (message.id !== frame.messageId) return message;
+          return {
+            ...message,
+            parts: message.parts.map((part) => {
+              if (!("toolCallId" in part) || part.toolCallId !== frame.toolCallId) return part;
+              const output = "output" in part && part.output && typeof part.output === "object" ? part.output : null;
+              const frames = output && "frames" in output && Array.isArray(output.frames) ? output.frames : null;
+              if (!output || !frames) return part;
+              return {
+                ...part,
+                output: {
+                  ...output,
+                  frames: frames.map((entry: { index?: number }) => (entry.index === frame.frameIndex ? { ...entry, ...made } : entry)),
+                },
+              } as UIMessage["parts"][number];
+            }),
+          };
+        }),
+      );
+    } catch (cause) {
+      setPictureErrors((current) => ({
+        ...current,
+        [busyKey]: apiErrorMessage(cause, "Couldn't make that frame again."),
+      }));
+    } finally {
+      setRetryingToolCallId(null);
+    }
+  };
+
   const openThread = (id: string) => {
     window.location.assign(`/coach/${id}`);
   };
@@ -438,7 +559,7 @@ export function CoachPage({
         <CoachEmptyState onPick={(text) => void handleSend(text)} />
       ) : (
         messages.map((message, index) =>
-          isBriefApprovalMessage(message) ? null : (
+          isBriefApprovalMessage(message) || isLookConfirmationMessage(message) ? null : (
           <motion.div
             key={message.id}
             initial={safe && index >= landedCount ? { opacity: 0, y: 8 } : false}
@@ -448,19 +569,33 @@ export function CoachPage({
             <CoachMessage
               message={message}
               characters={characters}
+              pictures={picturesFromMessages(messages)}
               pictureKeys={referenceKeysFromMessages(messages)}
               pictureControls={{
                 libraryState: (imageKey) => libraryState[imageKey] ?? "add",
                 onAddToLibrary: (picture) => void handleAddToLibrary(picture),
                 onRetry: (picture) => handleRetryPicture(picture),
+                onRegenerateFrame: (frame) => handleRegenerateFrame(frame),
                 retryingToolCallId,
                 retryDisabled: busy || retryingToolCallId !== null,
                 errorFor: (toolCallId) => pictureErrors[toolCallId] ?? null,
               }}
               briefApproval={briefApprovalFor(message.id)}
-              onApproveBrief={() => void handleApproveBrief(message.id)}
+              briefModels={models}
+              briefModelId={approvedModelFor(message.id)}
+              onApproveBrief={(modelId, edits) => void handleApproveBrief(message.id, modelId, edits)}
               onApprove={(id) => addToolApprovalResponse({ id, approved: true })}
               onDeny={(id) => addToolApprovalResponse({ id, approved: false })}
+              customPresets={customPresets}
+              confirmedLookId={confirmedLookForMessage(messages, index)}
+              onConfirmLook={(presetId) => void handleConfirmLook(presetId)}
+              onConfirmPreset={(toolCallId, presetId) =>
+                addToolOutput({
+                  tool: "app_confirm_preset",
+                  toolCallId,
+                  output: { presetId },
+                })
+              }
               onAnswer={(toolCallId, answer) =>
                 addToolOutput({
                   tool: "app_ask_question",
@@ -468,6 +603,14 @@ export function CoachPage({
                   output: answer,
                 })
               }
+              answerDisabled={busy}
+              onEditAnswer={(question, answer) => {
+                stickRef.current = true;
+                void sendMessage({
+                  role: "user",
+                  parts: [{ type: "text", text: revisedAnswerMessage(question, answer) }],
+                });
+              }}
             />
           </motion.div>
           ),
@@ -475,7 +618,7 @@ export function CoachPage({
       )}
       {waitingForReply && (
         <div aria-hidden>
-          <p className="font-label text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">Coach</p>
+          <LogoMark className="size-6" />
           <div className="mt-2 flex items-center gap-1">
             {[0, 1, 2].map((dot) => (
               <span
@@ -509,6 +652,12 @@ export function CoachPage({
       onCharacterId={setCharacterId}
       onCharacterName={setCharacterName}
       characters={characters}
+      runWild={runWild}
+      filming={filming}
+      onRunWild={(on) => {
+        setRunWild(on);
+        if (threadIdRef.current) window.localStorage.setItem(runWildKey(threadIdRef.current), on ? "on" : "off");
+      }}
     />
   );
   const notice = (
@@ -556,7 +705,7 @@ export function CoachPage({
           {busy ? "The Coach is replying." : ""}
         </p>
         <CoachProjectView
-          project={project}
+          project={visibleProject}
           job={job}
           title={threads.find((thread) => thread.id === threadId)?.title || job?.prompt || "Video"}
           messages={messages}
@@ -570,6 +719,7 @@ export function CoachPage({
           notice={<div className="relative shrink-0">{notice}</div>}
           scrollRef={scrollRef}
           onScroll={handleScroll}
+          models={models}
         />
       </LayoutGroup>
     );

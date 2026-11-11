@@ -37,7 +37,7 @@ export default function ShotPlanPreviewPage() {
   const [submitted, setSubmitted] = useState(false);
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-8 px-4 py-8">
+    <main className="dark mx-auto flex min-h-svh max-w-xl flex-col gap-8 bg-background px-4 py-8 text-foreground">
       <form
         onSubmit={(event) => {
           event.preventDefault();

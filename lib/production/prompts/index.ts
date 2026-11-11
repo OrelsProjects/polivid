@@ -1,3 +1,5 @@
+import { VOICEOVER_OFF_NOTE, VOICEOVER_OFF_STRUCTURE_NOTE } from "../voiceover";
+
 export { DEVELOP_INSTRUCTIONS } from "./develop";
 export { STRUCTURE_INSTRUCTIONS } from "./structure";
 
@@ -9,6 +11,7 @@ export const formatDevelopInput = (args: {
   answers?: Record<string, string>;
   delegated: boolean;
   styleLock?: string | null;
+  voiceover?: boolean;
 }) => {
   const answers =
     args.answers && Object.keys(args.answers).length > 0
@@ -19,18 +22,24 @@ export const formatDevelopInput = (args: {
   const lock = args.styleLock?.trim()
     ? `\n\nSTYLE LOCK — reuse this wording in the creative brief and every shot:\n${args.styleLock.trim()}`
     : "";
+  const voice = args.voiceover === false ? `\n\n${VOICEOVER_OFF_NOTE}` : "";
   return `Format: ${args.format}
 Target duration: ${args.durationSec} seconds
 Language: ${args.language}
 Creative delegation: ${args.delegated ? "yes — do not ask questions" : "no"}
 
 User request:
-${args.text}${answers}${lock}`;
+${args.text}${answers}${lock}${voice}`;
 };
 
-export const formatStructureInput = (args: { developJson: string; retryNotes?: string | null }) => {
+export const formatStructureInput = (args: {
+  developJson: string;
+  retryNotes?: string | null;
+  voiceover?: boolean;
+}) => {
   const retry = args.retryNotes?.trim()
     ? `\n\nThe previous shot plan failed these checks. Fix every one:\n${args.retryNotes.trim()}`
     : "";
-  return `Create the shot plan, sound plan, and production records from this accepted development:\n${args.developJson}${retry}`;
+  const voice = args.voiceover === false ? `\n\n${VOICEOVER_OFF_STRUCTURE_NOTE}` : "";
+  return `Create the shot plan, sound plan, and production records from this accepted development:\n${args.developJson}${retry}${voice}`;
 };

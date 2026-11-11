@@ -1,16 +1,14 @@
-import { Plus } from "lucide-react";
-import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { connection } from "next/server";
-import { AppNav } from "@/components/app-nav";
-import { PlanCard } from "@/components/billing/plan-card";
-import { Logo } from "@/components/logo";
-import { MobileNav } from "@/components/mobile-nav";
 import { PageTransition } from "@/components/motion/motion";
 import { StoreProvider } from "@/components/store-provider";
-import { buttonVariants } from "@/components/ui/button";
-import { UserMenu } from "@/components/user-menu";
-import { cn } from "@/lib/utils";
+import {
+  AccountFallback,
+  PlanCardFallback,
+  StudioAccount,
+  StudioPlanCard,
+} from "@/components/studio/studio-account";
+import { StudioFrame } from "@/components/studio/studio-frame";
 import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
 import {
   DEFAULT_GENERATION_MODEL,
@@ -18,71 +16,32 @@ import {
 } from "@/lib/video/models";
 
 /**
- * Shell for signed-in pages: sidebar on desktop, top nav on mobile.
+ * Shell for signed-in pages: the white Studio sidebar on desktop, a top bar with a menu on mobile.
  * proxy.ts redirects signed-out visitors to /login before this renders.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-svh flex-1 bg-background">
-      <aside className="sticky top-0 hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar px-3 py-4 md:flex">
-        <Logo href="/dashboard" className="px-2 pt-1" />
-        <div className="mt-5">
-          <AppNav />
-        </div>
-        <div className="mt-auto flex flex-col gap-3">
-          <Suspense
-            fallback={
-              <div className="h-16 rounded-2xl border border-border bg-card" />
-            }
-          >
-            <PlanCard />
+    <StudioFrame
+      plan={
+        <>
+          <Suspense fallback={<PlanCardFallback />}>
+            <StudioPlanCard />
           </Suspense>
           <Suspense fallback={null}>
             <EngineStatus />
           </Suspense>
-          <Suspense fallback={<div className="h-10" />}>
-            <UserMenu />
-          </Suspense>
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-sidebar-border bg-sidebar/95 px-4 backdrop-blur md:hidden">
-          <Logo href="/dashboard" />
-          <div className="flex items-center gap-1">
-            <Link
-              href="/create"
-              className={cn(
-                buttonVariants({ size: "lg" }),
-                "h-10 rounded-xl px-3",
-              )}
-            >
-              <Plus data-icon="inline-start" />
-              New
-            </Link>
-            <Suspense fallback={<div className="size-10" />}>
-              <MobileNav>
-                <Suspense
-                  fallback={
-                    <div className="h-16 rounded-2xl border border-border bg-card" />
-                  }
-                >
-                  <PlanCard />
-                </Suspense>
-                <Suspense fallback={<div className="h-10" />}>
-                  <UserMenu />
-                </Suspense>
-              </MobileNav>
-            </Suspense>
-          </div>
-        </header>
-        <main id="main" className="flex min-w-0 flex-1 flex-col">
-          <StoreProvider>
-            <PageTransition>{children}</PageTransition>
-          </StoreProvider>
-        </main>
-      </div>
-    </div>
+        </>
+      }
+      account={
+        <Suspense fallback={<AccountFallback />}>
+          <StudioAccount />
+        </Suspense>
+      }
+    >
+      <StoreProvider>
+        <PageTransition>{children}</PageTransition>
+      </StoreProvider>
+    </StudioFrame>
   );
 }
 
@@ -90,15 +49,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 async function EngineStatus() {
   await connection();
   return hasOpenRouterKey() ? (
-    <p
-      className="px-1 text-xs leading-relaxed text-muted-foreground"
-      title={MODEL}
-    >
-      {hasOpenRouterKey() ? "LIVE" : "DEMO"} ·{" "}
-      {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
+    <p className="px-1.5 text-[12px] text-[#6B6A7B]" title={MODEL}>
+      LIVE · {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
     </p>
   ) : (
-    <p className="px-1 text-xs leading-relaxed text-muted-foreground">
+    <p className="px-1.5 text-[12px] text-[#6B6A7B]">
       Demo mode. Videos use fictional sample data until an API key is set.
     </p>
   );

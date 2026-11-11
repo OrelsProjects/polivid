@@ -24,6 +24,7 @@ export const CreateProductionSchema = z.object({
   presetId: z.string().trim().max(80).optional(),
   visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
   characterId: z.string().trim().max(80).optional().default(""),
+  voiceover: z.boolean().optional().default(true),
 });
 
 export const resolveProductionCharacter = async (userId: string, choice: string) => {
@@ -57,6 +58,7 @@ export const startProductionFromInput = async (userId: string, raw: unknown) => 
     presetId: parsed.presetId,
     visualDirection: parsed.visualDirection,
     characterId: character.characterId,
+    voiceover: parsed.voiceover,
   });
   const result = await startPlanning(id, userId);
   void tickProductionJobs();

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactNode, type RefObject, type UIEvent } from "react";
+import { useState, type CSSProperties, type ReactNode, type RefObject, type UIEvent } from "react";
 import { InspectorPanel } from "@/components/editor/inspector/inspector-panel";
 import { cn } from "@/lib/utils";
+import { PanelResizeHandle, type PanelSize } from "./panel-resize";
 
 export function ProjectChatPanel({
   log,
@@ -11,6 +12,7 @@ export function ProjectChatPanel({
   canInspect,
   scrollRef,
   onScroll,
+  side,
 }: {
   log: ReactNode;
   composer: ReactNode;
@@ -18,11 +20,21 @@ export function ProjectChatPanel({
   canInspect: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
   onScroll?: (event: UIEvent<HTMLDivElement>) => void;
+  side: PanelSize;
 }) {
   const [tab, setTab] = useState<"chat" | "inspect">("chat");
 
   return (
-    <aside className="flex h-full min-h-0 w-full flex-col border-border bg-sidebar md:w-[400px] md:border-l">
+    <aside
+      className="relative flex h-full min-h-0 w-full flex-col border-border bg-sidebar md:w-[var(--side-width)] md:max-w-[calc(100%-22.5rem)] md:shrink-0 md:border-l"
+      style={{ "--side-width": `${side.size}px` } as CSSProperties}
+    >
+      <PanelResizeHandle
+        axis="x"
+        label="Resize chat"
+        panel={side}
+        className="absolute inset-y-0 -left-1.5 z-30 hidden w-3 md:block"
+      />
       <div className="flex h-12 shrink-0 items-end gap-4 border-b border-border px-4" role="tablist" aria-label="Project side">
         {(["chat", "inspect"] as const).map((item) => (
           <button

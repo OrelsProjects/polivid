@@ -4,9 +4,10 @@ import { videoJobCredits } from "@/lib/billing/estimate";
 import { estimateProductionCredits } from "@/lib/billing/production";
 import { db } from "@/lib/db";
 import { getProductionForUser } from "@/lib/production/store";
-import { approvalForSpend, creditsForToolCall } from "@/lib/tools/tool-credits";
+import { approvalForCoachCall, creditsForToolCall } from "@/lib/tools/tool-credits";
 import { toolByName } from "@/lib/tools/registry";
 import { readJobInput } from "@/lib/video/job-status";
+import { stillPictureCount } from "@/lib/video/script-markup";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -24,6 +25,7 @@ const lookupCredits = async (userId: string, name: string, input: Record<string,
     return videoJobCredits({
       demo: !hasOpenRouterKey(),
       mode: stored.mode || undefined,
+      pictures: stillPictureCount(stored),
       tier: stored.tier || undefined,
       modelSlug: stored.model || undefined,
       resolution: stored.resolution || undefined,
@@ -44,30 +46,50 @@ const lookupCredits = async (userId: string, name: string, input: Record<string,
 };
 
 /**
- * The Coach asks before a destructive action, and before a credit spend of 200 or more.
- * A cheaper spend is approved here, so the chat does not show an approval card.
+ * The Coach asks before a destructive action, before any video that was not approved or sent run-wild,
+ * and before a credit spend at the tool's price line (200, or 30 for a storyboard).
+ * A cheaper allowed spend is approved here, so the chat does not show an approval card.
  */
 export const coachToolApproval = async (input: {
   userId: string;
   toolName: string;
   toolInput: unknown;
   attachedCharacterId?: string;
+  /** The person asked the Coach to decide and start, with no storyboard. */
+  runWild?: boolean;
+  /** The person pressed Approve on a brief. */
+  briefApproved?: boolean;
+  /** Footage model named on that approval. */
+  generationModelId?: string;
 }) => {
   const definition = toolByName(input.toolName);
   if (!definition || definition.approval !== "user") return "not-applicable" as const;
-  if (definition.effects.destructive) return "user-approval" as const;
   const row = asRecord(input.toolInput);
-  let credits = creditsForToolCall(input.toolName, row, {
-    demo: !hasOpenRouterKey(),
-    attachedCharacterId: input.attachedCharacterId,
-  });
-  if (credits === null && definition.effects.spendsCredits) {
-    try {
-      credits = await lookupCredits(input.userId, input.toolName, row);
-    } catch (error) {
-      console.error("Could not price a Coach tool", error);
-      credits = null;
+  const films = definition.category === "make";
+  const blocked = films && !input.runWild && !input.briefApproved;
+  let credits: number | null = null;
+  if (!definition.effects.destructive && !blocked) {
+    credits = creditsForToolCall(input.toolName, row, {
+      demo: !hasOpenRouterKey(),
+      attachedCharacterId: input.attachedCharacterId,
+      generationModelId: input.generationModelId,
+    });
+    if (credits === null && definition.effects.spendsCredits) {
+      try {
+        credits = await lookupCredits(input.userId, input.toolName, row);
+      } catch (error) {
+        console.error("Could not price a Coach tool", error);
+        credits = null;
+      }
     }
   }
-  return approvalForSpend({ asksApproval: true, destructive: false, credits });
+  return approvalForCoachCall({
+    approval: definition.approval,
+    destructive: definition.effects.destructive,
+    films,
+    credits,
+    runWild: input.runWild === true,
+    briefApproved: input.briefApproved === true,
+    threshold: definition.approvalCredits,
+  });
 };

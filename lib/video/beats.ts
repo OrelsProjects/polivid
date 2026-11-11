@@ -2,6 +2,16 @@ import "server-only";
 import { generateText, Output } from "ai";
 import { z } from "zod";
 import { hasOpenRouterKey, openrouter } from "@/lib/ai/openrouter";
+import { fallbackBeats } from "./beat-text";
+
+export {
+  fallbackBeats,
+  trimToWords,
+  voiceBeatTimings,
+  voiceBeatTotal,
+  voiceoverDeclined,
+  wordsForSeconds,
+} from "./beat-text";
 
 const BEAT_MODEL = "anthropic/claude-haiku-5.5";
 
@@ -47,8 +57,3 @@ const beatInstructions = (mode: string | undefined, count: number) => {
   }
   return `You split one video request into consecutive clips that will be filmed in order. Each beat is one action. ${shared}`;
 };
-
-const fallbackBeats = (prompt: string, segments: readonly number[]) =>
-  segments.map((seconds, index) =>
-    index === 0 ? prompt : `Continue the same scene for the next ${seconds} seconds. ${prompt}`,
-  );

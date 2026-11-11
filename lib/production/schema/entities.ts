@@ -37,6 +37,8 @@ export const InputRecordSchema = z.object({
   text: z.string(),
   attachments: z.array(AttachmentSchema),
   classification: z.enum(INPUT_CLASSES).nullable(),
+  /** False means nobody speaks. Missing means the plan keeps its voices. */
+  voiceover: z.boolean().optional(),
 });
 export type InputRecord = z.infer<typeof InputRecordSchema>;
 

@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import type { CreateVideoSchema } from "@/lib/video/create-schema";
 import type { VideoJobView } from "@/lib/video/job-status";
+import type { GenerationModelId } from "@/lib/video/models";
 import { api } from "../api";
 
 export type CreateVideoBody = z.input<typeof CreateVideoSchema>;
@@ -56,6 +57,10 @@ export const videosApi = api.injectEndpoints({
       query: (description) => ({ url: "improve", method: "POST", body: { description } }),
       transformResponse: (body: { script: string }) => body.script,
     }),
+    /** Reads a public web page and resolves to its title and text. */
+    readLink: build.mutation<{ url: string; title: string; text: string }, string>({
+      query: (url) => ({ url: "sources/resolve", method: "POST", body: { url } }),
+    }),
     /** Plans lyrics-video cuts and their price. Nothing is filmed yet. */
     planVideoShots: build.mutation<ShotPlan, ShotPlanBody>({
       query: (body) => ({ url: "videos/shot-plan", method: "POST", body }),
@@ -90,9 +95,24 @@ export const videosApi = api.injectEndpoints({
         );
       },
     }),
+    continueWithModel: build.mutation<void, { id: string; model: GenerationModelId }>({
+      query: ({ id, model }) => ({ url: `videos/${id}/model`, method: "POST", body: { model } }),
+      invalidatesTags: (_result, _error, { id }) => [{ type: "Video", id }, "ActiveJobs"],
+    }),
     resumeVideo: build.mutation<void, string>({
       query: (id) => ({ url: `videos/${id}/resume`, method: "POST" }),
       invalidatesTags: ["ActiveJobs"],
+    }),
+    deleteVideo: build.mutation<void, string>({
+      query: (id) => ({ url: `videos/${id}`, method: "DELETE" }),
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        const removed = await queryFulfilled.then(() => true).catch(() => false);
+        if (!removed) return;
+        dispatch(
+          videosApi.util.updateQueryData("getActiveJobs", undefined, (jobs) => jobs.filter((job) => job.id !== id)),
+        );
+      },
+      invalidatesTags: (_result, error, id) => (error ? [] : ["ActiveJobs", "Credits", { type: "Video", id }]),
     }),
     cancelVideo: build.mutation<void, string>({
       query: (id) => ({ url: `videos/${id}/cancel`, method: "POST" }),
@@ -116,11 +136,14 @@ export const videosApi = api.injectEndpoints({
 export const {
   useCreateVideoMutation,
   useImprovePromptMutation,
+  useReadLinkMutation,
   usePlanVideoShotsMutation,
   useGetVideoJobQuery,
   useGetActiveJobsQuery,
   useRetryVideoMutation,
   usePauseVideoMutation,
+  useContinueWithModelMutation,
   useResumeVideoMutation,
   useCancelVideoMutation,
+  useDeleteVideoMutation,
 } = videosApi;

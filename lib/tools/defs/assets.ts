@@ -18,6 +18,7 @@ export const assetTools = [
     avoidWhen: [
       "They want an existing picture changed. Use edit_image.",
       "They want a character portrait with the portrait framing. Use create_character_portrait.",
+      "A suggested look is still unconfirmed. Stop and wait for the card.",
     ],
     inputSchema: z.object({
       prompt: z.string().trim().min(3).max(MAX_IMAGE_PROMPT).describe("What the picture shows."),

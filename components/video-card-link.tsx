@@ -109,7 +109,7 @@ export const VideoCardLink = ({
         ) : (
           <div aria-hidden className="flex flex-col items-center gap-2 px-4 text-center">
             <TriangleAlert className="size-5 text-destructive" aria-hidden />
-            <span className="text-sm font-medium text-red-300">{video.title}</span>
+            <span className="text-sm font-medium text-destructive">{video.title}</span>
           </div>
         )}
       </div>

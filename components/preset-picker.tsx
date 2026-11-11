@@ -39,6 +39,7 @@ export function PresetPicker({
   onCreated,
   disabled,
   hideCreate,
+  only,
 }: {
   engine: "footage" | "motion";
   value: string;
@@ -47,6 +48,8 @@ export function PresetPicker({
   onCreated?: (preset: CustomPresetTile) => void;
   disabled?: boolean;
   hideCreate?: boolean;
+  /** Built-in looks to offer. Auto and the person's own looks are always shown. */
+  only?: readonly string[] | null;
 }) {
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -56,7 +59,10 @@ export function PresetPicker({
     setFavorites(readFavorites());
   }, []);
 
-  const catalog = listPresetsFor(engine);
+  const catalog = useMemo(() => {
+    const all = listPresetsFor(engine);
+    return only ? all.filter((preset) => preset.id === AUTO_PRESET.id || only.includes(preset.id)) : all;
+  }, [engine, only]);
   const tiles = useMemo(() => {
     const extras: GenerationPreset[] = (customPresets ?? []).map((preset) => ({
       ...AUTO_PRESET,

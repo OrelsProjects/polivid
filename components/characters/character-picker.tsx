@@ -62,6 +62,7 @@ export function CharacterPicker({
   disabled = false,
   allowOff = true,
   offLabel = "No added voice",
+  offDetail = "No narration or reference picture",
   studioLabel = "Studio narrator",
   detail,
   compact = false,
@@ -74,6 +75,7 @@ export function CharacterPicker({
   disabled?: boolean;
   allowOff?: boolean;
   offLabel?: string;
+  offDetail?: string;
   studioLabel?: string;
   detail?: string;
   compact?: boolean;
@@ -90,7 +92,6 @@ export function CharacterPicker({
 
   const selected = characters.find((character) => character.id === value);
   const needsPicture = characters.filter((character) => !character.hasImage);
-  const offDetail = "No narration or reference picture";
   const studioDetail = planVoice ? "Voices written into the plan" : "Built-in narrator reads the script";
 
   const handleChange = (next: string) => {

@@ -18,7 +18,7 @@ export function CoachEmptyState({ onPick }: { onPick: (text: string) => void }) 
       <div>
         <h2 className="text-2xl font-semibold tracking-tight text-balance">What should we make?</h2>
         <p className="mt-2 text-sm text-pretty text-muted-foreground">
-          Talk through the idea. I&apos;ll pick a style and start anything under 200 credits. Larger jobs wait for your approval.
+          Talk through the idea. I&apos;ll ask what&apos;s missing, show a storyboard, and wait for you to approve. Turn on Run wild if you want me to just make it.
         </p>
       </div>
       <ul className="grid w-full gap-2 sm:grid-cols-2" aria-label="Ideas to start with">

@@ -19,7 +19,7 @@ function EditorWorkspace({ videos }: { videos: LibraryVideo[] }) {
   useEditorShortcuts();
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-background">
-      <p role="note" className="shrink-0 bg-amber-400/10 px-3 py-2 text-center text-xs text-amber-200 lg:hidden">
+      <p role="note" className="shrink-0 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-800 lg:hidden">
         The editor works best on a wider screen. Rotate your device or switch to a laptop for the full timeline.
       </p>
       <EditorToolbar />

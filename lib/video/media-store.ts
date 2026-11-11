@@ -1,6 +1,6 @@
 import "server-only";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { rangedFileResponse, rangedStreamResponse, type RangedSource } from "@/lib/http/range";
 import { deleteUpload, getObjectIfExists, hasS3Config, listObjectKeys, putUpload, signedGetUrl, statObject, streamObjectRange } from "@/lib/storage/s3";
@@ -90,6 +90,33 @@ export const deleteVideoMedia = async (key: string) => {
   const file = localPath(key);
   if (!existsSync(file)) return;
   await unlink(file);
+};
+
+/**
+ * Removes every file stored for one video: the mp4, clip segments, song mix,
+ * voice layer, scrub frames, and waveform. Song drafts live under `songs/` and stay.
+ */
+export const deleteStoredVideoFiles = async (id: string) => {
+  assertVideoId(id);
+  const keys = new Set<string>([`waveform/${id}.json`]);
+  if (hasS3Config()) {
+    for (const key of await listVideoMediaKeys(id)) keys.add(key);
+    for (const key of await listVideoMediaKeys(`scrub/${id}`)) keys.add(key);
+  } else {
+    const entries = await readdir(LOCAL_DIR, { withFileTypes: true }).catch(() => []);
+    for (const entry of entries) {
+      if (entry.isFile() && (entry.name === id || entry.name.startsWith(`${id}.`))) keys.add(entry.name);
+    }
+    for (const key of await listVideoMediaKeys(`scrub/${id}`)) keys.add(key);
+    await rm(path.join(LOCAL_DIR, "scrub", id), { recursive: true, force: true }).catch(() => undefined);
+  }
+  await Promise.all(
+    [...keys].map((key) =>
+      deleteVideoMedia(key).catch((error) => {
+        console.error("Could not delete a video file", { key, error });
+      }),
+    ),
+  );
 };
 
 /** Streams a stored file and honors Range. Null when the file doesn't exist. */

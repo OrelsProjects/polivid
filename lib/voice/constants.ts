@@ -67,9 +67,13 @@ const AUDIO_TYPES = new Set([
 
 const VOICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Prompt, voiceover, image, and lyrics can carry a voice track. */
+/** Prompt, voiceover, image, lyrics, and shorts can carry a voice track. */
 export const modeCanNarrate = (mode?: string | null) =>
-  !mode || mode === "prompt" || mode === "voiceover" || mode === "image" || mode === "lyrics";
+  !mode || mode === "prompt" || mode === "voiceover" || mode === "image" || mode === "lyrics" || mode === "shorts";
+
+/** A saved character with a face and a voice. Off and the studio narrator have no picture. */
+export const isPresenterCharacter = (id?: string | null) =>
+  Boolean(id) && id !== OFF_VOICE_ID && id !== STUDIO_VOICE_ID;
 
 export const defaultVoiceForMode = (mode?: string | null) =>
   mode === "voiceover" ? STUDIO_VOICE_ID : OFF_VOICE_ID;

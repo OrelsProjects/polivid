@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import { mergeReferenceKeys } from "@/lib/coach/reference-notes";
 import { writeCreateDraft } from "@/lib/video/create-draft";
 import { isVideoTier, modeAcceptsReferenceImages, videoModeById } from "@/lib/video/modes";
+import { DEFAULT_BACKGROUND_ID } from "@/lib/video/backgrounds";
 import { isVideoLength, VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
 import { isCharacterId, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 
@@ -64,6 +65,12 @@ export const useCoachClientTools = (
           directionKeys: [],
           sceneKeys: [],
           characterId: chosenCharacter(input.characterId, voiceRef.current, !mode || modeCanNarrate(mode)),
+          media: "video",
+          verbatim: false,
+          backgroundId: DEFAULT_BACKGROUND_ID,
+          backgroundKey: null,
+          op: "rotate",
+          opValue: "90",
         },
         mode,
       );

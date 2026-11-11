@@ -15,8 +15,10 @@ Spends credits. Long-running. Needs approval at 200 credits or more.
 Use when:
 - They want a filmed clip from a description, with no upload required.
 - Optional reference pictures can lock a person or a look. Copy attached picture keys into referenceKeys.
-- A character narrates when the mode is prompt and the character has a voice. Pass characterId.
-- Write one action per beat. Create films this as 5–7 second clips that continue from the previous last frame.
+- A character with a voice is added after filming as its own Voiceover clip. The footage itself has no voiceover. Pass characterId.
+- Write the video prompt as numbered beats, one action each, in order. Do not describe later beats inside an earlier one.
+- Pass vo as the brief's spoken lines, one beat per line. Pass none when the brief has no voiceover.
+- When a brief lists frames:, pass those keys as referenceKeys in the same order.
 
 Don't use when:
 - They pasted a script to be spoken. Use make_voiceover_video.
@@ -27,7 +29,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| prompt | yes | What to film. Subject, one action, setting, camera, light, and mood. |
+| prompt | yes | What to film. Numbered beats, one action each, in order. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
@@ -36,6 +38,7 @@ Inputs:
 | showText | no | Whether on-screen text is allowed. Defaults to yes. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
+| vo | no | Spoken lines, one beat per line. Pass none when the brief has no voiceover. |
 
 Examples:
 
@@ -54,6 +57,10 @@ Spends credits. Long-running. Needs approval at 200 credits or more.
 Use when:
 - They have a script, or a link's worth of words, that should be spoken over footage.
 - Aim for 150–170 spoken words per minute. Pass characterId when a saved character or the studio narrator should speak.
+- Pass media stills for drawn, slowly moving pictures at a fraction of the cost of filming. Pass media loop to read the words over a looping background, the cheapest option. Both need a voice.
+- Pass verbatim true when they want their words read exactly as written. The length then follows the script.
+- In a verbatim script, text in [brackets] is never read. With media stills, each line is one picture and a bracket note says what it shows. [pause 1s] holds a silence with stills and loop.
+- A prompt that is only a link is read and turned into the script.
 
 Don't use when:
 - The words are lyrics for a music video. Use make_lyrics_video.
@@ -70,6 +77,47 @@ Inputs:
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| media | no | What illustrates it: video films every scene, stills draws and animates pictures, loop plays a background clip. Defaults to video. |
+| verbatim | no | Read the prompt word for word instead of rewriting it to fit the length. |
+| backgroundId | no | Built-in background for media loop. Defaults to aurora. |
+
+### make_shorts_video
+
+**Shorts / TikToks.** Your character says your script to camera, in the look you pick. Add a background if you want one.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They want a Short, TikTok, or Reel where their character says a script to camera.
+- Pass the script word for word as prompt. The character's voice speaks it as written.
+- Pass characterId. It must be a saved character with a picture, not off or the studio narrator.
+- Pass presetId for the look. Pass one picture key in referenceKeys only when they gave a background picture.
+
+Don't use when:
+- No character should appear on screen. Use make_voiceover_video.
+- They gave a photo of someone who is not a saved character. Use make_avatar_video.
+- They want several scenes or dialogue. Use start_production.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| prompt | yes | The script, word for word. The character says exactly this. |
+| format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
+| length | yes | Length in seconds, from 2 to 90. |
+| tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
+| visualDirection | no | Look and shot notes, at most 600 characters. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| referenceKeys | no | Optional. One picture key for the background. Leave it out to let the look decide the setting. |
+
+Examples:
+
+> Make a 20 second TikTok where Orel reads this script in a bright office.
+
+```json
+{"prompt":"Writing your Notes around you is costing you subscribers.","format":"9:16","length":20,"tier":"pro"}
+```
 
 ### make_motion_graphics
 
@@ -209,6 +257,7 @@ Use when:
 - The prompt is the lyric lines. Optional pictures lock a singer or a look. Copy attached picture keys into referenceKeys.
 - On this mode the character voice performs the lyric lines. Pass characterId, and pass songId when compose_song or list_songs already made the take.
 - Lyrics stay on screen. Do not turn this into a silent clip.
+- When a brief lists frames:, pass those keys as referenceKeys in the same order.
 
 Don't use when:
 - They uploaded a finished song file. Use make_music_video.
@@ -232,7 +281,7 @@ Inputs:
 
 ### add_captions
 
-**Add Captions to Video.** Add AI-generated captions to an uploaded video.
+**Add Captions to Video.** Captions drawn into a video you upload, timed to the words as they are spoken.
 
 Spends credits. Long-running. Needs approval at 200 credits or more.
 
@@ -255,6 +304,38 @@ Inputs:
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 
+### quick_edit_video
+
+**Quick Edit.** Rotate, flip, resize, loop, or change the volume of a video you upload.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They want one plain change to a video they uploaded: rotate it, flip it, resize it, loop it, or change its volume.
+- mediaKey is that video. If you omit it, the attached video is used.
+- Pass op and value together. rotate: 90, 180, 270. flip: horizontal, vertical. resize: 9:16:crop, 9:16:pad, 1:1:crop, 1:1:pad, 16:9:crop, 16:9:pad. loop: 2 to 5. volume: 0 (mute), 50, 150, 200.
+
+Don't use when:
+- There is no video file. Do not invent one.
+- They want captions. Use add_captions.
+- They want to cut, reorder, or add layers. Open the editor instead.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| mediaKey | no | Video upload key. Omit to use the attached video. |
+| op | yes | The change to make. |
+| opValue | no | The setting for that change. Omit for its default. |
+
+Examples:
+
+> This clip is sideways, fix it.
+
+```json
+{"op":"rotate","opValue":"90"}
+```
+
 ### start_production
 
 **Start this production.** Start a staged production for a multi-scene film. Starting the plan costs 1 credit. Filming spends credits when the preview is approved.
@@ -264,6 +345,7 @@ Spends credits. Long-running. Needs approval at 200 credits or more.
 Use when:
 - They asked for a multi-scene film, dialogue, or tighter control than a single Create video.
 - Pass characterId when an attached character should speak every line and add its picture as a reference.
+- Set voiceover to false when they want no spoken lines. Omit it so the plan keeps its voices.
 
 Don't use when:
 - A short first cut is enough. Use the matching make_* tool.
@@ -280,6 +362,7 @@ Inputs:
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| voiceover | no | Set false when they want no spoken voiceover. Omit to keep the voices written into the plan. |
 
 Examples:
 
@@ -290,6 +373,41 @@ Examples:
 ```
 
 ## Plan
+
+### make_storyboard
+
+**Storyboard.** Generate one still per scene so they can see the video before it is filmed. Spends 1 credit a frame. Nothing is filmed.
+
+Spends credits. Long-running. Needs approval at 30 credits or more.
+
+Use when:
+- A video request is detailed enough and they have not asked you to run wild. Call this before the brief.
+- Pass the preset id from their Confirmed look line. If they named a preset, pass that id and skip the card.
+- Pass one scene per beat, in order. A new video uses two to six scenes.
+- On a revision that keeps the look, pass only the scenes whose frame should change, with the confirmed presetId.
+
+Don't use when:
+- They asked you to run wild or to just make it. Call the matching make_* tool.
+- They want a picture that is not a scene of a video. Use generate_image.
+- They have not confirmed the look. Stop after suggest_preset and wait for the card.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| format | no | Frame of every still. Defaults to 9:16. |
+| presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
+| scenes | yes | One still per scene, in order. One to six. A new video uses one frame per beat. |
+
+Examples:
+
+> Show me the scenes before you film the rooftop hero shot.
+
+```json
+{"format":"9:16","presetId":"auto","scenes":[{"seconds":5,"beat":"He turns toward the camera on the roof.","shotPrompt":"A man on a rooftop at golden hour, wind in his coat, city behind him"},{"seconds":5,"beat":"He leaps toward the skyline.","shotPrompt":"The same man leaps from the roof, low angle, glowing skyline"}]}
+```
 
 ### plan_shots
 
@@ -399,6 +517,7 @@ Use when:
 Don't use when:
 - They want an existing picture changed. Use edit_image.
 - They want a character portrait with the portrait framing. Use create_character_portrait.
+- A suggested look is still unconfirmed. Stop and wait for the card.
 
 Inputs:
 
@@ -583,9 +702,11 @@ Long-running.
 
 Use when:
 - The person described a look and you should pick one preset instead of listing them all.
+- Then stop. The person confirms or switches the look on the card. Do not generate pictures in that turn.
 
 Don't use when:
 - They already named a preset, or the video is captions. Captions ignore presets.
+- They asked you to run wild or to just make it. Pass a preset id on the make_* tool.
 
 Inputs:
 
@@ -919,13 +1040,13 @@ Inputs:
 
 ### edit_read_timeline
 
-**Read the timeline.** List the tracks and clips in the open project, with ids and times in seconds.
+**Read the timeline.** List the tracks and clips in the open project, with ids and times in seconds. The sound field says whether a Voiceover clip was added after filming.
 
 Read only.
 
 Use when:
 - Before any edit, so you use real clip ids.
-- When they ask what is on the timeline.
+- When they ask what is on the timeline, or where a voice is coming from.
 
 Inputs:
 
@@ -1015,7 +1136,8 @@ Inputs:
 No side effects.
 
 Use when:
-- They want a title, a song, or a split piece gone.
+- They want a title, a song, a Voiceover clip, or a split piece gone.
+- They want a voice that was added after filming taken off. Remove the Voiceover clip. That is free.
 
 Inputs:
 
@@ -1069,12 +1191,16 @@ Inputs:
 
 ### edit_set_volume
 
-**Set volume.** Change a clip's volume, or mute a track. Free.
+**Set volume.** Change a clip's volume, or mute a track. Free. Turn down the Voiceover clip, or set an older mixed video clip to 0.
 
 No side effects.
 
 Use when:
-- The song is too loud, or they want a track silent.
+- The song or the Voiceover clip is too loud, or they want a track silent.
+- sound.kind is mixed. Set sound.videoItemId to volume 0. That silences the whole older clip.
+
+Don't use when:
+- They want the voice gone and a Voiceover clip is on the Audio track. Use edit_remove. Do not start a new video.
 
 Inputs:
 
@@ -1237,6 +1363,38 @@ Inputs:
 
 ## Ask
 
+### app_confirm_preset
+
+**Confirm a look.** Ask the person to confirm a visual preset, or pick a different one, before any picture is generated.
+
+Read only. Waits for the person.
+
+Use when:
+- You just called suggest_preset. Pass its preset id, reason, and engine, then stop.
+- The result is presetId. Pass that exact id to make_storyboard. Do not generate pictures before it returns.
+
+Don't use when:
+- They already named a preset. Use that id.
+- They already confirmed this look.
+- They asked you to run wild or to just make it.
+- The video is captions. Captions ignore presets.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| presetId | yes | Preset id from suggest_preset. They can switch it before confirming. |
+| reason | no | Why you suggested it, from suggest_preset. |
+| engine | no | footage or motion, matching suggest_preset. Defaults to footage. |
+
+Examples:
+
+> Use a cinematic look, and let me switch it before the pictures.
+
+```json
+{"presetId":"movie","reason":"Anamorphic drama fits the chase.","engine":"footage"}
+```
+
 ### app_ask_question
 
 **Ask a question.** Ask the person a structured question in the chat.
@@ -1244,12 +1402,11 @@ Inputs:
 Read only. Waits for the person.
 
 Use when:
-- A choice is a short list, such as format, length, or which character.
-- You need at most one or two answers before you can write a brief.
+- A choice is a short list, such as format, length, which story, or which character.
+- You need at most one or two answers before a storyboard or a brief.
 
 Don't use when:
 - You can assume a sensible default and mention it.
-- You are about to spend credits. Write a brief instead of another question.
 
 Inputs:
 

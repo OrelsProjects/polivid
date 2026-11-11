@@ -1,0 +1,6 @@
+---
+description: Skip the project test suite unless the user asks to run tests
+alwaysApply: true
+---
+
+Do not run tests for this project unless the user asks. That includes `npm test`, `tsx --test`, and other test runners. Do not add or update tests as part of a task unless the user asks.

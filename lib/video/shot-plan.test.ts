@@ -133,6 +133,59 @@ test("prompt pictures are ordered subject, then place, then framing", () => {
   assert.doesNotMatch(shot.note, /location/);
 });
 
+test("a prompt shot films only its own beat", () => {
+  const line = promptShotPrompt({
+    brief: {
+      subject: "Orel and the Alien",
+      setting: "Corridor and escape pod",
+      director: "Handheld",
+      style: "",
+      mustKeep: "the close button, the heavy door, the claw",
+      mustAvoid: "On-screen text",
+    },
+    action: "Orel sprints down the red corridor while the Alien lunges behind him.",
+    camera: "Wide tracking backward",
+    referenceNote: "Image 1 is the storyboard frame for this shot. Match its framing, pose, and setting, and keep the same person.",
+    fallbackAction: "The whole script with the pod and the door",
+    continued: true,
+    samePlace: false,
+  });
+  assert.match(line, /Action: Orel sprints down the red corridor/);
+  assert.match(line, /Camera: Wide tracking backward/);
+  assert.match(line, /keep the same person/);
+  assert.doesNotMatch(line, /close button/);
+  assert.doesNotMatch(line, /Scene:/);
+  assert.doesNotMatch(line, /Keep:/);
+  assert.doesNotMatch(line, /continues from the previous shot/);
+  assert.doesNotMatch(line, /whole script/);
+  const samePlace = promptShotPrompt({
+    brief: emptyPromptBrief(),
+    action: "Orel hits the close button.",
+    camera: "Close on the button",
+    referenceNote: "",
+    fallbackAction: "The pod and the claw",
+    continued: true,
+    samePlace: true,
+  });
+  assert.match(samePlace, /continues from the previous shot/);
+  assert.match(samePlace, /Action: Orel hits the close button/);
+  assert.doesNotMatch(samePlace, /claw/);
+});
+
+test("a storyboard frame keeps the person", () => {
+  const shot = promptShotReferences({
+    keys: ["frame", "orel"],
+    roles: [
+      { index: 1, role: "storyboard" },
+      { index: 2, role: "subject" },
+    ],
+    images: [1, 2],
+  });
+  assert.match(shot.note, /Image 2 is the storyboard frame/);
+  assert.match(shot.note, /keep the same person/);
+  assert.doesNotMatch(shot.note, /not the people/);
+});
+
 test("a prompt shot names the subject, the place, and the camera", () => {
   const line = promptShotPrompt({
     brief: {
@@ -159,7 +212,7 @@ test("a prompt shot names the subject, the place, and the camera", () => {
     fallbackAction: "A fox crossing a road",
     continued: true,
   });
-  assert.match(continued, /Continue the same scene\. A fox crossing a road/);
+  assert.match(continued, /Action: A fox crossing a road/);
 });
 
 test("editing the prompt, pictures, length, look, or character invalidates the shot plan", () => {

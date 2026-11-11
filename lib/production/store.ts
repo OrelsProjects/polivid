@@ -58,6 +58,7 @@ export const createProductionForUser = async (
     presetId?: string | null;
     visualDirection?: string | null;
     characterId?: string | null;
+    voiceover?: boolean;
   },
 ) => {
   const title = titleFrom(input.text);
@@ -83,6 +84,7 @@ export const createProductionForUser = async (
     text: input.text,
     attachments: input.attachments ?? [],
     classification: null,
+    ...(input.voiceover === false ? { voiceover: false } : {}),
   }, "user");
   return production.id;
 };

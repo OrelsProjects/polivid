@@ -104,3 +104,12 @@ test("CreateVideoSchema rejects a too-long visual direction", () => {
   });
   assert.equal(parsed.success, false);
 });
+
+test("CreateVideoSchema takes a catalog tool slug and nothing shaped like a path", () => {
+  const body = { prompt: "A fox crossing a snowy road", format: "9:16", length: 15, mode: "prompt", tier: "pro" };
+  assert.equal(CreateVideoSchema.parse({ ...body, tool: "product-ad" }).tool, "product-ad");
+  assert.equal(CreateVideoSchema.parse(body).tool, undefined);
+  for (const tool of ["Product-Ad", "../etc", "product ad", "-lead", "trail-", "a--b", ""]) {
+    assert.equal(CreateVideoSchema.safeParse({ ...body, tool }).success, false, JSON.stringify(tool));
+  }
+});
