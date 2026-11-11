@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useState } from "react";
 import { VideoStage } from "@/components/video/video-stage";
 import { cn } from "@/lib/utils";
 import type { VideoFormat } from "@/lib/video/schema";
@@ -48,14 +49,32 @@ export function VideoPlayer({
 export function VideoThumbnail({
   className,
   footageUrl,
+  posterUrl,
   ...video
-}: RemotionVideoProps & { className?: string; footageUrl?: string }) {
+}: RemotionVideoProps & {
+  className?: string;
+  footageUrl?: string;
+  /** A still picture of the clip. Preferred, because a list of video elements can hold every connection open. */
+  posterUrl?: string;
+}) {
+  const [posterFailed, setPosterFailed] = useState(false);
   return (
     <div
       className={cn("overflow-hidden rounded-lg bg-black", className)}
       style={{ aspectRatio: aspect[video.format] }}
     >
-      {footageUrl ? (
+      {footageUrl && posterUrl && !posterFailed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- a signed-in API route, not a static asset
+        <img
+          src={posterUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          onError={() => setPosterFailed(true)}
+          className="pointer-events-none size-full object-cover"
+        />
+      ) : footageUrl ? (
         <video src={footageUrl} muted playsInline preload="metadata" className="pointer-events-none size-full object-cover" />
       ) : (
         <RemotionThumbnail {...video} />

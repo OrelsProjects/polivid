@@ -50,6 +50,28 @@ const ICON = {
       <path d="M2 10h20" />
     </>
   ),
+  sources: (
+    <>
+      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
+      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
+    </>
+  ),
+  publish: <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />,
+  automations: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  brand: (
+    <>
+      <path d="M3 12V4h8l10 10-8 8z" />
+      <circle cx="7.5" cy="7.5" r="1.25" />
+    </>
+  ),
+  settings: (
+    <>
+      <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
+      <circle cx="15" cy="6" r="2" />
+      <circle cx="9" cy="12" r="2" />
+      <circle cx="17" cy="18" r="2" />
+    </>
+  ),
   menu: <path d="M4 7h16M4 12h16M4 17h16" />,
   close: <path d="M6 6l12 12M18 6L6 18" />,
 };

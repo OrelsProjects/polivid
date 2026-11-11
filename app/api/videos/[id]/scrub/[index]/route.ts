@@ -12,19 +12,21 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
   const row = await db.video.findFirst({ where: { id, userId }, select: { id: true } });
   if (!row) return new Response("Not found.", { status: 404 });
-  if (!(await hasFootage(id))) return new Response("This video has no filmed clip.", { status: 404 });
-
-  let meta = await readScrubMeta(id);
-  if (!meta) {
-    try {
-      meta = await extractScrubFrames(id);
-    } catch {
-      return new Response("Could not build a scrub preview.", { status: 500 });
+  // The editor asks for frames it already knows exist, so the usual case is one read.
+  const asked = Math.max(0, Number.parseInt(rawIndex, 10) || 0);
+  let bytes = await readScrubFrame(id, asked);
+  if (!bytes) {
+    if (!(await hasFootage(id))) return new Response("This video has no filmed clip.", { status: 404 });
+    let meta = await readScrubMeta(id);
+    if (!meta) {
+      try {
+        meta = await extractScrubFrames(id);
+      } catch {
+        return new Response("Could not build a scrub preview.", { status: 500 });
+      }
     }
+    bytes = await readScrubFrame(id, Math.min(meta.count - 1, asked));
   }
-
-  const index = Math.min(meta.count - 1, Math.max(0, Number.parseInt(rawIndex, 10) || 0));
-  const bytes = await readScrubFrame(id, index);
   if (!bytes) return new Response("Not found.", { status: 404 });
   return new Response(Buffer.from(bytes), {
     headers: {

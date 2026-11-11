@@ -1,5 +1,8 @@
 export const SCRUB_FPS = 15;
 
+/** Stills loaded at the same time while warming the scrub strip. The rest of the page keeps the other connections. */
+export const SCRUB_PREFETCH_LANES = 2;
+
 export const scrubMetaUrl = (videoId: string) => `/api/videos/${videoId}/scrub`;
 export const scrubFrameUrl = (videoId: string, index: number) => `/api/videos/${videoId}/scrub/${index}`;
 
@@ -35,9 +38,17 @@ export const prefetchScrubFrames = async (videoId: string) => {
   const meta = await loadScrubMeta(videoId);
   if (!meta) return;
   prefetched.add(videoId);
-  for (let index = 0; index < meta.count; index += 1) {
+  // A browser allows only a few connections to one site. Loading every still at once
+  // takes all of them, and the clip itself then waits behind hundreds of pictures.
+  let next = 0;
+  const loadNext = () => {
+    if (next >= meta.count) return;
     const image = new Image();
     image.decoding = "async";
-    image.src = scrubFrameUrl(videoId, index);
-  }
+    image.onload = loadNext;
+    image.onerror = loadNext;
+    image.src = scrubFrameUrl(videoId, next);
+    next += 1;
+  };
+  for (let lane = 0; lane < SCRUB_PREFETCH_LANES; lane += 1) loadNext();
 };

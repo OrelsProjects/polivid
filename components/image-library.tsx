@@ -5,6 +5,7 @@ import { Check, FileVideo, Image as ImageIcon, ImagePlus, LoaderCircle, Trash2, 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VideoStill } from "@/components/video/video-still";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import { useDeleteUploadMutation, useGetUploadsQuery, type LibraryUpload } from "@/lib/store/endpoints/uploads";
 import { cn } from "@/lib/utils";
@@ -306,9 +307,7 @@ function LibraryTile({
 const LibraryThumb = ({ picture, faded = false }: { picture: LibraryPicture; faded?: boolean }) => {
   const dim = faded ? "opacity-40" : "";
   if (picture.kind === "video") {
-    return (
-      <video src={picture.url} muted playsInline preload="metadata" className={cn("size-full object-cover", dim)} />
-    );
+    return <VideoStill src={picture.url} className={cn("size-full object-cover", dim)} />;
   }
   if (picture.kind === "image") {
     return (

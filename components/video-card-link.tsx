@@ -104,6 +104,7 @@ export const VideoCardLink = ({
             format={video.format}
             demo={video.demo}
             footageUrl={footageUrl}
+            posterUrl={footageUrl ? `/api/videos/${video.id}/poster` : undefined}
             className={video.format === "9:16" ? "h-[92%] w-auto" : "w-[88%]"}
           />
         ) : (
