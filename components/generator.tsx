@@ -1289,7 +1289,7 @@ export function Generator({
         </div>
       </form>
 
-      <aside className="hidden flex-col gap-4 lg:sticky lg:top-6 lg:flex">
+      <aside className="hidden flex-col gap-4 lg:sticky lg:top-24 lg:flex">
         <div className="flex items-center justify-between text-xs">
           <span className="font-medium">Preview</span>
           <span className="text-muted-foreground">Bold · {format} · {lengthValid ? `${activeLength}s` : "custom"}</span>

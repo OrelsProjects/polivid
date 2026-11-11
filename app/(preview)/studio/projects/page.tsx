@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Projects" };
 
 export default function StudioProjectsPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-[#6B6A7B]">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
       <Projects />
     </Suspense>
   );

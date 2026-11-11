@@ -72,7 +72,7 @@ export function ProjectsView({ items }: { items: StudioProjectItem[] }) {
             <Link
               key={p.title}
               href={p.href}
-              className="flex flex-col gap-2.5 rounded-[16px] border border-[#E4E4EC] bg-white p-3 text-inherit"
+              className="flex flex-col gap-2.5 rounded-[16px] border border-border bg-card p-3 text-inherit"
             >
               <div className="flex gap-1.5">
                 {p.thumbs.map((thumb, i) => (
@@ -81,7 +81,7 @@ export function ProjectsView({ items }: { items: StudioProjectItem[] }) {
                     role="img"
                     aria-label="Preview placeholder"
                     className={cn(
-                      "flex max-h-[180px] flex-[1_1_0] items-center justify-center rounded-[10px] text-[12px] text-[#6B6A7B]",
+                      "flex max-h-[180px] flex-[1_1_0] items-center justify-center rounded-[10px] text-[12px] text-muted-foreground",
                       thumb.ratio,
                       thumb.bg,
                     )}
@@ -102,7 +102,7 @@ export function ProjectsView({ items }: { items: StudioProjectItem[] }) {
                     {kind.status}
                   </span>
                 </div>
-                <span className="text-[12px] text-[#6B6A7B]">{p.meta}</span>
+                <span className="text-[12px] text-muted-foreground">{p.meta}</span>
               </div>
             </Link>
           );
@@ -110,12 +110,12 @@ export function ProjectsView({ items }: { items: StudioProjectItem[] }) {
       </div>
 
       {projects.length === 0 && (
-        <div className="rounded-[20px] border border-dashed border-[#C9C8D6] bg-[#FAFAFC] p-8 text-center text-[#3F3D4F]">
+        <div className="rounded-[20px] border border-dashed border-input bg-muted p-8 text-center text-foreground/80">
           Nothing here with this filter.
         </div>
       )}
 
-      <p className="mt-2 mb-0 text-[12px] text-[#6B6A7B]">
+      <p className="mt-2 mb-0 text-[12px] text-muted-foreground">
         Advanced: the planned-and-approved production workflow stays reachable from a project, not as a separate tool
         to choose up front.
       </p>

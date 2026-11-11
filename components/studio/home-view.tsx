@@ -25,21 +25,21 @@ const SHOWCASE: { title: string; meta: string; mark: string; tile: string; href:
     title: "What is a transformer?",
     meta: "Topic · 60s · 9:16 · Motion graphics",
     mark: "BOLD",
-    tile: "bg-[#141321] font-heading text-[13px] font-bold text-white",
+    tile: "bg-foreground font-heading text-[13px] font-bold text-white",
     href: "/studio/create?brief=What%20is%20a%20transformer%3F&length=60&format=9%3A16",
   },
   {
     title: "A short history of the espresso",
     meta: "Topic · 60s · 9:16 · Motion graphics",
     mark: "Editorial",
-    tile: "bg-[#FBF4E7] [font-family:Georgia,serif] text-[13px] text-[#141321] italic",
+    tile: "bg-amber-400/10 [font-family:Georgia,serif] text-[13px] text-foreground italic",
     href: "/studio/create?brief=A%20short%20history%20of%20the%20espresso&length=60&format=9%3A16",
   },
   {
     title: "Our October newsletter, as a video",
     meta: "Article · 90s · 16:9 · Motion graphics",
     mark: "Minimal",
-    tile: "bg-[#E9E8F1] text-[12px] text-[#3F3D4F]",
+    tile: "bg-border text-[12px] text-foreground/80",
     href: "/studio/create?brief=Turn%20our%20October%20newsletter%20into%20a%20video&length=90&format=16%3A9",
   },
 ];
@@ -66,7 +66,7 @@ export function HomeView({
 
       <section
         aria-labelledby="start-title"
-        className="flex flex-col gap-3.5 rounded-[20px] border border-[#E4E4EC] bg-white px-[22px] pt-5 pb-[18px]"
+        className="flex flex-col gap-3.5 rounded-[20px] border border-border bg-card px-[22px] pt-5 pb-[18px]"
       >
         <Kicker id="start-title">Start a video</Kicker>
         <label htmlFor="home-input" className="sr-only">
@@ -76,7 +76,7 @@ export function HomeView({
           id="home-input"
           rows={3}
           placeholder="An idea, an exact script, a pasted article or link, or a song. One line is enough to start."
-          className="min-h-24 w-full resize-y rounded-[14px] border border-[#E4E4EC] bg-[#FAFAFC] px-4 py-3.5 text-[15px] text-[#141321]"
+          className="min-h-24 w-full resize-y rounded-[14px] border border-border bg-muted px-4 py-3.5 text-[15px] text-foreground"
         />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div role="group" aria-label="What you are starting from" className="flex flex-wrap gap-2">
@@ -114,24 +114,24 @@ export function HomeView({
       <section aria-labelledby="attention-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <SectionTitle id="attention-title">Needs you</SectionTitle>
-          <Link href={STUDIO_HREF.projects} className="text-[13px] font-medium text-[#4A23C9] hover:text-[#3A1AA6]">
+          <Link href={STUDIO_HREF.projects} className="text-[13px] font-medium text-primary hover:text-primary/80">
             All projects
           </Link>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-3.5">
           {needs.length === 0 ? (
-            <p className="m-0 text-[13px] text-[#6B6A7B]">Nothing is waiting. Start a video above.</p>
+            <p className="m-0 text-[13px] text-muted-foreground">Nothing is waiting. Start a video above.</p>
           ) : null}
           {needs.map((item) => (
             <article
               key={item.title}
-              className="flex flex-col gap-2.5 rounded-[16px] border border-[#E4E4EC] bg-white px-[18px] py-4"
+              className="flex flex-col gap-2.5 rounded-[16px] border border-border bg-card px-[18px] py-4"
             >
               <Chip tone={item.tone} className="self-start">
                 {item.chip}
               </Chip>
               <h3 className="m-0 text-[15px] font-semibold">{item.title}</h3>
-              <p className="m-0 text-[13px] text-[#6B6A7B]">{item.meta}</p>
+              <p className="m-0 text-[13px] text-muted-foreground">{item.meta}</p>
               <Link
                 href={item.href}
                 className={cn(item.primary ? btn.primary : btn.outline, "mt-auto h-9 self-start px-3.5")}
@@ -146,7 +146,7 @@ export function HomeView({
       <section aria-labelledby="continue-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between">
           <SectionTitle id="continue-title">Continue</SectionTitle>
-          <Link href={STUDIO_HREF.projects} className="text-[13px] font-medium text-[#4A23C9] hover:text-[#3A1AA6]">
+          <Link href={STUDIO_HREF.projects} className="text-[13px] font-medium text-primary hover:text-primary/80">
             View all
           </Link>
         </div>
@@ -155,7 +155,7 @@ export function HomeView({
             <Link
               key={item.title}
               href={item.href}
-              className="flex flex-col gap-2.5 rounded-[16px] border border-[#E4E4EC] bg-white p-2.5 text-inherit"
+              className="flex flex-col gap-2.5 rounded-[16px] border border-border bg-card p-2.5 text-inherit"
             >
               <Placeholder ratio="9 / 16" className="max-h-[220px]">
                 {item.preview}
@@ -172,11 +172,11 @@ export function HomeView({
       <section aria-labelledby="showcase-title" className="flex flex-col gap-3">
         <div className="flex flex-col gap-0.5">
           <SectionTitle id="showcase-title">Start from a showcase</SectionTitle>
-          <p className="m-0 text-[13px] text-[#6B6A7B]">Opens Create with the prompt and settings prefilled.</p>
+          <p className="m-0 text-[13px] text-muted-foreground">Opens Create with the prompt and settings prefilled.</p>
         </div>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] gap-3.5">
           {SHOWCASE.map((item) => (
-            <article key={item.title} className="flex gap-3 rounded-[16px] border border-[#E4E4EC] bg-white p-2.5">
+            <article key={item.title} className="flex gap-3 rounded-[16px] border border-border bg-card p-2.5">
               <div
                 role="img"
                 aria-label="Preview placeholder"
@@ -186,10 +186,10 @@ export function HomeView({
               </div>
               <div className="flex flex-auto flex-col gap-1.5 py-1 pr-1">
                 <span className="text-[14px] font-semibold">{item.title}</span>
-                <span className="text-[12px] text-[#6B6A7B]">{item.meta}</span>
+                <span className="text-[12px] text-muted-foreground">{item.meta}</span>
                 <Link
                   href={item.href}
-                  className="mt-auto self-start text-[13px] font-medium text-[#4A23C9] hover:text-[#3A1AA6]"
+                  className="mt-auto self-start text-[13px] font-medium text-primary hover:text-primary/80"
                 >
                   Create similar
                 </Link>

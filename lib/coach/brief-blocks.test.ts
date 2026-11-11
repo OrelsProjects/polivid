@@ -82,7 +82,21 @@ test("a brief keeps a footage model and prices the one on the card", () => {
   assert.ok(brief);
   assert.equal(brief.model, "alibaba/wan-3.0");
   assert.equal(briefModelId(brief), "wan");
-  assert.deepEqual(briefModelChoices(brief), ["wan", "hailuo", "seedance", "flux"]);
+  assert.deepEqual(briefModelChoices(brief), [
+    "wan",
+    "wan-27",
+    "hailuo",
+    "seedance",
+    "seedance-20",
+    "flux",
+    "kling-4",
+    "kling-4-flash",
+    "kling",
+    "kling-turbo",
+    "kling-omni",
+    "kling-26",
+    "kling-25",
+  ]);
   assert.equal(briefCredits(brief), videoJobCredits({ mode: "prompt", modelId: "wan", resolution: "720p", length: 10 }));
 
   const { brief: tierPicked } = splitCoachContent("```brief\nmode: prompt\nformat: 1:1\nlength: 10\ntier: pro\n```");

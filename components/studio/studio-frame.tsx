@@ -1,17 +1,45 @@
 "use client";
 
+import {
+  Box,
+  Captions,
+  FolderOpen,
+  House,
+  ImagePlay,
+  LayoutGrid,
+  Link2,
+  Menu,
+  MessageSquare,
+  Music,
+  Plus,
+  Send,
+  Smartphone,
+  UserRound,
+  Video,
+  Workflow,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { createContext, Suspense, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  Suspense,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { cn } from "@/lib/utils";
-import { PlanCardView } from "./studio-ui";
+import { CreditsPill } from "./studio-ui";
 
-/** The sidebar plan card. A sample screen can swap it (ProjectRecovery shows a low Starter balance). */
+/** The credits pill. A sample screen can swap it (ProjectRecovery shows a low Starter balance). */
 type Plan = { name: string; balance: number; low?: boolean };
 
 const PlanContext = createContext<(plan: Plan | null) => void>(() => {});
 
-/** Show `plan` in the sidebar while the calling screen is mounted. */
+/** Show `plan` in the top bar while the calling screen is mounted. */
 export function useStudioPlan(plan: Plan) {
   const setPlan = useContext(PlanContext);
   const { name, balance, low } = plan;
@@ -21,122 +49,82 @@ export function useStudioPlan(plan: Plan) {
   }, [setPlan, name, balance, low]);
 }
 
-const ICON = {
-  home: <path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />,
-  projects: (
-    <>
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 4v16M16 4v16" />
-    </>
-  ),
-  tools: (
-    <>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <rect x="14" y="3" width="7" height="7" rx="1.5" />
-      <rect x="3" y="14" width="7" height="7" rx="1.5" />
-      <rect x="14" y="14" width="7" height="7" rx="1.5" />
-    </>
-  ),
-  coach: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l.9-4.6A8 8 0 1 1 21 12z" />,
-  characters: (
-    <>
-      <circle cx="12" cy="8" r="4" />
-      <path d="M4 21a8 8 0 0 1 16 0" />
-    </>
-  ),
-  billing: (
-    <>
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <path d="M2 10h20" />
-    </>
-  ),
-  sources: (
-    <>
-      <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1" />
-      <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
-    </>
-  ),
-  publish: <path d="M12 16V4M7 9l5-5 5 5M4 20h16" />,
-  automations: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
-  brand: (
-    <>
-      <path d="M3 12V4h8l10 10-8 8z" />
-      <circle cx="7.5" cy="7.5" r="1.25" />
-    </>
-  ),
-  settings: (
-    <>
-      <path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" />
-      <circle cx="15" cy="6" r="2" />
-      <circle cx="9" cy="12" r="2" />
-      <circle cx="17" cy="18" r="2" />
-    </>
-  ),
-  menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-  close: <path d="M6 6l12 12M18 6L6 18" />,
-};
+let nightScopes = 0;
 
-function Icon({ name, size = 18 }: { name: keyof typeof ICON; size?: number }) {
-  return (
-    <svg
-      aria-hidden="true"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {ICON[name]}
-    </svg>
-  );
+/**
+ * Puts the app palette on <html> while a signed-in shell is mounted. Menus and dialogs
+ * render outside the shell, so the class on the shell's own root does not reach them.
+ */
+export function ThemeScope() {
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    nightScopes += 1;
+    root.classList.add("night");
+    return () => {
+      nightScopes -= 1;
+      if (nightScopes === 0) root.classList.remove("night");
+    };
+  }, []);
+  return null;
 }
 
 type NavItem = {
+  href: string;
   label: string;
-  icon: keyof typeof ICON;
-  /** Missing href: shown disabled, as in the design. */
-  href?: string;
+  icon: LucideIcon;
   /** Path prefixes that mark the item current. `=` prefix means an exact match. */
-  activeFor?: readonly string[];
+  activeFor: readonly string[];
 };
 
-const MAIN: readonly NavItem[] = [
-  { href: "/dashboard", label: "Home", icon: "home", activeFor: ["/dashboard", "=/studio"] },
-  {
-    href: "/videos",
-    label: "Projects",
-    icon: "projects",
-    activeFor: ["/videos", "/productions", "/editor", "/studio/projects"],
-  },
-  { href: "/tools", label: "Tools", icon: "tools", activeFor: ["/tools"] },
-  { href: "/coach", label: "Coach", icon: "coach", activeFor: ["/coach"] },
-  { href: "/studio/sources", label: "Sources", icon: "sources", activeFor: ["/studio/sources"] },
-  { href: "/studio/publish", label: "Publish", icon: "publish", activeFor: ["/studio/publish"] },
-  { href: "/studio/automations", label: "Automations", icon: "automations", activeFor: ["/studio/automations"] },
+const RAIL: readonly NavItem[] = [
+  { href: "/coach", label: "Coach", icon: MessageSquare, activeFor: ["/coach"] },
+  { href: "/create/image", label: "Image to Video", icon: ImagePlay, activeFor: ["/create/image"] },
+  { href: "/create", label: "Create video", icon: Video, activeFor: ["/create", "/studio/create"] },
+  { href: "/create/music", label: "Music to Video", icon: Music, activeFor: ["/create/music", "/create/lyrics"] },
+  { href: "/create/shorts", label: "Shorts / TikToks", icon: Smartphone, activeFor: ["/create/shorts"] },
+  { href: "/create/motion-graphics", label: "Motion graphics", icon: Box, activeFor: ["/create/motion-graphics"] },
+  { href: "/create/captions", label: "Add captions", icon: Captions, activeFor: ["/create/captions"] },
+  { href: "/characters", label: "Characters & voices", icon: UserRound, activeFor: ["/characters", "/voices"] },
+  { href: "/studio/sources", label: "Sources", icon: Link2, activeFor: ["/studio/sources"] },
+  { href: "/studio/publish", label: "Publish", icon: Send, activeFor: ["/studio/publish"] },
+  { href: "/studio/automations", label: "Automations", icon: Workflow, activeFor: ["/studio/automations"] },
+  { href: "/tools", label: "All tools", icon: LayoutGrid, activeFor: ["/tools"] },
 ];
 
-const WORKSPACE: readonly NavItem[] = [
-  { href: "/characters", label: "Characters & voices", icon: "characters", activeFor: ["/characters", "/voices"] },
-  { label: "Brand assets", icon: "brand" },
-  { href: "/billing", label: "Billing", icon: "billing", activeFor: ["/billing"] },
-  { label: "Settings", icon: "settings" },
-];
+const HOME: NavItem = { href: "/dashboard", label: "Home", icon: House, activeFor: ["/dashboard", "=/studio"] };
 
-const CREATE_FOR = ["/create", "/studio/create"];
+const MEDIA: NavItem = {
+  href: "/videos",
+  label: "Media",
+  icon: FolderOpen,
+  activeFor: ["/videos", "/productions", "/editor", "/studio/projects"],
+};
 
-const matches = (pathname: string | null, prefixes: readonly string[] = []) =>
-  pathname !== null &&
-  prefixes.some((prefix) =>
-    prefix.startsWith("=") ? pathname === prefix.slice(1) : pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+const ALL_ITEMS: readonly NavItem[] = [...RAIL, HOME, MEDIA];
+
+/** How much of the path a prefix claims. Zero when it does not match. */
+const claim = (pathname: string, prefix: string) => {
+  if (prefix.startsWith("=")) return pathname === prefix.slice(1) ? prefix.length + 1000 : 0;
+  return pathname === prefix || pathname.startsWith(`${prefix}/`) ? prefix.length : 0;
+};
+
+/** The one item that is current: the longest prefix wins, so /create/shorts lights Shorts, not Create. */
+const currentHref = (pathname: string | null) => {
+  if (!pathname) return null;
+  let best: { href: string; score: number } | null = null;
+  for (const item of ALL_ITEMS) {
+    const score = Math.max(0, ...item.activeFor.map((prefix) => claim(pathname, prefix)));
+    if (score > 0 && (!best || score > best.score)) best = { href: item.href, score };
+  }
+  return best?.href ?? null;
+};
+
+const PILL = "rounded-2xl border border-border bg-card/90 backdrop-blur-md";
 
 /**
- * Signed-in shell: the white Studio sidebar on desktop, a top bar with a menu below md.
- * `plan` and `account` are server-rendered slots for the bottom of the sidebar. Only the
- * pieces that read the pathname sit inside <Suspense>, so the rest of the shell prerenders.
+ * Signed-in shell: a floating top bar with the brand, an icon rail, and the account.
+ * `plan` and `account` are server-rendered slots for the right side. Only the pieces that
+ * read the pathname sit inside <Suspense>, so the rest of the shell prerenders.
  */
 export function StudioFrame({
   plan,
@@ -148,45 +136,40 @@ export function StudioFrame({
   children: ReactNode;
 }) {
   const [override, setOverride] = useState<Plan | null>(null);
-  const planSlot = override ? (
-    <PlanCardView name={override.name} balance={override.balance} low={override.low} badge="Sample" />
-  ) : (
-    plan
-  );
+  const planSlot = override ? <CreditsPill balance={override.balance} low={override.low} badge="Sample" /> : plan;
 
   return (
     <PlanContext.Provider value={setOverride}>
-      <div className="flex min-h-svh flex-1 bg-[#F6F6F9] text-[14px] leading-[1.5] text-[#141321]">
-        <aside
-          aria-label="Studio navigation"
-          className="sticky top-0 hidden h-svh w-[248px] shrink-0 flex-col gap-5 overflow-y-auto border-r border-[#E4E4EC] bg-white px-3.5 py-5 md:flex"
-        >
-          <Brand />
-          <Suspense fallback={<CreateButton pathname={null} />}>
-            <CurrentCreateButton />
-          </Suspense>
-          <Suspense fallback={<NavLists pathname={null} />}>
-            <CurrentNavLists />
-          </Suspense>
-          <div className="mt-auto flex flex-col gap-3">
-            {planSlot}
-            {account}
-          </div>
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b border-[#E4E4EC] bg-white px-4 md:hidden">
-            <Brand />
-            <Suspense fallback={<MenuButton open={false} onToggle={() => {}} />}>
-              <MobileMenu>
-                {planSlot}
-                {account}
-              </MobileMenu>
+      <ThemeScope />
+      <div className="night flex min-h-svh flex-1 flex-col bg-background text-[14px] leading-[1.5] text-foreground">
+        <header className="pointer-events-none sticky top-0 z-30 px-3 pt-3 sm:px-5 sm:pt-5">
+          <div className="relative grid grid-cols-[1fr_auto] items-center gap-2 lg:grid-cols-[1fr_auto_1fr]">
+            <div className="pointer-events-auto flex items-center gap-2 justify-self-start">
+              <Brand />
+              <Suspense fallback={<CreateButton current={null} />}>
+                <CurrentCreateButton />
+              </Suspense>
+            </div>
+
+            <Suspense fallback={<Rail current={null} />}>
+              <CurrentRail />
             </Suspense>
-          </header>
-          <main id="main" className="flex min-w-0 flex-1 flex-col">
-            {children}
-          </main>
-        </div>
+
+            <div className="pointer-events-auto flex items-center gap-2 justify-self-end">
+              <Suspense fallback={<MediaLink current={null} />}>
+                <CurrentMediaLink />
+              </Suspense>
+              {planSlot}
+              {account}
+              <Suspense fallback={<MenuButton open={false} onToggle={() => {}} />}>
+                <MobileMenu />
+              </Suspense>
+            </div>
+          </div>
+        </header>
+        <main id="main" className="flex min-w-0 flex-1 flex-col">
+          {children}
+        </main>
       </div>
     </PlanContext.Provider>
   );
@@ -194,95 +177,102 @@ export function StudioFrame({
 
 function Brand() {
   return (
-    <Link href="/dashboard" aria-label="PoliVid home" className="flex items-center gap-2.5 px-2 py-1 text-[#141321]">
+    <Link
+      href="/dashboard"
+      aria-label="PoliVid home"
+      className={cn(PILL, "flex h-[52px] items-center gap-2.5 py-0 pr-4 pl-2 text-foreground")}
+    >
       <span
         aria-hidden="true"
-        className="inline-flex size-7 items-center justify-center rounded-[8px] bg-[#5B2EE6] font-heading text-[15px] font-bold text-white"
+        className="grid size-9 place-items-center rounded-[10px] bg-foreground text-[20px] font-bold text-background"
       >
         P
       </span>
-      <span className="font-heading text-[17px] font-semibold">PoliVid</span>
+      <span className="hidden text-[15px] font-semibold sm:inline">PoliVid</span>
     </Link>
   );
 }
 
-const CurrentCreateButton = () => <CreateButton pathname={usePathname()} />;
+const useCurrent = () => currentHref(usePathname());
 
-function CreateButton({ pathname }: { pathname: string | null }) {
-  const creating = matches(pathname, CREATE_FOR);
+const CurrentCreateButton = () => <CreateButton current={useCurrent()} />;
+
+function CreateButton({ current }: { current: string | null }) {
+  const creating = current === "/create";
   return (
     <Link
       href="/create"
+      aria-label="Create video"
       aria-current={creating ? "page" : undefined}
       className={cn(
-        "flex h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-[#5B2EE6] text-[14px] font-medium text-white",
-        creating && "shadow-[0_0_0_4px_#EFEAFE]",
+        PILL,
+        "flex h-[52px] items-center gap-2 px-4 text-[15px] font-medium text-foreground hover:bg-accent",
+        creating && "border-input bg-accent",
       )}
     >
-      <svg
-        aria-hidden="true"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      >
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-      Create video
+      <Plus className="size-5" aria-hidden />
+      <span className="hidden min-[1360px]:inline">Create</span>
     </Link>
   );
 }
 
-const CurrentNavLists = () => <NavLists pathname={usePathname()} />;
+const CurrentRail = () => <Rail current={useCurrent()} />;
 
-function NavLists({ pathname }: { pathname: string | null }) {
+function Rail({ current }: { current: string | null }) {
   return (
-    <>
-      <nav aria-label="Main" className="flex flex-col gap-0.5">
-        {MAIN.map((item) => (
-          <NavLink key={item.label} item={item} pathname={pathname} />
-        ))}
-      </nav>
-      <div className="flex flex-col gap-0.5">
-        <div className="px-2.5 pt-2 pb-1 text-[11px] font-semibold tracking-[0.08em] text-[#6B6A7B] uppercase">
-          Workspace
-        </div>
-        {WORKSPACE.map((item) => (
-          <NavLink key={item.label} item={item} pathname={pathname} />
-        ))}
-      </div>
-    </>
+    <nav
+      aria-label="Main"
+      className={cn(PILL, "pointer-events-auto hidden h-[52px] items-center gap-0.5 px-1.5 lg:flex")}
+    >
+      {RAIL.map((item) => (
+        <RailLink key={item.href} item={item} active={current === item.href} />
+      ))}
+      <span aria-hidden="true" className="mx-1.5 h-[22px] w-px bg-input" />
+      <RailLink item={HOME} active={current === HOME.href} />
+    </nav>
   );
 }
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string | null }) {
-  if (!item.href) {
-    return (
-      <button
-        type="button"
-        disabled
-        className="flex h-10 shrink-0 cursor-not-allowed items-center gap-2.5 rounded-[10px] bg-transparent px-2.5 text-left font-medium text-[#8A8899]"
-      >
-        <Icon name={item.icon} />
-        {item.label}
-      </button>
-    );
-  }
-  const active = matches(pathname, item.activeFor);
+function RailLink({ item, active }: { item: NavItem; active: boolean }) {
+  const Icon = item.icon;
   return (
     <Link
       href={item.href}
+      aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-10 shrink-0 items-center gap-2.5 rounded-[10px] px-2.5 font-medium",
-        active ? "bg-[#EFEAFE] text-[#4A23C9]" : "text-[#3F3D4F] hover:bg-[#F6F6F9]",
+        "group relative grid size-11 shrink-0 place-items-center rounded-xl transition-colors",
+        active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
       )}
     >
-      <Icon name={item.icon} />
-      {item.label}
+      <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute top-full left-1/2 z-10 mt-2.5 -translate-x-1/2 rounded-lg border border-border bg-popover px-2.5 py-1 text-[12px] font-medium whitespace-nowrap text-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+      >
+        {item.label}
+      </span>
+    </Link>
+  );
+}
+
+const CurrentMediaLink = () => <MediaLink current={useCurrent()} />;
+
+function MediaLink({ current }: { current: string | null }) {
+  const active = current === MEDIA.href;
+  return (
+    <Link
+      href={MEDIA.href}
+      aria-label="Media"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        PILL,
+        "hidden h-[52px] items-center gap-2 px-4 text-[15px] font-medium text-muted-foreground hover:text-foreground sm:flex",
+        active && "border-input text-foreground",
+      )}
+    >
+      <FolderOpen className="size-[18px] text-amber-200/80" aria-hidden />
+      <span className="hidden min-[1360px]:inline">Media</span>
     </Link>
   );
 }
@@ -290,6 +280,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string | null })
 const MENU_ID = "studio-mobile-menu";
 
 function MenuButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+  const Icon = open ? X : Menu;
   return (
     <button
       type="button"
@@ -297,16 +288,17 @@ function MenuButton({ open, onToggle }: { open: boolean; onToggle: () => void })
       aria-controls={MENU_ID}
       aria-label={open ? "Close menu" : "Open menu"}
       onClick={onToggle}
-      className="grid size-10 place-items-center rounded-[10px] text-[#3F3D4F] hover:bg-[#F6F6F9]"
+      className={cn(PILL, "grid size-[52px] place-items-center text-foreground lg:hidden")}
     >
-      <Icon name={open ? "close" : "menu"} size={20} />
+      <Icon className="size-5" aria-hidden />
     </button>
   );
 }
 
-/** Below md: the same sidebar contents in a panel under the top bar. Closes on navigation and Escape. */
-function MobileMenu({ children }: { children: ReactNode }) {
+/** Below lg: every destination with its name, in a panel under the bar. Closes on navigation and Escape. */
+function MobileMenu() {
   const pathname = usePathname();
+  const current = currentHref(pathname);
   const [open, setOpen] = useState(false);
   const [openedOn, setOpenedOn] = useState(pathname);
 
@@ -326,16 +318,32 @@ function MobileMenu({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <MenuButton open={open} onToggle={() => setOpen((current) => !current)} />
+      <MenuButton open={open} onToggle={() => setOpen((value) => !value)} />
       {open ? (
-        <div
+        <nav
           id={MENU_ID}
-          className="absolute inset-x-0 top-full z-30 flex max-h-[calc(100svh-3.5rem)] flex-col gap-5 overflow-y-auto border-b border-[#E4E4EC] bg-white px-3.5 py-4"
+          aria-label="Main"
+          className="absolute inset-x-0 top-full z-30 mt-2 flex max-h-[calc(100svh-6rem)] flex-col gap-0.5 overflow-y-auto rounded-2xl border border-border bg-popover p-2 lg:hidden"
         >
-          <CreateButton pathname={pathname} />
-          <NavLists pathname={pathname} />
-          <div className="flex flex-col gap-3 border-t border-[#E4E4EC] pt-4">{children}</div>
-        </div>
+          {[HOME, ...RAIL, MEDIA].map((item) => {
+            const Icon = item.icon;
+            const active = current === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "flex h-11 shrink-0 items-center gap-3 rounded-xl px-3 font-medium",
+                  active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+                )}
+              >
+                <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
       ) : null}
     </>
   );

@@ -8,8 +8,7 @@ import { CREDITS_PER_USD } from "@/lib/billing/plans";
  * Most are OpenRouter text-to-video models. Gemini Omni is not on OpenRouter,
  * so it goes straight to Google's Gemini API and needs GEMINI_API_KEY.
  * Kling models go to api-singapore.klingai.com and need KLING_API_KEY.
- * Motion Control and Kling 4.0 are not listed: Motion Control needs a performance video,
- * and 4.0 is not on the developer API yet.
+ * Motion Control is not listed: it needs a performance video.
  */
 
 const seconds = (min: number, max: number) =>
@@ -25,6 +24,8 @@ export const GENERATION_MODEL_IDS = [
   "seedance-20",
   "flux",
   "omni",
+  "kling-4",
+  "kling-4-flash",
   "kling",
   "kling-turbo",
   "kling-omni",
@@ -187,6 +188,38 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     resolutions: ["360p", "720p", "1080p", "4k"],
     aspectRatios: ["16:9", "9:16"],
     pricePerSecond: { "720p": 0.1 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-4",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-4.0",
+    name: "Kling 4.0",
+    summary: "Newest Kling, 3–30s with stereo sound",
+    detail: "Films the prompt at 720p, about $0.16 a second, or 1080p at $0.24. It always makes sound and plans its own shots.",
+    durations: seconds(3, 30),
+    resolutions: ["720p", "1080p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.157, "1080p": 0.235 },
+    audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "kling-4-flash",
+    vendor: "Kling",
+    provider: "kling",
+    slug: "kling-4.0-flash",
+    name: "Kling 4.0 Flash",
+    summary: "Faster Kling 4.0 at 720p, 3–20s",
+    detail: "The quicker Kling 4.0 pass at 720p, about $0.09 a second. It always makes sound.",
+    durations: seconds(3, 20),
+    resolutions: ["720p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "720p": 0.094 },
     audio: true,
     referenceImages: true,
     inputs: ["text", "image"],

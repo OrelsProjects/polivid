@@ -20,31 +20,28 @@ The screens follow `design/studio-prototype/`. Home, Projects, Create, Sources, 
 
 ## App shell
 
-The whole signed-in app uses the Studio sidebar (`components/studio/studio-frame.tsx`) in light mode. The existing pages keep their own layouts and features; only the shell and the colours changed.
+The whole signed-in app uses one floating top bar (`components/studio/studio-frame.tsx`) on a neutral black theme. The existing pages keep their own layouts and features; the shell, the colours and the typeface are shared.
 
-| Sidebar item | Goes to |
+| Part of the bar | What it holds |
 |---|---|
-| New ad | `/create` (the campaign ad wizard) |
-| Home | `/dashboard` |
-| My ads | `/videos` (also current on `/productions` and `/editor`) |
-| Coach | `/coach` |
-| Campaign | `/campaign` |
-| Candidate & spokespeople | `/characters` |
-| Advanced tools | `/tools` (also current on `/create/advanced` and `/create/<mode>`) |
-| Billing | `/billing` |
+| Left | The PoliVid mark (goes to `/dashboard`) and a Create button (`/create`). |
+| Centre | An icon rail: Coach, Image to Video, Create video, Music to Video, Shorts, Motion graphics, Add captions, Characters & voices, Sources, Publish, Automations, All tools, then Home. Each icon shows its name on hover. The longest matching path marks the current one. |
+| Right | Media (`/videos`, also current on `/productions` and `/editor`), the credit balance with Upgrade or Manage (`/billing`), and the account menu (Billing, Sign out, and which model is live). |
 
-Sources, Publish and Automations are no longer in the sidebar; their routes under `/studio/*` still work and stay design-only. Brand assets and Settings were removed. The plan card and account row at the bottom are server-rendered slots (`components/studio/studio-account.tsx`). Below `md` the sidebar becomes a top bar with a menu. Coach and the Editor stay full-screen, without the sidebar, in light mode.
+Below `lg` the rail is replaced by a menu button that lists every destination by name. The balance and account are server-rendered slots (`components/studio/studio-account.tsx`). Coach and the Editor stay full-screen, without the bar, on the same theme.
 
-The Studio versions of Home, Create, Projects and the project page (`/studio`, `/studio/create`, `/studio/projects`, `/studio/projects/[id]`) still work but are not linked from the sidebar: the existing pages are used instead.
+Home (`/dashboard`) follows the same layout top to bottom: a carousel of wide cards, Featured, the workspace numbers, the tool wall, a promo with four shortcuts, recent videos, Characters & voices, the Coach banner, and a link to every tool. Its pictures are the look posters in `public/presets`.
+
+The Studio versions of Home, Create, Projects and the project page (`/studio`, `/studio/create`, `/studio/projects`, `/studio/projects/[id]`) still work but are not linked from the bar: the existing pages are used instead.
 
 ## Decisions
 
-- Light theme is the default (`:root` in `app/globals.css`). The old dark palette is `.dark`; only the marketing page, sign-in and two internal preview pages still opt into it.
+- The signed-in app uses `.night` in `app/globals.css`: black surfaces, white type, one blue for actions, set in Poppins. The shell puts the class on its root, and `ThemeScope` puts it on `<html>` so menus and dialogs match. Light (`:root`) stays the default for the public pages. The old dark palette is `.dark`; only sign-in and two internal preview pages still opt into it.
 - Screens that are not wired to real data yet keep their own sample state and say so.
-- The sidebar is the full one from `Home.dc.html` on every screen. The Recovery screen swaps its plan card for the low "Starter plan" balance (`useStudioPlan` in `components/studio/studio-frame.tsx`).
+- The top bar is the same on every screen. The Recovery screen swaps the balance for a low sample one (`useStudioPlan` in `components/studio/studio-frame.tsx`).
 - A batch is a project. Recovery states are a second sample project, not a separate route.
 - Credit rates on Create (2 / 10 / 4 credits per second) are sample numbers.
-- On a phone the sidebar becomes a top bar with a menu, like the previous app. No phone layout has been designed yet.
+- On a phone the icon rail becomes a menu button. The pages themselves have no separate phone design yet.
 
 ## What a reviewer can try
 
@@ -67,5 +64,5 @@ Every file below starts with a `FOR DELETION` comment, so `grep -rn "FOR DELETIO
 | File | Why |
 |---|---|
 | `lib/store/studio-slice.ts` (and its line in `lib/store/store.ts`), `lib/studio/model.ts` | Unused leftovers of the first Studio preview. |
-| `app/(preview)/studio/characters/page.tsx`, `app/(preview)/studio/billing/page.tsx` | Unused leftovers of the first Studio preview, not linked from the sidebar. |
+| `app/(preview)/studio/characters/page.tsx`, `app/(preview)/studio/billing/page.tsx` | Unused leftovers of the first Studio preview, not linked from the top bar. |
 | `.dark` in `app/globals.css` | Remove last: the marketing page, sign-in and the two preview pages under `app/picture-preview` and `app/shot-plan-preview` still use it. |

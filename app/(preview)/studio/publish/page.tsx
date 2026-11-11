@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Publish" };
 
 export default function StudioPublishPage() {
   return (
-    <Suspense fallback={<p className="text-sm text-[#6B6A7B]">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
       <Publish />
     </Suspense>
   );

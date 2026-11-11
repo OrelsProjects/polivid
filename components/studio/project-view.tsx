@@ -19,16 +19,16 @@ export function ProjectView({ variant }: { variant: "ready" | "recovery" }) {
 
 /* ---------- Shared layout ---------- */
 
-const BTN_PRIMARY = "h-10 cursor-pointer rounded-full border-0 bg-[#5B2EE6] px-4 font-medium text-white";
-const BTN_QUIET = "h-10 cursor-pointer rounded-full border border-[#E4E4EC] bg-white px-4 font-medium text-[#3F3D4F]";
+const BTN_PRIMARY = "h-10 cursor-pointer rounded-full border-0 bg-primary px-4 font-medium text-white";
+const BTN_QUIET = "h-10 cursor-pointer rounded-full border border-border bg-card px-4 font-medium text-foreground/80";
 const BTN_QUIET_DISABLED =
-  "h-10 cursor-not-allowed rounded-full border border-[#E4E4EC] bg-white px-4 font-medium text-[#8A8899]";
-const FIELD_LABEL = "text-[13px] font-medium text-[#3F3D4F]";
+  "h-10 cursor-not-allowed rounded-full border border-border bg-card px-4 font-medium text-muted-foreground";
+const FIELD_LABEL = "text-[13px] font-medium text-foreground/80";
 
 function Breadcrumb({ title }: { title: string }) {
   return (
-    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-[#6B6A7B]">
-      <Link href={STUDIO_HREF.projects} className="text-[#4A23C9] hover:text-[#3A1AA6]">
+    <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+      <Link href={STUDIO_HREF.projects} className="text-primary hover:text-primary/80">
         Projects
       </Link>
       <span aria-hidden="true">/</span>
@@ -58,17 +58,17 @@ function ProjectHeader({
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <Chip tone={tone}>{status}</Chip>
-          <span className="text-[12px] text-[#6B6A7B]">{lineage}</span>
+          <span className="text-[12px] text-muted-foreground">{lineage}</span>
         </div>
         <h1 className="m-0 font-heading text-[30px] leading-[1.15] font-semibold tracking-normal">{title}</h1>
-        <p className="m-0 text-[14px] text-[#6B6A7B]">{specs}</p>
+        <p className="m-0 text-[14px] text-muted-foreground">{specs}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {children}
         <button
           type="button"
           disabled
-          className="h-11 cursor-not-allowed rounded-full border border-[#E4E4EC] bg-white px-4 font-medium text-[#8A8899]"
+          className="h-11 cursor-not-allowed rounded-full border border-border bg-card px-4 font-medium text-muted-foreground"
         >
           Open timeline editor
         </button>
@@ -113,7 +113,7 @@ function VersionRow({
     <div
       className={cn(
         "flex items-center justify-between rounded-[10px] border px-2.5 py-2 text-[13px]",
-        pending ? "border-dashed border-[#E3C78A] bg-[#FFF8EA]" : "border-[#E4E4EC] bg-[#FAFAFC]",
+        pending ? "border-dashed border-amber-400/30 bg-amber-400/10" : "border-border bg-muted",
       )}
     >
       <span>{label}</span>
@@ -129,7 +129,7 @@ function InfoCard({ title, rows, children }: { title: string; rows: [string, Rea
       <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5 text-[13px]">
         {rows.map(([term, value]) => (
           <Fragment key={term}>
-            <dt className="text-[#6B6A7B]">{term}</dt>
+            <dt className="text-muted-foreground">{term}</dt>
             <dd className="m-0">{value}</dd>
           </Fragment>
         ))}
@@ -211,7 +211,7 @@ function ReadyProject() {
         <button
           type="button"
           onClick={() => setDownloaded(true)}
-          className="h-11 cursor-pointer rounded-full border-0 bg-[#5B2EE6] px-5 font-medium text-white"
+          className="h-11 cursor-pointer rounded-full border-0 bg-primary px-5 font-medium text-white"
         >
           Download MP4
         </button>
@@ -219,7 +219,7 @@ function ReadyProject() {
           <button
             type="button"
             onClick={rerender}
-            className="h-11 cursor-pointer rounded-full border border-[#5B2EE6] bg-white px-4 font-medium text-[#4A23C9]"
+            className="h-11 cursor-pointer rounded-full border border-primary bg-card px-4 font-medium text-primary"
           >
             Re-render {changedCount} changed · {rerenderCost} credits
           </button>
@@ -227,7 +227,7 @@ function ReadyProject() {
       </ProjectHeader>
 
       {downloaded ? (
-        <p role="status" className="m-0 rounded-[12px] bg-[#E3F5EA] px-3.5 py-2.5 text-[13px] font-medium text-[#157347]">
+        <p role="status" className="m-0 rounded-[12px] bg-emerald-400/10 px-3.5 py-2.5 text-[13px] font-medium text-emerald-300">
           Download started (simulated) · click-then-sleep-v1.mp4 · the MP4 is the fixed v1 output, not the live draft.
         </p>
       ) : null}
@@ -244,13 +244,13 @@ function ReadyProject() {
                 aria-pressed={on}
                 onClick={() => setSelected(i)}
                 className={cn(
-                  "flex cursor-pointer gap-3 rounded-[14px] border-2 bg-white p-3 text-left text-[#141321]",
-                  on ? "border-[#5B2EE6]" : "border-[#E4E4EC]",
+                  "flex cursor-pointer gap-3 rounded-[14px] border-2 bg-card p-3 text-left text-foreground",
+                  on ? "border-primary" : "border-border",
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] bg-[#E9E8F1] font-semibold text-[#3F3D4F]"
+                  className="inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] bg-border font-semibold text-foreground/80"
                 >
                   {i + 1}
                 </span>
@@ -266,15 +266,15 @@ function ReadyProject() {
                       {sc.changed ? "Changed" : "Rendered"}
                     </span>
                   </span>
-                  <span className="truncate text-[12px] text-[#6B6A7B]">{sc.text}</span>
-                  <span className="text-[12px] text-[#6B6A7B]">{sc.seconds}s</span>
+                  <span className="truncate text-[12px] text-muted-foreground">{sc.text}</span>
+                  <span className="text-[12px] text-muted-foreground">{sc.seconds}s</span>
                 </span>
               </button>
             );
           })}
           <button
             type="button"
-            className="h-10 cursor-pointer rounded-[12px] border border-dashed border-[#C9C8D6] bg-transparent font-medium text-[#3F3D4F]"
+            className="h-10 cursor-pointer rounded-[12px] border border-dashed border-input bg-transparent font-medium text-foreground/80"
           >
             + Add a scene
           </button>
@@ -285,7 +285,7 @@ function ReadyProject() {
             <SectionTitle size={18}>
               Scene {selected + 1} · {current.title}
             </SectionTitle>
-            <span className="text-[12px] text-[#6B6A7B]">Editing marks the scene for re-render. v1 stays downloadable.</span>
+            <span className="text-[12px] text-muted-foreground">Editing marks the scene for re-render. v1 stays downloadable.</span>
           </div>
           <label htmlFor="narration" className={FIELD_LABEL}>
             Narration
@@ -295,7 +295,7 @@ function ReadyProject() {
             rows={4}
             value={current.text}
             onChange={(e) => edit({ text: e.target.value })}
-            className="w-full resize-y rounded-[14px] border border-[#E4E4EC] bg-[#FAFAFC] px-3.5 py-3 text-[15px] text-[#141321]"
+            className="w-full resize-y rounded-[14px] border border-border bg-muted px-3.5 py-3 text-[15px] text-foreground"
           />
           <label htmlFor="onscreen" className={FIELD_LABEL}>
             On-screen text
@@ -305,23 +305,23 @@ function ReadyProject() {
             type="text"
             value={current.onscreen}
             onChange={(e) => edit({ onscreen: e.target.value })}
-            className="h-[42px] rounded-[12px] border border-[#E4E4EC] bg-[#FAFAFC] px-3.5 text-[15px] text-[#141321]"
+            className="h-[42px] rounded-[12px] border border-border bg-muted px-3.5 text-[15px] text-foreground"
           />
           <div className="flex flex-col gap-1.5">
             <span className={FIELD_LABEL}>Visual</span>
-            <div className="flex items-center gap-3 rounded-[14px] border border-[#E4E4EC] p-3">
+            <div className="flex items-center gap-3 rounded-[14px] border border-border p-3">
               <span
                 aria-hidden="true"
-                className="inline-flex size-[72px] flex-[0_0_72px] items-center justify-center rounded-[10px] bg-[#141321] font-heading text-[12px] font-bold text-[#F5B342]"
+                className="inline-flex size-[72px] flex-[0_0_72px] items-center justify-center rounded-[10px] bg-foreground font-heading text-[12px] font-bold text-amber-400"
               >
                 BOLD
               </span>
               <div className="flex flex-col gap-1 text-[13px]">
                 <span className="font-medium">{current.visual}</span>
-                <span className="text-[#6B6A7B]">Motion graphics · Bold</span>
+                <span className="text-muted-foreground">Motion graphics · Bold</span>
                 <button
                   type="button"
-                  className="h-[30px] cursor-pointer self-start rounded-full border border-[#E4E4EC] bg-white px-2.5 text-[12px] font-medium text-[#3F3D4F]"
+                  className="h-[30px] cursor-pointer self-start rounded-full border border-border bg-card px-2.5 text-[12px] font-medium text-foreground/80"
                 >
                   Change visual note
                 </button>
@@ -351,10 +351,10 @@ function ReadyProject() {
               <div
                 role="img"
                 aria-label="Finished video placeholder"
-                className="flex aspect-[9/16] max-h-[360px] flex-col justify-between rounded-[12px] bg-[#141321] p-3.5 text-[12px] text-white"
+                className="flex aspect-[9/16] max-h-[360px] flex-col justify-between rounded-[12px] bg-foreground p-3.5 text-[12px] text-white"
               >
-                <span className="text-[#C9C8D6]">v1 · 9:16 · 15s</span>
-                <span className="font-heading text-[24px] leading-[1.1] font-bold text-[#F5B342]">Click. Then sleep.</span>
+                <span className="text-input">v1 · 9:16 · 15s</span>
+                <span className="font-heading text-[24px] leading-[1.1] font-bold text-amber-400">Click. Then sleep.</span>
               </div>
             }
           >
@@ -386,10 +386,10 @@ type ExportState = "none" | "failed" | "ready" | "partial";
 type SceneStatus = "rendered" | "rendering" | "dropped" | "failed";
 
 const SCENE_STATUS: Record<SceneStatus, { label: string; tone: Tone; thumb: string }> = {
-  rendered: { label: "Rendered", tone: "ready", thumb: "bg-[#DDEBFF]" },
-  rendering: { label: "Rendering (simulated)", tone: "rendering", thumb: "bg-[#E9E8F1]" },
-  dropped: { label: "Left out of export", tone: "neutral", thumb: "bg-[#E9E8F1]" },
-  failed: { label: "Failed · refunded", tone: "failed", thumb: "bg-[#FDE8EA]" },
+  rendered: { label: "Rendered", tone: "ready", thumb: "bg-sky-400/15" },
+  rendering: { label: "Rendering (simulated)", tone: "rendering", thumb: "bg-border" },
+  dropped: { label: "Left out of export", tone: "neutral", thumb: "bg-border" },
+  failed: { label: "Failed · refunded", tone: "failed", thumb: "bg-red-400/10" },
 };
 
 const RECOVERY_SCENES = [
@@ -411,7 +411,7 @@ function Notice({
   children: ReactNode;
 }) {
   return (
-    <article aria-label={label} className={cn("flex flex-col rounded-[16px] border bg-white px-[18px] py-4", border, className)}>
+    <article aria-label={label} className={cn("flex flex-col rounded-[16px] border bg-card px-[18px] py-4", border, className)}>
       {children}
     </article>
   );
@@ -510,7 +510,7 @@ function RecoveryProject() {
           onClick={() => setSim("Download started (simulated).")}
           className={cn(
             "h-11 cursor-pointer rounded-full border-0 px-5 font-medium text-white",
-            noOutput ? "bg-[#B9B4D6]" : "bg-[#5B2EE6]",
+            noOutput ? "bg-primary/40" : "bg-primary",
           )}
         >
           {dlLabel}
@@ -522,7 +522,7 @@ function RecoveryProject() {
           <SectionTitle size={18}>What needs attention</SectionTitle>
 
           {sceneFailed ? (
-            <Notice label="Scene 2 failed" border="border-[#F3B8C0]" className="gap-2.5">
+            <Notice label="Scene 2 failed" border="border-red-400/30" className="gap-2.5">
               <div className="flex items-start gap-2.5">
                 <svg
                   aria-hidden="true"
@@ -540,7 +540,7 @@ function RecoveryProject() {
                 </svg>
                 <div className="flex flex-col gap-1">
                   <h3 className="m-0 text-[15px] font-semibold">Scene 2 did not render</h3>
-                  <p className="m-0 text-[13px] text-[#3F3D4F]">
+                  <p className="m-0 text-[13px] text-foreground/80">
                     The model refused the combination of a reference picture and a storyboard frame in one request.
                     Scenes 1 and 3 are fine and kept. The 20 credits for this scene were refunded.
                   </p>
@@ -561,10 +561,10 @@ function RecoveryProject() {
           ) : null}
 
           {lowCredits ? (
-            <Notice label="Not enough credits" border="border-[#E3C78A]" className="gap-2.5">
+            <Notice label="Not enough credits" border="border-amber-400/30" className="gap-2.5">
               <div className="flex flex-col gap-1">
                 <h3 className="m-0 text-[15px] font-semibold">Retrying needs 20 credits. You have {balance}.</h3>
-                <p className="m-0 text-[13px] text-[#3F3D4F]">
+                <p className="m-0 text-[13px] text-foreground/80">
                   Nothing was charged. Your rendered scenes and the script are safe. Choose a cheaper way to finish, or
                   top up.
                 </p>
@@ -584,10 +584,10 @@ function RecoveryProject() {
           ) : null}
 
           {exportFailed ? (
-            <Notice label="Export failed" border="border-[#F3B8C0]" className="gap-2.5">
+            <Notice label="Export failed" border="border-red-400/30" className="gap-2.5">
               <div className="flex flex-col gap-1">
                 <h3 className="m-0 text-[15px] font-semibold">The MP4 export failed after rendering</h3>
-                <p className="m-0 text-[13px] text-[#3F3D4F]">
+                <p className="m-0 text-[13px] text-foreground/80">
                   Stitching the scenes timed out. Every rendered scene is kept, so retrying the export costs nothing.
                 </p>
               </div>
@@ -603,14 +603,14 @@ function RecoveryProject() {
           ) : null}
 
           {allGood ? (
-            <Notice label="Resolved" border="border-[#B8E0C6]" className="gap-1">
-              <h3 className="m-0 text-[15px] font-semibold text-[#157347]">Nothing left to fix</h3>
-              <p className="m-0 text-[13px] text-[#3F3D4F]">All three scenes rendered and the MP4 is ready. (Simulated.)</p>
+            <Notice label="Resolved" border="border-emerald-400/30" className="gap-1">
+              <h3 className="m-0 text-[15px] font-semibold text-emerald-300">Nothing left to fix</h3>
+              <p className="m-0 text-[13px] text-foreground/80">All three scenes rendered and the MP4 is ready. (Simulated.)</p>
             </Notice>
           ) : null}
 
           {sim ? (
-            <p role="status" className="m-0 text-[13px] font-medium text-[#9A5B00]">
+            <p role="status" className="m-0 text-[13px] font-medium text-amber-300">
               {sim}
             </p>
           ) : null}
@@ -624,12 +624,12 @@ function RecoveryProject() {
               return (
                 <li
                   key={sc.n}
-                  className="flex items-center gap-3 rounded-[14px] border border-[#E4E4EC] bg-white p-3"
+                  className="flex items-center gap-3 rounded-[14px] border border-border bg-card p-3"
                 >
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] font-semibold text-[#3F3D4F]",
+                      "inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] font-semibold text-foreground/80",
                       st.thumb,
                     )}
                   >
@@ -637,7 +637,7 @@ function RecoveryProject() {
                   </span>
                   <span className="flex min-w-0 flex-auto flex-col gap-0.5">
                     <span className="text-[14px] font-semibold">{sc.title}</span>
-                    <span className="truncate text-[12px] text-[#6B6A7B]">{sc.text}</span>
+                    <span className="truncate text-[12px] text-muted-foreground">{sc.text}</span>
                   </span>
                   <Chip tone={st.tone} className="whitespace-nowrap">
                     {st.label}
@@ -654,7 +654,7 @@ function RecoveryProject() {
               <div
                 role="img"
                 aria-label="Output placeholder"
-                className="flex aspect-[9/16] max-h-[340px] items-center justify-center rounded-[12px] bg-[#E9E8F1] p-4 text-center text-[13px] text-[#6B6A7B]"
+                className="flex aspect-[9/16] max-h-[340px] items-center justify-center rounded-[12px] bg-border p-4 text-center text-[13px] text-muted-foreground"
               >
                 {outputNote}
               </div>
@@ -671,7 +671,7 @@ function RecoveryProject() {
               ["Balance", `${balance} (sample)`],
             ]}
           >
-            <p className="m-0 text-[12px] text-[#6B6A7B]">
+            <p className="m-0 text-[12px] text-muted-foreground">
               Render status and publish status are separate. Nothing here is scheduled.
             </p>
           </InfoCard>

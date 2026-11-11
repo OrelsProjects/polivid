@@ -41,12 +41,12 @@ const PRESENTATIONS: { id: string; label: string; hint: string; rate: number; ra
   ];
 
 const STYLES = [
-  { id: "auto", label: "Auto", hint: "From the brief", swatch: "bg-[#E9E8F1] text-[#3F3D4F]", mark: "Auto" },
-  { id: "bold", label: "Bold", hint: "Big type, amber on navy", swatch: "bg-[#141321] text-[#F5B342]", mark: "BOLD" },
-  { id: "editorial", label: "Editorial", hint: "Serif, cream, magazine", swatch: "bg-[#FBF4E7] text-[#141321]", mark: "Ed." },
-  { id: "minimal", label: "Minimal", hint: "Light, quiet, lots of air", swatch: "bg-white text-[#6B6A7B]", mark: "—" },
-  { id: "rounded", label: "Rounded 3D", hint: "Soft animated characters", swatch: "bg-[#DDEBFF] text-[#1D5FD6]", mark: "3D" },
-  { id: "realism", label: "Ultra realism", hint: "Believable light", swatch: "bg-[#D9E6D2] text-[#2F5A2B]", mark: "Real" },
+  { id: "auto", label: "Auto", hint: "From the brief", swatch: "bg-border text-foreground/80", mark: "Auto" },
+  { id: "bold", label: "Bold", hint: "Big type, amber on navy", swatch: "bg-foreground text-amber-400", mark: "BOLD" },
+  { id: "editorial", label: "Editorial", hint: "Serif, cream, magazine", swatch: "bg-amber-400/10 text-foreground", mark: "Ed." },
+  { id: "minimal", label: "Minimal", hint: "Light, quiet, lots of air", swatch: "bg-card text-muted-foreground", mark: "—" },
+  { id: "rounded", label: "Rounded 3D", hint: "Soft animated characters", swatch: "bg-sky-400/15 text-sky-300", mark: "3D" },
+  { id: "realism", label: "Ultra realism", hint: "Believable light", swatch: "bg-emerald-400/15 text-emerald-300", mark: "Real" },
 ];
 
 const FORMATS = [
@@ -87,19 +87,19 @@ const SCENES: Scene[] = [
 
 /** Selected = primary ring + tint, text colour left to the caller. */
 function picked(on: boolean) {
-  return on ? "border-[#5B2EE6] bg-[#EFEAFE]" : "border-[#E4E4EC] bg-white";
+  return on ? "border-primary bg-accent" : "border-border bg-card";
 }
 
 function stepLook(current: boolean, past: boolean) {
-  if (current) return "bg-[#5B2EE6] text-white";
-  if (past) return "bg-[#EFEAFE] text-[#4A23C9]";
-  return "bg-white text-[#6B6A7B]";
+  if (current) return "bg-primary text-white";
+  if (past) return "bg-accent text-primary";
+  return "bg-card text-muted-foreground";
 }
 
-const fieldLabel = "text-[13px] font-medium text-[#3F3D4F]";
+const fieldLabel = "text-[13px] font-medium text-foreground/80";
 const quietButton =
-  "cursor-pointer rounded-full border border-[#E4E4EC] bg-white font-medium text-[#3F3D4F]";
-const primaryButton = "h-11 cursor-pointer rounded-full border-0 bg-[#5B2EE6] font-medium text-white";
+  "cursor-pointer rounded-full border border-border bg-card font-medium text-foreground/80";
+const primaryButton = "h-11 cursor-pointer rounded-full border-0 bg-primary font-medium text-white";
 
 const modeFor = (input: string, presentation: string) => {
   if (input === "music") return "music";
@@ -206,7 +206,7 @@ export function CreateView() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h1 className="m-0 font-heading text-[30px] leading-[1.15] font-semibold tracking-normal">New video</h1>
-            <p className="m-0 text-[15px] text-[#6B6A7B]">
+            <p className="m-0 text-[15px] text-muted-foreground">
               Idea to MP4. Review the script and the cost before anything renders.
             </p>
           </div>
@@ -226,7 +226,7 @@ export function CreateView() {
               >
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-[22px] items-center justify-center rounded-full border border-[#E4E4EC] bg-white text-[12px] font-semibold text-[#141321]"
+                  className="inline-flex size-[22px] items-center justify-center rounded-full border border-border bg-card text-[12px] font-semibold text-foreground"
                 >
                   {i + 1}
                 </span>
@@ -263,9 +263,9 @@ export function CreateView() {
                 rows={4}
                 value={brief}
                 onChange={(event) => setBrief(event.target.value)}
-                className="min-h-[110px] w-full resize-y rounded-[14px] border border-[#E4E4EC] bg-[#FAFAFC] px-4 py-3.5 text-[15px] text-[#141321]"
+                className="min-h-[110px] w-full resize-y rounded-[14px] border border-border bg-muted px-4 py-3.5 text-[15px] text-foreground"
               />
-              <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-[#6B6A7B]">
+              <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-muted-foreground">
                 <button type="button" className={cn(quietButton, "h-[34px] px-3")}>
                   Add reference pictures
                 </button>
@@ -276,7 +276,7 @@ export function CreateView() {
             <Card aria-labelledby="pres-title" className="gap-3.5 px-[22px] py-5">
               <div className="flex flex-col gap-0.5">
                 <Kicker id="pres-title">2 · Presentation</Kicker>
-                <p className="m-0 text-[13px] text-[#6B6A7B]">
+                <p className="m-0 text-[13px] text-muted-foreground">
                   How the video looks on screen. This is separate from what you started with.
                 </p>
               </div>
@@ -293,14 +293,14 @@ export function CreateView() {
                     onClick={() => setPresentation(item.id)}
                     disabled={item.disabled}
                     className={cn(
-                      "flex cursor-pointer flex-col gap-1 rounded-[14px] border p-3.5 text-left text-[#141321]",
+                      "flex cursor-pointer flex-col gap-1 rounded-[14px] border p-3.5 text-left text-foreground",
                       picked(presentation === item.id),
                       item.disabled ? "opacity-[0.55]" : "opacity-100",
                     )}
                   >
                     <span className="text-[14px] font-semibold">{item.label}</span>
-                    <span className="text-[12px] text-[#6B6A7B]">{item.hint}</span>
-                    <span className="text-[12px] font-medium text-[#4A23C9]">{item.rateLabel}</span>
+                    <span className="text-[12px] text-muted-foreground">{item.hint}</span>
+                    <span className="text-[12px] font-medium text-primary">{item.rateLabel}</span>
                   </button>
                 ))}
               </div>
@@ -320,8 +320,8 @@ export function CreateView() {
                     aria-pressed={style === item.id}
                     onClick={() => setStyle(item.id)}
                     className={cn(
-                      "flex cursor-pointer flex-col gap-2 rounded-[14px] border-2 bg-white p-1.5 text-left text-[#141321]",
-                      style === item.id ? "border-[#5B2EE6]" : "border-white",
+                      "flex cursor-pointer flex-col gap-2 rounded-[14px] border-2 bg-card p-1.5 text-left text-foreground",
+                      style === item.id ? "border-primary" : "border-white",
                     )}
                   >
                     <span
@@ -335,7 +335,7 @@ export function CreateView() {
                     </span>
                     <span className="flex flex-col gap-0.5 px-1 pb-1">
                       <span className="text-[13px] font-semibold">{item.label}</span>
-                      <span className="text-[12px] text-[#6B6A7B]">{item.hint}</span>
+                      <span className="text-[12px] text-muted-foreground">{item.hint}</span>
                     </span>
                   </button>
                 ))}
@@ -355,12 +355,12 @@ export function CreateView() {
                         aria-pressed={format === item.id}
                         onClick={() => setFormat(item.id)}
                         className={cn(
-                          "inline-flex h-10 cursor-pointer flex-col justify-center rounded-[12px] border px-3.5 leading-[1.2] font-medium text-[#141321]",
+                          "inline-flex h-10 cursor-pointer flex-col justify-center rounded-[12px] border px-3.5 leading-[1.2] font-medium text-foreground",
                           picked(format === item.id),
                         )}
                       >
                         <span>{item.label}</span>
-                        <span className="text-[11px] font-normal text-[#6B6A7B]">{item.hint}</span>
+                        <span className="text-[11px] font-normal text-muted-foreground">{item.hint}</span>
                       </button>
                     ))}
                   </div>
@@ -375,7 +375,7 @@ export function CreateView() {
                         aria-pressed={length === n}
                         onClick={() => setLength(n)}
                         className={cn(
-                          "h-10 min-w-14 cursor-pointer rounded-[12px] border px-3.5 font-medium text-[#141321]",
+                          "h-10 min-w-14 cursor-pointer rounded-[12px] border px-3.5 font-medium text-foreground",
                           picked(length === n),
                         )}
                       >
@@ -390,7 +390,7 @@ export function CreateView() {
                   </label>
                   <select
                     id="voice"
-                    className="h-10 rounded-[12px] border border-[#E4E4EC] bg-white px-3 text-[#141321]"
+                    className="h-10 rounded-[12px] border border-border bg-card px-3 text-foreground"
                   >
                     {VOICES.map((voice) => (
                       <option key={voice}>{voice}</option>
@@ -403,25 +403,25 @@ export function CreateView() {
 
           <aside
             aria-label="Cost and next step"
-            className="sticky top-6 flex max-w-[360px] flex-[1_1_280px] flex-col gap-3.5"
+            className="sticky top-24 flex max-w-[360px] flex-[1_1_280px] flex-col gap-3.5"
           >
             <Card className="gap-3 px-[22px] py-5">
               <Kicker>Before you render</Kicker>
               <div className="flex items-baseline gap-2">
                 <span className="font-heading text-[34px] leading-none font-bold">{cost}</span>
-                <span className="text-[#6B6A7B]">credits · estimate</span>
+                <span className="text-muted-foreground">credits · estimate</span>
               </div>
               <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-3.5 gap-y-1.5 text-[13px]">
-                <dt className="text-[#6B6A7B]">Presentation</dt>
+                <dt className="text-muted-foreground">Presentation</dt>
                 <dd className="m-0">{summaryPresentation}</dd>
-                <dt className="text-[#6B6A7B]">Length</dt>
+                <dt className="text-muted-foreground">Length</dt>
                 <dd className="m-0">{summaryLength}</dd>
-                <dt className="text-[#6B6A7B]">Format</dt>
+                <dt className="text-muted-foreground">Format</dt>
                 <dd className="m-0">{summaryFormat}</dd>
-                <dt className="text-[#6B6A7B]">Balance</dt>
+                <dt className="text-muted-foreground">Balance</dt>
                 <dd className="m-0">8,198 credits (sample)</dd>
               </dl>
-              <p className="m-0 text-[12px] text-[#6B6A7B]">
+              <p className="m-0 text-[12px] text-muted-foreground">
                 Credits are held when the render starts and refunded for any scene that fails. Nothing is charged for
                 planning the script.
               </p>
@@ -431,7 +431,7 @@ export function CreateView() {
             </Card>
             <Card className="gap-2 px-[18px] py-4">
               <h2 className="m-0 font-sans text-[13px] font-semibold tracking-normal">Coach</h2>
-              <p className="m-0 text-[13px] text-[#3F3D4F]">
+              <p className="m-0 text-[13px] text-foreground/80">
                 Mention the audience and the one thing they should remember. A number on screen needs a source in the
                 script.
               </p>
@@ -448,7 +448,7 @@ export function CreateView() {
           <section aria-label="Scenes" className="flex max-w-[340px] flex-[1_1_260px] flex-col gap-2.5">
             <div className="flex items-baseline justify-between">
               <SectionTitle size={18}>Scenes</SectionTitle>
-              <span className="text-[12px] text-[#6B6A7B]">
+              <span className="text-[12px] text-muted-foreground">
                 {sceneCount} · {summaryLength}
               </span>
             </div>
@@ -459,26 +459,26 @@ export function CreateView() {
                 aria-pressed={selectedScene === i}
                 onClick={() => setSelectedScene(i)}
                 className={cn(
-                  "flex cursor-pointer gap-3 rounded-[14px] border-2 bg-white p-3 text-left text-[#141321]",
-                  selectedScene === i ? "border-[#5B2EE6]" : "border-[#E4E4EC]",
+                  "flex cursor-pointer gap-3 rounded-[14px] border-2 bg-card p-3 text-left text-foreground",
+                  selectedScene === i ? "border-primary" : "border-border",
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] bg-[#E9E8F1] font-semibold text-[#3F3D4F]"
+                  className="inline-flex size-12 flex-[0_0_48px] items-center justify-center rounded-[10px] bg-border font-semibold text-foreground/80"
                 >
                   {i + 1}
                 </span>
                 <span className="flex min-w-0 flex-col gap-0.5">
                   <span className="text-[14px] font-semibold">{scene.title}</span>
-                  <span className="truncate text-[12px] text-[#6B6A7B]">{scene.text}</span>
-                  <span className="text-[12px] text-[#6B6A7B]">{scene.seconds}s</span>
+                  <span className="truncate text-[12px] text-muted-foreground">{scene.text}</span>
+                  <span className="text-[12px] text-muted-foreground">{scene.seconds}s</span>
                 </span>
               </button>
             ))}
             <button
               type="button"
-              className="h-10 cursor-pointer rounded-[12px] border border-dashed border-[#C9C8D6] bg-transparent font-medium text-[#3F3D4F]"
+              className="h-10 cursor-pointer rounded-[12px] border border-dashed border-input bg-transparent font-medium text-foreground/80"
             >
               + Add a scene
             </button>
@@ -489,7 +489,7 @@ export function CreateView() {
               <SectionTitle size={18}>
                 Scene {selectedIndex + 1} · {selected.title}
               </SectionTitle>
-              <span className="text-[12px] text-[#6B6A7B]">Edits here go into the render unchanged</span>
+              <span className="text-[12px] text-muted-foreground">Edits here go into the render unchanged</span>
             </div>
             <label htmlFor="narration" className={fieldLabel}>
               Narration
@@ -499,7 +499,7 @@ export function CreateView() {
               rows={4}
               value={selected.text}
               onChange={(event) => editScene(selectedIndex, { text: event.target.value })}
-              className="w-full resize-y rounded-[14px] border border-[#E4E4EC] bg-[#FAFAFC] px-3.5 py-3 text-[15px] text-[#141321]"
+              className="w-full resize-y rounded-[14px] border border-border bg-muted px-3.5 py-3 text-[15px] text-foreground"
             />
             <label htmlFor="onscreen" className={fieldLabel}>
               On-screen text
@@ -509,15 +509,15 @@ export function CreateView() {
               type="text"
               value={selected.onscreen}
               onChange={(event) => editScene(selectedIndex, { onscreen: event.target.value })}
-              className="h-[42px] rounded-[12px] border border-[#E4E4EC] bg-[#FAFAFC] px-3.5 text-[15px] text-[#141321]"
+              className="h-[42px] rounded-[12px] border border-border bg-muted px-3.5 text-[15px] text-foreground"
             />
             <div className="flex flex-col gap-1.5">
               <span className={fieldLabel}>Visual</span>
-              <div className="flex items-center gap-3 rounded-[14px] border border-[#E4E4EC] p-3">
-                <span aria-hidden="true" className="size-[72px] flex-[0_0_72px] rounded-[10px] bg-[#E9E8F1]" />
+              <div className="flex items-center gap-3 rounded-[14px] border border-border p-3">
+                <span aria-hidden="true" className="size-[72px] flex-[0_0_72px] rounded-[10px] bg-border" />
                 <div className="flex flex-col gap-1 text-[13px]">
                   <span className="font-medium">{selected.visual}</span>
-                  <span className="text-[#6B6A7B]">
+                  <span className="text-muted-foreground">
                     {summaryPresentation} · {summaryStyle}
                   </span>
                   <button type="button" className={cn(quietButton, "h-[30px] self-start px-2.5 text-[12px]")}>
@@ -526,8 +526,8 @@ export function CreateView() {
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-[#E4E4EC] pt-3.5">
-              <div className="text-[13px] text-[#3F3D4F]">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-border pt-3.5">
+              <div className="text-[13px] text-foreground/80">
                 <strong className="font-semibold">{cost} credits</strong> will be held · refunded per failed scene
               </div>
               <div className="flex gap-2">
@@ -538,7 +538,7 @@ export function CreateView() {
                   Approve script &amp; render
                 </button>
                 {error ? (
-                  <p role="alert" className="basis-full text-[13px] text-[#C2263A]">
+                  <p role="alert" className="basis-full text-[13px] text-red-300">
                     {error}
                   </p>
                 ) : null}
@@ -551,11 +551,11 @@ export function CreateView() {
       {stage === "render" ? (
         <section
           aria-label="Rendering"
-          className="flex flex-wrap items-start gap-6 rounded-[20px] border border-[#E4E4EC] bg-white p-6"
+          className="flex flex-wrap items-start gap-6 rounded-[20px] border border-border bg-card p-6"
         >
           <div
             aria-hidden="true"
-            className="flex aspect-[9/16] w-[220px] items-center justify-center rounded-[14px] bg-[#141321] text-[13px] text-[#8A8899]"
+            className="flex aspect-[9/16] w-[220px] items-center justify-center rounded-[14px] bg-foreground text-[13px] text-muted-foreground"
           >
             Rendering…
           </div>
@@ -564,7 +564,7 @@ export function CreateView() {
               <SectionTitle>
                 Rendering · scene {renderScene} of {sceneCount}
               </SectionTitle>
-              <p className="m-0 text-[13px] text-[#6B6A7B]">
+              <p className="m-0 text-[13px] text-muted-foreground">
                 You can leave. The job keeps running and the result lands in Projects.
               </p>
             </div>
@@ -574,9 +574,9 @@ export function CreateView() {
               aria-valuemax={100}
               aria-valuenow={progress}
               aria-label="Render progress"
-              className="h-2.5 overflow-hidden rounded-full bg-[#E9E8F1]"
+              className="h-2.5 overflow-hidden rounded-full bg-border"
             >
-              <div className="h-full rounded-full bg-[#5B2EE6]" style={{ width: `${progress}%` }} />
+              <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
             </div>
             <ol className="m-0 flex list-none flex-col gap-2 p-0">
               {scenes.map((scene, i) => {
@@ -586,7 +586,7 @@ export function CreateView() {
                 return (
                   <li
                     key={i}
-                    className="flex items-center justify-between gap-3 rounded-[12px] border border-[#E4E4EC] bg-[#FAFAFC] px-3 py-2.5"
+                    className="flex items-center justify-between gap-3 rounded-[12px] border border-border bg-muted px-3 py-2.5"
                   >
                     <span className="text-[14px]">
                       Scene {i + 1} · {scene.title}
@@ -600,7 +600,7 @@ export function CreateView() {
               <button type="button" onClick={cancelRender} className={cn(quietButton, "h-10 px-4")}>
                 Cancel · refunds the hold
               </button>
-              <span className="text-[12px] font-medium text-[#9A5B00]">
+              <span className="text-[12px] font-medium text-amber-300">
                 Simulated render · no model is called, no credits move
               </span>
             </div>
@@ -611,14 +611,14 @@ export function CreateView() {
       {stage === "output" ? (
         <section
           aria-label="Output"
-          className="flex flex-wrap items-start gap-6 rounded-[20px] border border-[#E4E4EC] bg-white p-6"
+          className="flex flex-wrap items-start gap-6 rounded-[20px] border border-border bg-card p-6"
         >
           <div
             role="img"
             aria-label="Finished video placeholder"
-            className="flex aspect-[9/16] w-[300px] flex-col justify-between rounded-[14px] bg-[#141321] p-3.5 text-[12px] text-white"
+            className="flex aspect-[9/16] w-[300px] flex-col justify-between rounded-[14px] bg-foreground p-3.5 text-[12px] text-white"
           >
-            <span className="text-[#C9C8D6]">
+            <span className="text-input">
               v1 · {summaryFormat} · {summaryLength}
             </span>
             <span className="font-heading text-[26px] leading-[1.1] font-bold">{selected.onscreen}</span>
@@ -629,7 +629,7 @@ export function CreateView() {
                 Ready · version 1
               </Chip>
               <SectionTitle size={22}>Why sleep matters for memory</SectionTitle>
-              <p className="m-0 text-[13px] text-[#6B6A7B]">
+              <p className="m-0 text-[13px] text-muted-foreground">
                 {sceneCount} · {summaryPresentation} · {summaryStyle} · {cost} credits charged (sample)
               </p>
             </div>
@@ -639,30 +639,30 @@ export function CreateView() {
               </button>
               <Link
                 href={STUDIO_HREF.project}
-                className="inline-flex h-11 items-center rounded-full border border-[#5B2EE6] px-4 font-medium text-[#4A23C9]"
+                className="inline-flex h-11 items-center rounded-full border border-primary px-4 font-medium text-primary"
               >
                 Fix a scene
               </Link>
               <button
                 type="button"
                 disabled
-                className="h-11 cursor-not-allowed rounded-full border border-[#E4E4EC] bg-white px-4 font-medium text-[#8A8899]"
+                className="h-11 cursor-not-allowed rounded-full border border-border bg-card px-4 font-medium text-muted-foreground"
               >
                 Open timeline editor
               </button>
             </div>
             {downloaded ? (
-              <p role="status" className="m-0 text-[13px] font-medium text-[#157347]">
+              <p role="status" className="m-0 text-[13px] font-medium text-emerald-300">
                 Download started (simulated) · why-sleep-matters-v1.mp4
               </p>
             ) : null}
-            <div className="flex flex-wrap items-center gap-2 border-t border-[#E4E4EC] pt-3.5">
-              <span className="text-[13px] text-[#6B6A7B]">
+            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3.5">
+              <span className="text-[13px] text-muted-foreground">
                 Later: send this fixed version to Publish, or let Automations repeat it.
               </span>
               <Link
                 href={STUDIO_HREF.publish}
-                className="text-[13px] font-medium text-[#4A23C9] hover:text-[#3A1AA6]"
+                className="text-[13px] font-medium text-primary hover:text-primary/80"
               >
                 See Publish
               </Link>

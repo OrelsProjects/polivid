@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif, Space_Grotesk, Syne } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif, Poppins, Space_Grotesk, Syne } from "next/font/google";
 import Script from "next/script";
 
 import { MotionRoot } from "@/components/motion/motion";
@@ -34,6 +34,14 @@ const spaceGrotesk = Space_Grotesk({
   weight: ["500", "700"],
 });
 
+/** The signed-in app's typeface. */
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: {
     default: "PoliVid: short videos from a prompt",
@@ -47,7 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${syne.variable} ${spaceGrotesk.variable} h-full scroll-smooth antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${syne.variable} ${spaceGrotesk.variable} ${poppins.variable} h-full scroll-smooth antialiased`}
       data-scroll-behavior="smooth"
     >
       <Script

@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Home" };
 
 export default function StudioHomePage() {
   return (
-    <Suspense fallback={<p className="text-sm text-[#6B6A7B]">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
       <Home />
     </Suspense>
   );

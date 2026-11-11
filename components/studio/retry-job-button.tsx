@@ -25,11 +25,11 @@ export function RetryJobButton({ id }: { id: string }) {
             .catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Couldn't retry this video."))
             .finally(() => setBusy(false));
         }}
-        className="inline-flex h-11 items-center rounded-full border border-[#5B2EE6] px-4 font-medium text-[#4A23C9] disabled:opacity-50"
+        className="inline-flex h-11 items-center rounded-full border border-primary px-4 font-medium text-primary disabled:opacity-50"
       >
         Retry
       </button>
-      {error ? <p className="m-0 text-[12px] text-[#C2263A]">{error}</p> : null}
+      {error ? <p className="m-0 text-[12px] text-red-300">{error}</p> : null}
     </div>
   );
 }

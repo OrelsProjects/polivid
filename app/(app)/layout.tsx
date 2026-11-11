@@ -16,25 +16,26 @@ import {
 } from "@/lib/video/models";
 
 /**
- * Shell for signed-in pages: the white Studio sidebar on desktop, a top bar with a menu on mobile.
+ * Shell for signed-in pages: a floating top bar with an icon rail, and a menu button on small screens.
  * proxy.ts redirects signed-out visitors to /login before this renders.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <StudioFrame
       plan={
-        <>
-          <Suspense fallback={<PlanCardFallback />}>
-            <StudioPlanCard />
-          </Suspense>
-          <Suspense fallback={null}>
-            <EngineStatus />
-          </Suspense>
-        </>
+        <Suspense fallback={<PlanCardFallback />}>
+          <StudioPlanCard />
+        </Suspense>
       }
       account={
         <Suspense fallback={<AccountFallback />}>
-          <StudioAccount />
+          <StudioAccount
+            footer={
+              <Suspense fallback={null}>
+                <EngineStatus />
+              </Suspense>
+            }
+          />
         </Suspense>
       }
     >
@@ -49,12 +50,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 async function EngineStatus() {
   await connection();
   return hasOpenRouterKey() ? (
-    <p className="px-1.5 text-[12px] text-[#6B6A7B]" title={MODEL}>
-      LIVE · {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}
-    </p>
+    <span title={MODEL}>Live · {generationModelBySlug(MODEL)?.name ?? DEFAULT_GENERATION_MODEL.name}</span>
   ) : (
-    <p className="px-1.5 text-[12px] text-[#6B6A7B]">
-      Demo mode. Videos use fictional sample data until an API key is set.
-    </p>
+    <span>Demo mode. Videos use fictional sample data until an API key is set.</span>
   );
 }

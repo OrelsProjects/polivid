@@ -16,7 +16,7 @@ import type { VideoRecord } from "@/lib/video/schema";
 
 export default function StudioProjectPage({ params }: { params: Promise<{ id: string }> }) {
   return (
-    <Suspense fallback={<p className="text-sm text-[#6B6A7B]">Loading…</p>}>
+    <Suspense fallback={<p className="text-sm text-muted-foreground">Loading…</p>}>
       <Project params={params} />
     </Suspense>
   );
@@ -49,13 +49,13 @@ function FinishedVideo({ video, file }: { video: VideoRecord; file: boolean }) {
   const failed = video.status === "failed" || !video.plan;
   return (
     <div className="flex flex-col gap-5">
-      <Link href="/studio/projects" className="text-[13px] font-medium text-[#4A23C9]">
+      <Link href="/studio/projects" className="text-[13px] font-medium text-primary">
         Projects
       </Link>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="m-0 font-heading text-[32px] leading-tight font-semibold">{video.title}</h1>
-          <p className="mt-1 text-[14px] text-[#6B6A7B]">
+          <p className="mt-1 text-[14px] text-muted-foreground">
             {video.format} · {video.length}s · {video.demo ? "Sample data" : video.model}
             {failed && video.error ? ` · ${video.error}` : ""}
           </p>
@@ -64,7 +64,7 @@ function FinishedVideo({ video, file }: { video: VideoRecord; file: boolean }) {
           {file ? (
             <a
               href={`/api/videos/${video.id}/file`}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-[#5B2EE6] px-5 font-medium text-white"
+              className="inline-flex h-11 items-center gap-2 rounded-full bg-primary px-5 font-medium text-white"
             >
               <Download className="size-4" aria-hidden />
               Download MP4
@@ -86,16 +86,16 @@ function FinishedVideo({ video, file }: { video: VideoRecord; file: boolean }) {
       ) : file ? (
         <video src={`/api/videos/${video.id}/file`} controls className="max-h-[70vh] w-full rounded-2xl bg-black" />
       ) : (
-        <p className="text-[14px] text-[#6B6A7B]">This video has no picture yet.</p>
+        <p className="text-[14px] text-muted-foreground">This video has no picture yet.</p>
       )}
       {video.plan ? (
         <ol className="m-0 flex list-none flex-col gap-2 p-0">
           {video.plan.scenes.map((scene, index) => (
-            <li key={`${scene.type}-${index}`} className="rounded-[14px] border border-[#E4E4EC] bg-white px-4 py-3 text-[14px]">
+            <li key={`${scene.type}-${index}`} className="rounded-[14px] border border-border bg-card px-4 py-3 text-[14px]">
               <span className="font-semibold">
                 {index + 1} · {scene.type}
               </span>
-              <span className="mt-1 block text-[#3F3D4F]">{scene.narration}</span>
+              <span className="mt-1 block text-foreground/80">{scene.narration}</span>
             </li>
           ))}
         </ol>

@@ -131,7 +131,7 @@ export function SourcesView() {
 
       <div className="flex flex-wrap items-start gap-5">
         <section aria-label="Your sources" className="flex max-w-[420px] flex-[1_1_320px] flex-col gap-3">
-          <div className="flex flex-col gap-2.5 rounded-[20px] border border-[#E4E4EC] bg-white px-[18px] py-4">
+          <div className="flex flex-col gap-2.5 rounded-[20px] border border-border bg-card px-[18px] py-4">
             <Kicker>Add a source</Kicker>
             <label htmlFor="paste" className="sr-only">
               Paste writing or a link
@@ -142,7 +142,7 @@ export function SourcesView() {
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Paste a post, a newsletter issue, notes, or a public link."
-              className="w-full resize-y rounded-[12px] border border-[#E4E4EC] bg-[#FAFAFC] px-3.5 py-3 text-[14px] text-[#141321]"
+              className="w-full resize-y rounded-[12px] border border-border bg-muted px-3.5 py-3 text-[14px] text-foreground"
             />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" disabled={busy || !draft.trim()} onClick={() => void save()} className={cn(btn.primary, "h-[38px] cursor-pointer px-4 disabled:cursor-not-allowed disabled:opacity-50")}>
@@ -155,13 +155,13 @@ export function SourcesView() {
                 Substack import · later
               </button>
             </div>
-            {notice ? <p className="m-0 text-[13px] text-[#3F3D4F]">{notice}</p> : null}
+            {notice ? <p className="m-0 text-[13px] text-foreground/80">{notice}</p> : null}
           </div>
 
           <SectionTitle size={18} className="mt-2">
             Saved
           </SectionTitle>
-          {sources.length === 0 ? <p className="m-0 text-[13px] text-[#6B6A7B]">Nothing saved yet.</p> : null}
+          {sources.length === 0 ? <p className="m-0 text-[13px] text-muted-foreground">Nothing saved yet.</p> : null}
           {sources.map((source) => {
             const on = selected === source.id;
             return (
@@ -171,8 +171,8 @@ export function SourcesView() {
                 aria-pressed={on}
                 onClick={() => setSelected(source.id)}
                 className={cn(
-                  "flex cursor-pointer flex-col gap-1.5 rounded-[16px] border-2 bg-white px-4 py-3.5 text-left text-[#141321]",
-                  on ? "border-[#5B2EE6]" : "border-[#E4E4EC]",
+                  "flex cursor-pointer flex-col gap-1.5 rounded-[16px] border-2 bg-card px-4 py-3.5 text-left text-foreground",
+                  on ? "border-primary" : "border-border",
                 )}
               >
                 <span className="flex items-center justify-between gap-2">
@@ -181,7 +181,7 @@ export function SourcesView() {
                     {source.status}
                   </span>
                 </span>
-                <span className="text-[12px] text-[#6B6A7B]">{source.meta}</span>
+                <span className="text-[12px] text-muted-foreground">{source.meta}</span>
               </button>
             );
           })}
@@ -189,24 +189,24 @@ export function SourcesView() {
 
         {sel ? (
           <section aria-label="Source detail" className="flex min-w-0 flex-[999_1_460px] flex-col gap-3.5">
-            <div className="flex flex-col gap-3 rounded-[20px] border border-[#E4E4EC] bg-white px-[22px] py-5">
+            <div className="flex flex-col gap-3 rounded-[20px] border border-border bg-card px-[22px] py-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <SectionTitle>{sel.title}</SectionTitle>
-                <span className="text-[12px] text-[#6B6A7B]">{sel.meta}</span>
+                <span className="text-[12px] text-muted-foreground">{sel.meta}</span>
               </div>
-              <p className="m-0 text-[14px] whitespace-pre-line text-[#3F3D4F]">{sel.excerpt}</p>
+              <p className="m-0 text-[14px] whitespace-pre-line text-foreground/80">{sel.excerpt}</p>
               <Link
                 href={`/studio/create?brief=${encodeURIComponent(sel.excerpt.slice(0, 500))}&input=writing`}
-                className="inline-flex h-[34px] w-fit items-center rounded-full border border-[#E4E4EC] px-3 font-medium text-[#3F3D4F]"
+                className="inline-flex h-[34px] w-fit items-center rounded-full border border-border px-3 font-medium text-foreground/80"
               >
                 Make one video from it
               </Link>
             </div>
 
             {sel.empty ? (
-              <div className="flex flex-col items-start gap-2 rounded-[20px] border border-dashed border-[#C9C8D6] bg-[#FAFAFC] p-6">
+              <div className="flex flex-col items-start gap-2 rounded-[20px] border border-dashed border-input bg-muted p-6">
                 <h3 className="m-0 text-[15px] font-semibold">No concepts yet</h3>
-                <p className="m-0 max-w-[52ch] text-[13px] text-[#3F3D4F]">
+                <p className="m-0 max-w-[52ch] text-[13px] text-foreground/80">
                   {sel.words && sel.words < 80
                     ? `This note is ${sel.words} words. That is enough for one short video, not for a set of distinct concepts.`
                     : "Save the source again to ask for concepts, or make one video from the text."}
@@ -220,7 +220,7 @@ export function SourcesView() {
                   <SectionTitle as="h3" size={18}>
                     Suggested concepts · {sel.conceptCount}
                   </SectionTitle>
-                  <span className="text-[12px] text-[#6B6A7B]">{sel.conceptNote}</span>
+                  <span className="text-[12px] text-muted-foreground">{sel.conceptNote}</span>
                 </div>
                 {sel.concepts.map((concept) => {
                   const on = !!checked[concept.id];
@@ -229,7 +229,7 @@ export function SourcesView() {
                       key={concept.id}
                       className={cn(
                         "flex gap-3.5 rounded-[16px] border px-[18px] py-4",
-                        on ? "border-[#5B2EE6] bg-white" : "border-[#E4E4EC] bg-[#FAFAFC]",
+                        on ? "border-primary bg-card" : "border-border bg-muted",
                       )}
                     >
                       <input
@@ -237,23 +237,23 @@ export function SourcesView() {
                         id={concept.id}
                         checked={on}
                         onChange={() => setChecked((prev) => ({ ...prev, [concept.id]: !prev[concept.id] }))}
-                        className="mt-0.5 size-5 flex-[0_0_20px] accent-[#5B2EE6]"
+                        className="mt-0.5 size-5 flex-[0_0_20px] accent-primary"
                       />
                       <label htmlFor={concept.id} className="flex flex-auto cursor-pointer flex-col gap-1.5">
                         <span className="flex flex-wrap justify-between gap-2">
                           <span className="text-[15px] font-semibold">{concept.title}</span>
-                          <span className="text-[12px] text-[#6B6A7B]">{concept.shape}</span>
+                          <span className="text-[12px] text-muted-foreground">{concept.shape}</span>
                         </span>
-                        <span className="text-[13px] text-[#3F3D4F]">{concept.angle}</span>
-                        <span className="rounded-[8px] bg-[#F4F1FE] px-2.5 py-1.5 text-[12px] text-[#3F3D4F]">
-                          <span className="font-medium text-[#4A23C9]">Source passage</span> · “{concept.passage}”
+                        <span className="text-[13px] text-foreground/80">{concept.angle}</span>
+                        <span className="rounded-[8px] bg-accent px-2.5 py-1.5 text-[12px] text-foreground/80">
+                          <span className="font-medium text-primary">Source passage</span> · “{concept.passage}”
                         </span>
                       </label>
                     </div>
                   );
                 })}
                 <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1.5">
-                  <span className="text-[13px] text-[#3F3D4F]">{selectedCount} selected · each one becomes its own video job</span>
+                  <span className="text-[13px] text-foreground/80">{selectedCount} selected · each one becomes its own video job</span>
                   <button type="button" disabled={busy || selectedCount === 0} onClick={() => void makeSelected()} className={cn(btn.primary, "h-11 px-5 disabled:cursor-not-allowed disabled:opacity-50")}>
                     Make {selectedCount} videos
                   </button>

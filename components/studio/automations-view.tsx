@@ -21,8 +21,8 @@ const SERIES: { title: string; meta: string; trigger: string; creative: string }
   },
 ];
 
-const cell = "border-b border-[#F1F1F5] p-2";
-const head = "border-b border-[#E4E4EC] px-2 py-1.5 font-medium";
+const cell = "border-b border-secondary p-2";
+const head = "border-b border-border px-2 py-1.5 font-medium";
 
 export function AutomationsView() {
   const [selected, setSelected] = useState(0);
@@ -55,9 +55,9 @@ export function AutomationsView() {
 
       <div
         role="note"
-        className="flex flex-wrap items-center gap-2.5 rounded-[14px] border border-[#E3C78A] bg-[#FFF8EA] px-4 py-3 text-[13px] text-[#3F3D4F]"
+        className="flex flex-wrap items-center gap-2.5 rounded-[14px] border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-[13px] text-foreground/80"
       >
-        <span className="font-semibold text-[#9A5B00]">Design view · later phase.</span>
+        <span className="font-semibold text-amber-300">Design view · later phase.</span>
         <span>
           No series runs. The settings below show the controls a series will need: an explicit generation permission, a
           spending cap, review-first, skip and deduplication, pause, and a run history.
@@ -74,8 +74,8 @@ export function AutomationsView() {
               aria-pressed={x.on}
               onClick={() => setSelected(i)}
               className={cn(
-                "flex cursor-pointer flex-col gap-1.5 rounded-[16px] border-2 bg-white px-4 py-3.5 text-left text-[#141321]",
-                x.on ? "border-[#5B2EE6]" : "border-[#E4E4EC]",
+                "flex cursor-pointer flex-col gap-1.5 rounded-[16px] border-2 bg-card px-4 py-3.5 text-left text-foreground",
+                x.on ? "border-primary" : "border-border",
               )}
             >
               <span className="flex items-center justify-between gap-2">
@@ -84,7 +84,7 @@ export function AutomationsView() {
                   {x.status}
                 </span>
               </span>
-              <span className="text-[12px] text-[#6B6A7B]">{x.meta}</span>
+              <span className="text-[12px] text-muted-foreground">{x.meta}</span>
             </button>
           ))}
         </section>
@@ -105,21 +105,21 @@ export function AutomationsView() {
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-4">
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold">Trigger</span>
-                <span className="text-[13px] text-[#3F3D4F]">{sel.trigger}</span>
-                <span className="text-[12px] text-[#6B6A7B]">
+                <span className="text-[13px] text-foreground/80">{sel.trigger}</span>
+                <span className="text-[12px] text-muted-foreground">
                   Sources come from the Sources page. No feed or inbox is connected in this phase.
                 </span>
               </div>
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold">Creative settings</span>
-                <span className="text-[13px] text-[#3F3D4F]">{sel.creative}</span>
-                <span className="text-[12px] text-[#6B6A7B]">
+                <span className="text-[13px] text-foreground/80">{sel.creative}</span>
+                <span className="text-[12px] text-muted-foreground">
                   Same settings object a batch uses. Change it once, every future run follows.
                 </span>
               </div>
             </div>
 
-            <fieldset className="m-0 flex flex-col gap-2.5 rounded-[14px] border border-[#E4E4EC] px-4 py-3.5">
+            <fieldset className="m-0 flex flex-col gap-2.5 rounded-[14px] border border-border px-4 py-3.5">
               <legend className="px-1.5 text-[13px] font-semibold">Approval</legend>
               <label className="flex cursor-pointer items-start gap-2.5 text-[14px]">
                 <input
@@ -130,7 +130,7 @@ export function AutomationsView() {
                     setApproval("review");
                     setPermission(false);
                   }}
-                  className="mt-[3px] accent-[#5B2EE6]"
+                  className="mt-[3px] accent-primary"
                 />
                 <span>
                   <strong className="font-semibold">Review first.</strong> Each run drafts scripts and stops. Nothing
@@ -143,7 +143,7 @@ export function AutomationsView() {
                   name="approval"
                   checked={autoGen}
                   onChange={() => setApproval("auto")}
-                  className="mt-[3px] accent-[#5B2EE6]"
+                  className="mt-[3px] accent-primary"
                 />
                 <span>
                   <strong className="font-semibold">Generate without review.</strong> Renders inside the cap. Needs
@@ -151,12 +151,12 @@ export function AutomationsView() {
                 </span>
               </label>
               {autoGen && (
-                <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-[#E3C78A] bg-[#FFF8EA] px-3 py-2.5 text-[13px]">
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-[13px]">
                   <input
                     type="checkbox"
                     checked={permission}
                     onChange={() => setPermission(!permission)}
-                    className="mt-0.5 accent-[#5B2EE6]"
+                    className="mt-0.5 accent-primary"
                   />
                   <span>
                     I allow this series to spend credits on renders without my review, up to the cap. Delivery still
@@ -177,9 +177,9 @@ export function AutomationsView() {
                     type="number"
                     value={capRun}
                     onChange={(e) => setCapRun(e.target.value)}
-                    className="h-10 w-[110px] rounded-[12px] border border-[#E4E4EC] px-3"
+                    className="h-10 w-[110px] rounded-[12px] border border-border px-3"
                   />
-                  <span className="text-[13px] text-[#6B6A7B]">credits</span>
+                  <span className="text-[13px] text-muted-foreground">credits</span>
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -192,24 +192,24 @@ export function AutomationsView() {
                     type="number"
                     value={capMonth}
                     onChange={(e) => setCapMonth(e.target.value)}
-                    className="h-10 w-[110px] rounded-[12px] border border-[#E4E4EC] px-3"
+                    className="h-10 w-[110px] rounded-[12px] border border-border px-3"
                   />
-                  <span className="text-[13px] text-[#6B6A7B]">credits</span>
+                  <span className="text-[13px] text-muted-foreground">credits</span>
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
                 <span className="text-[13px] font-semibold">Skip when</span>
                 <label className="flex items-center gap-2 text-[13px]">
-                  <input type="checkbox" defaultChecked disabled className="m-[3px_3px_3px_4px] accent-[#5B2EE6]" />
+                  <input type="checkbox" defaultChecked disabled className="m-[3px_3px_3px_4px] accent-primary" />
                   Same source already ran
                 </label>
                 <label className="flex items-center gap-2 text-[13px]">
-                  <input type="checkbox" defaultChecked disabled className="m-[3px_3px_3px_4px] accent-[#5B2EE6]" />
+                  <input type="checkbox" defaultChecked disabled className="m-[3px_3px_3px_4px] accent-primary" />
                   Source is under 300 words
                 </label>
               </div>
             </div>
-            <p className="m-0 text-[12px] text-[#6B6A7B]">
+            <p className="m-0 text-[12px] text-muted-foreground">
               A run that would exceed a cap stops before rendering and shows up in history as stopped, with the drafts
               kept.
             </p>
@@ -220,7 +220,7 @@ export function AutomationsView() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] border-collapse text-[13px]">
                 <thead>
-                  <tr className="text-left text-[#6B6A7B]">
+                  <tr className="text-left text-muted-foreground">
                     <th className={head}>When</th>
                     <th className={head}>Source</th>
                     <th className={head}>Result</th>
@@ -232,7 +232,7 @@ export function AutomationsView() {
                     <td className={cell}>Oct 16</td>
                     <td className={cell}>Our October newsletter</td>
                     <td className={cell}>
-                      <Link href={STUDIO_HREF.batch} className="text-[#4A23C9] no-underline hover:text-[#3A1AA6]">
+                      <Link href={STUDIO_HREF.batch} className="text-primary no-underline hover:text-primary/80">
                         3 drafts · 1 awaiting review
                       </Link>
                     </td>
@@ -248,7 +248,7 @@ export function AutomationsView() {
                     <td className={cell}>Oct 9</td>
                     <td className={cell}>Quick note about pricing</td>
                     <td className={cell}>
-                      <span className="text-[#6B6A7B]">Skipped · under 300 words</span>
+                      <span className="text-muted-foreground">Skipped · under 300 words</span>
                     </td>
                     <td className={cell}>0</td>
                   </tr>
@@ -256,7 +256,7 @@ export function AutomationsView() {
                     <td className="p-2">Oct 2</td>
                     <td className="p-2">September issue</td>
                     <td className="p-2">
-                      <span className="text-[#9A5B00]">Stopped · monthly cap reached, drafts kept</span>
+                      <span className="text-amber-300">Stopped · monthly cap reached, drafts kept</span>
                     </td>
                     <td className="p-2">0</td>
                   </tr>

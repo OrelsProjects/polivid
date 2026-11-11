@@ -1,3 +1,4 @@
+import { Coins, Crown } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -11,22 +12,22 @@ import { cn } from "@/lib/utils";
 export type Tone = "ready" | "attention" | "failed" | "rendering" | "neutral" | "primary";
 
 export const TONE: Record<Tone, string> = {
-  ready: "bg-[#E3F5EA] text-[#157347]",
-  attention: "bg-[#FFF1D6] text-[#9A5B00]",
-  failed: "bg-[#FDE8EA] text-[#C2263A]",
-  rendering: "bg-[#E6EEFC] text-[#1D5FD6]",
-  neutral: "bg-[#EFEFF3] text-[#6B6A7B]",
-  primary: "bg-[#EFEAFE] text-[#4A23C9]",
+  ready: "bg-emerald-400/10 text-emerald-300",
+  attention: "bg-amber-400/15 text-amber-300",
+  failed: "bg-red-400/10 text-red-300",
+  rendering: "bg-sky-400/10 text-sky-300",
+  neutral: "bg-secondary text-muted-foreground",
+  primary: "bg-accent text-primary",
 };
 
 /** Text-only colour for a tone, used by status lines under cards. */
 export const TONE_TEXT: Record<Tone, string> = {
-  ready: "text-[#157347]",
-  attention: "text-[#9A5B00]",
-  failed: "text-[#C2263A]",
-  rendering: "text-[#1D5FD6]",
-  neutral: "text-[#6B6A7B]",
-  primary: "text-[#4A23C9]",
+  ready: "text-emerald-300",
+  attention: "text-amber-300",
+  failed: "text-red-300",
+  rendering: "text-sky-300",
+  neutral: "text-muted-foreground",
+  primary: "text-primary",
 };
 
 /** Status chip: 12px semibold on a tinted pill. */
@@ -41,8 +42,8 @@ export function Chip({ tone, children, className }: { tone: Tone; children: Reac
 /** The amber-dot "Prototype · …" marker shown top right of every screen. */
 export function PrototypePill({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E4E4EC] bg-white px-2.5 py-1 text-[12px] text-[#6B6A7B]">
-      <span aria-hidden="true" className="size-2 rounded-full bg-[#9A5B00]" />
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[12px] text-muted-foreground">
+      <span aria-hidden="true" className="size-2 rounded-full bg-amber-300" />
       {children}
     </span>
   );
@@ -71,7 +72,7 @@ export function PageHeader({
         >
           {title}
         </h1>
-        {lede ? <p className="m-0 text-[15px] text-[#6B6A7B]">{lede}</p> : null}
+        {lede ? <p className="m-0 text-[15px] text-muted-foreground">{lede}</p> : null}
       </div>
       {aside}
     </header>
@@ -93,7 +94,7 @@ export function Kicker({
   return (
     <Tag
       id={id}
-      className={cn("m-0 font-sans text-[13px] font-semibold tracking-[0.06em] text-[#6B6A7B] uppercase", className)}
+      className={cn("m-0 font-sans text-[13px] font-semibold tracking-[0.06em] text-muted-foreground uppercase", className)}
     >
       {children}
     </Tag>
@@ -142,21 +143,21 @@ export function Card({
   "aria-labelledby"?: string;
 }) {
   return (
-    <Tag className={cn("flex flex-col rounded-[20px] border border-[#E4E4EC] bg-white", className)} {...rest}>
+    <Tag className={cn("flex flex-col rounded-[20px] border border-border bg-card", className)} {...rest}>
       {children}
     </Tag>
   );
 }
 
-/** Sidebar plan card. `badge` marks sample numbers; `action` links to billing for a real account. */
-export function PlanCardView({
-  name,
+/**
+ * Credits in the top bar. `badge` marks sample numbers; `action` links to billing for a real account.
+ */
+export function CreditsPill({
   balance,
   low,
   badge,
   action,
 }: {
-  name: string;
   balance: number;
   low?: boolean;
   badge?: string;
@@ -165,33 +166,32 @@ export function PlanCardView({
   return (
     <div
       className={cn(
-        "flex flex-col gap-1 rounded-[14px] border px-3.5 py-3",
-        low ? "border-[#E3C78A] bg-[#FFF8EA]" : "border-[#E4E4EC] bg-[#FAFAFC]",
+        "flex h-[52px] items-center gap-2.5 rounded-2xl border bg-card/90 py-0 pr-1.5 pl-3.5 backdrop-blur-md",
+        low ? "border-amber-400/30" : "border-border",
       )}
     >
-      <div className="flex items-center justify-between gap-2 text-[13px]">
-        <span className="font-semibold">{name}</span>
-        {action ? (
-          <Link href={action.href} className="text-[12px] font-medium text-[#4A23C9] hover:text-[#3A1AA6]">
-            {action.label}
-          </Link>
-        ) : badge ? (
-          <span
-            className={cn(
-              "rounded-full border px-2 py-px text-[11px] text-[#6B6A7B]",
-              low ? "border-[#E3C78A]" : "border-[#E4E4EC]",
-            )}
-          >
-            {badge}
-          </span>
-        ) : null}
-      </div>
-      <div className="text-[13px] text-[#3F3D4F]">
-        <strong className={cn("font-semibold tabular-nums", low ? "text-[#9A5B00]" : "text-[#141321]")}>
-          {balance.toLocaleString("en-US")}
-        </strong>{" "}
-        credits left{low ? " · low" : ""}
-      </div>
+      <span
+        className={cn("flex items-center gap-1.5 text-[15px] font-semibold tabular-nums", low && "text-amber-300")}
+        aria-label={`${balance.toLocaleString("en-US")} credits left${low ? ", low" : ""}`}
+      >
+        <Coins className="size-4 text-muted-foreground" aria-hidden />
+        {balance.toLocaleString("en-US")}
+      </span>
+      {action ? (
+        <Link
+          href={action.href}
+          className="flex h-10 items-center gap-2 rounded-xl bg-amber-400/15 px-3.5 text-[15px] font-semibold text-foreground hover:bg-amber-400/25"
+        >
+          <Crown className="size-[17px] text-amber-400" aria-hidden />
+          <span className="hidden sm:inline">{action.label}</span>
+        </Link>
+      ) : badge ? (
+        <span className="mr-2 rounded-full border border-border px-2 py-px text-[11px] text-muted-foreground">
+          {badge}
+        </span>
+      ) : (
+        <span className="w-1" />
+      )}
     </div>
   );
 }
@@ -212,7 +212,7 @@ export function Placeholder({
     <div
       role="img"
       aria-label={label}
-      className={cn("flex items-center justify-center rounded-[10px] bg-[#E9E8F1] text-[12px] text-[#6B6A7B]", className)}
+      className={cn("flex items-center justify-center rounded-[10px] bg-border text-[12px] text-muted-foreground", className)}
       style={ratio ? { aspectRatio: ratio } : undefined}
     >
       {children}
@@ -227,14 +227,14 @@ export function Placeholder({
 export const btn = {
   base: "inline-flex items-center justify-center gap-2 rounded-full font-medium",
   primary:
-    "inline-flex items-center justify-center gap-2 rounded-full border-0 bg-[#5B2EE6] font-medium text-white disabled:cursor-not-allowed disabled:bg-[#B9B4D6]",
+    "inline-flex items-center justify-center gap-2 rounded-full border-0 bg-primary font-medium text-white disabled:cursor-not-allowed disabled:bg-primary/40",
   outline:
-    "inline-flex items-center justify-center gap-2 rounded-full border border-[#5B2EE6] bg-white font-medium text-[#4A23C9]",
+    "inline-flex items-center justify-center gap-2 rounded-full border border-primary bg-card font-medium text-primary",
   quiet:
-    "inline-flex items-center justify-center gap-2 rounded-full border border-[#E4E4EC] bg-white font-medium text-[#3F3D4F] disabled:cursor-not-allowed disabled:text-[#8A8899]",
+    "inline-flex items-center justify-center gap-2 rounded-full border border-border bg-card font-medium text-foreground/80 disabled:cursor-not-allowed disabled:text-muted-foreground",
 };
 
 /** Toggle chip colours: selected = primary ring + tint. */
 export function toggle(on: boolean) {
-  return on ? "border-[#5B2EE6] bg-[#EFEAFE] text-[#4A23C9]" : "border-[#E4E4EC] bg-white text-[#3F3D4F]";
+  return on ? "border-primary bg-accent text-primary" : "border-border bg-card text-foreground/80";
 }
