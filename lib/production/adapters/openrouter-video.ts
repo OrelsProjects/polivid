@@ -39,7 +39,7 @@ export const createOpenRouterVideoAdapter = (): MediaAdapter => ({
         ? request.resolution
         : clipResolution(model.resolutions),
       aspect_ratio: request.format,
-      generate_audio: model.audio,
+      ...(model.audio ? { generate_audio: true } : {}),
       ...(frameImages.length ? { frame_images: frameImages } : {}),
     });
     return toJob(id, "in_progress");

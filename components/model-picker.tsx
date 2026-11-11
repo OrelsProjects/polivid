@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, AudioLines, Aperture, Blend, ChevronDown, Clapperboard, Film, Gem, ImageIcon, Orbit, Type, Video } from "lucide-react";
+import { ArrowRight, AudioLines, Aperture, Blend, ChevronDown, Clapperboard, Film, Gem, ImageIcon, Orbit, Type, Video, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useId } from "react";
 import {
@@ -26,6 +26,7 @@ import {
 const VENDOR_ICON: Record<ModelVendor, LucideIcon> = {
   Seedance: Clapperboard,
   Wan: Aperture,
+  HappyHorse: Zap,
   MiniMax: Orbit,
   Kling: Film,
   FLUX: Blend,
@@ -35,6 +36,7 @@ const VENDOR_ICON: Record<ModelVendor, LucideIcon> = {
 const VENDOR_TONE: Record<ModelVendor, string> = {
   Seedance: "bg-teal-500/15 text-teal-800",
   Wan: "bg-violet-500/15 text-violet-800",
+  HappyHorse: "bg-rose-500/15 text-rose-800",
   MiniMax: "bg-orange-500/15 text-orange-800",
   Kling: "bg-amber-400/20 text-amber-800",
   FLUX: "bg-sky-500/15 text-sky-800",

@@ -19,6 +19,7 @@ const fiveOrTen = [5, 10] as const;
 export const GENERATION_MODEL_IDS = [
   "wan",
   "wan-27",
+  "happyhorse",
   "hailuo",
   "seedance",
   "seedance-20",
@@ -34,7 +35,7 @@ export const GENERATION_MODEL_IDS = [
 ] as const;
 export type GenerationModelId = (typeof GENERATION_MODEL_IDS)[number];
 
-export const MODEL_VENDORS = ["Seedance", "Wan", "MiniMax", "Kling", "FLUX", "Google"] as const;
+export const MODEL_VENDORS = ["Seedance", "Wan", "HappyHorse", "MiniMax", "Kling", "FLUX", "Google"] as const;
 export type ModelVendor = (typeof MODEL_VENDORS)[number];
 
 export const VIDEO_PROVIDERS = ["openrouter", "google", "kling"] as const;
@@ -102,6 +103,22 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     aspectRatios: ["16:9", "4:3", "1:1", "3:4", "9:16"],
     pricePerSecond: { "720p": 0.1, "1080p": 0.1 },
     audio: true,
+    referenceImages: true,
+    inputs: ["text", "image"],
+  },
+  {
+    id: "happyhorse",
+    vendor: "HappyHorse",
+    provider: "openrouter",
+    slug: "alibaba/happyhorse-1.1",
+    name: "HappyHorse 1.1",
+    summary: "Alibaba's silent clips, 3–15s",
+    detail: "Films the prompt at 720p, about $0.10 a second, or 1080p at $0.13. It makes no sound, so add a voiceover or music.",
+    durations: seconds(3, 15),
+    resolutions: ["720p", "1080p"],
+    aspectRatios: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16", "9:21"],
+    pricePerSecond: { "720p": 0.0988, "1080p": 0.1278 },
+    audio: false,
     referenceImages: true,
     inputs: ["text", "image"],
   },

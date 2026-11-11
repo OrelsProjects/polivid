@@ -85,6 +85,7 @@ test("a brief keeps a footage model and prices the one on the card", () => {
   assert.deepEqual(briefModelChoices(brief), [
     "wan",
     "wan-27",
+    "happyhorse",
     "hailuo",
     "seedance",
     "seedance-20",

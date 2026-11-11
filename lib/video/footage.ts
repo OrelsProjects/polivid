@@ -194,7 +194,8 @@ export const renderFootage = async (
           duration,
           resolution,
           aspect_ratio: input.format,
-          generate_audio: input.generateAudio ?? model.audio,
+          // Silent models have no generate_audio option, so it is left out for them.
+          ...(model.audio ? { generate_audio: input.generateAudio ?? true } : {}),
           ...(input.imageDataUrl
             ? {
                 frame_images: [

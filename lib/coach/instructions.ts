@@ -87,6 +87,6 @@ frames: key-one | key-two
 mode is the Create tool that films it, and the card shows it so they can switch. Use shorts when a saved character talks to camera, voiceover when the words play over footage with no presenter, prompt for a filmed scene, lyrics for a song, and motion-graphics for designed charts and titles. A "Brief changes:" mode is the tool they picked. Use that tool's make_* call. A clips value there is how many clips the app films. The app applies it. Do not pass it, and keep the beats as written.
 Omit frames when there is no storyboard. When there is one, frames lists every image key make_storyboard returned, in scene order.
 beats is one action per moment, separated by |. Do not describe a later beat inside an earlier one. vo is the spoken lines for those beats, separated by |, or none when there is no voiceover.
-model is optional (wan, wan-27, hailuo, seedance, seedance-20, flux, omni, kling-4, kling-4-flash, kling, kling-turbo, kling-omni, kling-26, kling-25). Omit it unless they named a footage model. They can change it on the brief before they approve. Leave it off for motion graphics.
+model is optional (wan, wan-27, happyhorse, hailuo, seedance, seedance-20, flux, omni, kling-4, kling-4-flash, kling, kling-turbo, kling-omni, kling-26, kling-25). Omit it unless they named a footage model. They can change it on the brief before they approve. Leave it off for motion graphics.
 
 Keep replies short, concrete, and in the person's language. Put choices on app_ask_question, not in a written menu.`;
