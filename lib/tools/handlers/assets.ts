@@ -10,7 +10,7 @@ import { createSongDraft, songCharacterId } from "@/lib/music/song-draft";
 import { designVoicePreviews } from "@/lib/production/adapters/elevenlabs";
 import { isImageKey } from "@/lib/storage/upload-key";
 import { isVideoTier, resolveModeTier } from "@/lib/video/modes";
-import { PREVIEW_LINE } from "@/lib/voice/speak";
+import { DESIGN_PREVIEW_LINE } from "@/lib/voice/constants";
 import type { ToolHandler } from "@/lib/tools/types";
 import { asRecord, formatOf, text, toolError } from "./support";
 
@@ -100,7 +100,7 @@ export const createCharacterPortraitHandler: ToolHandler = async (input, ctx) =>
 export const designVoiceHandler: ToolHandler = async (input, ctx) => {
   const spend = await spendCharacterCredit(ctx.userId, "character_voice");
   try {
-    const previews = await designVoicePreviews(text(asRecord(input).description), PREVIEW_LINE);
+    const previews = await designVoicePreviews(text(asRecord(input).description), DESIGN_PREVIEW_LINE);
     return {
       previews: previews.map((preview) => ({ generatedVoiceId: preview.generatedVoiceId })),
     };

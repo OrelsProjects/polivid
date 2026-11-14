@@ -117,3 +117,7 @@ export const extensionForSample = (type: string) => {
   if (type.includes("ogg")) return "ogg";
   return "webm";
 };
+
+/** Voice design reads a sample in each new voice, and the service rejects samples under 100 characters. */
+export const DESIGN_PREVIEW_LINE =
+  "This is your voice on a video. It will read every script the same way, with the same pace, warmth, and energy you hear right now.";

@@ -33,7 +33,7 @@ test("a designed voice needs a preview and a description", () => {
     imageKey: "uploads/u/a.png",
     voiceMode: "designed",
     generatedVoiceId: "gen_1",
-    voiceDescription: "A calm news voice",
+    voiceDescription: "A calm, warm news anchor voice",
   });
   assert.equal(fields.generatedVoiceId, "gen_1");
 });

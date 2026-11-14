@@ -1,5 +1,5 @@
 import { SAMPLE_PROMPTS, cleanVoiceName, validateSamples } from "@/lib/voice/constants";
-import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION, isVoiceMode, type VoiceMode } from "./constants";
+import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION, MIN_VOICE_DESCRIPTION, isVoiceMode, type VoiceMode } from "./constants";
 
 export interface CharacterFields {
   name: string;
@@ -30,7 +30,7 @@ export const parseCharacterFields = (input: {
     typeof input.voiceDescription === "string" ? input.voiceDescription.trim().slice(0, MAX_VOICE_DESCRIPTION) : "";
   if (voiceMode === "designed") {
     if (!generatedVoiceId) throw new Error("Pick one of the designed voices.");
-    if (voiceDescription.length < 8) throw new Error("Describe the voice in a few words.");
+    if (voiceDescription.length < MIN_VOICE_DESCRIPTION) throw new Error("Describe the voice in at least 20 characters.");
   }
   return { name, imageKey, imagePrompt, voiceMode, generatedVoiceId, voiceDescription };
 };

@@ -1,5 +1,7 @@
 "use client";
 
+import { MIN_VOICE_DESCRIPTION } from "@/lib/characters/constants";
+
 import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { AudioPlayer } from "@/components/audio-player";
@@ -46,7 +48,7 @@ export function CharacterVoiceField({
   const speakCount = SAMPLE_PROMPTS.length - singCount;
 
   const handleDesign = async () => {
-    if (busy || voiceDescription.trim().length < 8) {
+    if (busy || voiceDescription.trim().length < MIN_VOICE_DESCRIPTION) {
       setError("Describe the voice in a few words.");
       return;
     }
@@ -140,7 +142,7 @@ export function CharacterVoiceField({
           <Button
             type="button"
             variant="outline"
-            disabled={disabled || busy || voiceDescription.trim().length < 8}
+            disabled={disabled || busy || voiceDescription.trim().length < MIN_VOICE_DESCRIPTION}
             onClick={() => {
               void handleDesign();
             }}

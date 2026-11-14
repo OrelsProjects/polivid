@@ -833,7 +833,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| description | yes | How the voice should sound. |
+| description | yes | How the voice should sound, at least 20 characters: age, accent, tone, pace. Describe an original voice, never a real person's. |
 
 ### create_character
 

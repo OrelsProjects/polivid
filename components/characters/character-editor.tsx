@@ -6,7 +6,7 @@ import { CharacterImageField } from "@/components/characters/character-image-fie
 import { CharacterVoiceField } from "@/components/characters/character-voice-field";
 import { emptyTakes, type VoiceTake } from "@/components/voice/voice-recorder";
 import { Button } from "@/components/ui/button";
-import { MAX_CHARACTER_NAME, type VoiceMode } from "@/lib/characters/constants";
+import { MAX_CHARACTER_NAME, MIN_VOICE_DESCRIPTION, type VoiceMode } from "@/lib/characters/constants";
 import type { CharacterSummary } from "@/lib/characters/types";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import { useGetCharactersQuery, useSaveCharacterMutation } from "@/lib/store/endpoints/characters";
@@ -142,7 +142,7 @@ export function CharacterEditor({
     (voiceMode === "none" ||
       keepVoice ||
       (voiceMode === "recorded" && recordedReady && consent) ||
-      (voiceMode === "designed" && Boolean(generatedVoiceId) && voiceDescription.trim().length >= 8));
+      (voiceMode === "designed" && Boolean(generatedVoiceId) && voiceDescription.trim().length >= MIN_VOICE_DESCRIPTION));
 
   const handleSave = async () => {
     if (saving || !canSave) return;

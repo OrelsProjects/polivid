@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { auth } from "@/auth";
 import { InsufficientCreditsError, insufficientCreditsResponse } from "@/lib/billing/errors";
-import { MAX_VOICE_DESCRIPTION } from "@/lib/characters/constants";
+import { MAX_VOICE_DESCRIPTION, MIN_VOICE_DESCRIPTION } from "@/lib/characters/constants";
 import { spendCharacterCredit } from "@/lib/characters/spend";
 import { designVoicePreviews } from "@/lib/production/adapters/elevenlabs";
-import { PREVIEW_LINE } from "@/lib/voice/speak";
+import { DESIGN_PREVIEW_LINE } from "@/lib/voice/constants";
 
 export const maxDuration = 60;
 
 const Schema = z.object({
-  description: z.string().trim().min(8).max(MAX_VOICE_DESCRIPTION),
+  description: z.string().trim().min(MIN_VOICE_DESCRIPTION).max(MAX_VOICE_DESCRIPTION),
 });
 
 export async function POST(request: Request) {
@@ -17,11 +17,11 @@ export async function POST(request: Request) {
   const userId = session?.user?.id;
   if (!userId) return Response.json({ error: "Sign in to design a voice." }, { status: 401 });
   const parsed = Schema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ error: "Describe the voice in a few words." }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: "Describe the voice in at least 20 characters: age, accent, tone, pace." }, { status: 400 });
   try {
     const spend = await spendCharacterCredit(userId, "character_voice");
     try {
-      const previews = await designVoicePreviews(parsed.data.description, PREVIEW_LINE);
+      const previews = await designVoicePreviews(parsed.data.description, DESIGN_PREVIEW_LINE);
       return Response.json({ previews });
     } catch (error) {
       await spend.refund().catch(() => undefined);

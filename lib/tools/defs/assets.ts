@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION } from "@/lib/characters/constants";
+import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION, MIN_VOICE_DESCRIPTION } from "@/lib/characters/constants";
 import { MAX_DESCRIPTION, MAX_PERSONALITY, MAX_SPEAKING_STYLE } from "@/lib/characters/media";
 import { defineTool } from "@/lib/tools/define";
 import { characterField, formatField, lengthField, promptField, referenceKeysField, tierField } from "@/lib/tools/fields";
@@ -114,7 +114,12 @@ export const assetTools = [
     ],
     avoidWhen: ["They want the studio narrator or a character that already has a voice. Use list_characters."],
     inputSchema: z.object({
-      description: z.string().trim().min(8).max(MAX_VOICE_DESCRIPTION).describe("How the voice should sound."),
+      description: z
+        .string()
+        .trim()
+        .min(MIN_VOICE_DESCRIPTION)
+        .max(MAX_VOICE_DESCRIPTION)
+        .describe("How the voice should sound, at least 20 characters: age, accent, tone, pace. Describe an original voice, never a real person's."),
     }),
     effects: { readOnly: false, spendsCredits: true, destructive: false, longRunning: true },
     approval: "user",
@@ -145,7 +150,7 @@ export const assetTools = [
       voiceDescription: z
         .string()
         .trim()
-        .min(8)
+        .min(MIN_VOICE_DESCRIPTION)
         .max(MAX_VOICE_DESCRIPTION)
         .optional()
         .describe("The voice description you passed to design_voice. Required when voiceMode is designed."),
