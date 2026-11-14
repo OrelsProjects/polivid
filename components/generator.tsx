@@ -45,6 +45,7 @@ import {
 } from "@/lib/store/endpoints/videos";
 import { cn } from "@/lib/utils";
 import { buildCreateBody } from "@/lib/video/create-body";
+import { CharacterLookOptions } from "@/components/characters/character-look-options";
 import { EDIT_CHOICES, EDIT_OPS } from "@/lib/video/edit-ops";
 import { formSpecFor } from "@/lib/video/form-spec";
 import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
@@ -246,6 +247,8 @@ export function Generator({
     return true;
   });
   const selectedModel = videoModelChoices.includes(model) ? model : (videoModelChoices[0] ?? model);
+  const [lookId, setLookId] = useState("");
+  const [useClip, setUseClip] = useState(false);
   const filmingModel = usesVideoModel ? (generationModelById(selectedModel) ?? resolvedTier?.model ?? null) : null;
   /** The prompt goes to the video model as typed, as one clip. */
   const direct = isDirectMode(videoMode?.id);
@@ -478,6 +481,8 @@ export function Generator({
             presetId,
             visualDirection,
             characterId,
+            characterLookId: lookId || undefined,
+            useCharacterClip: useClip && Boolean(filmingModel?.inputs.includes("video")),
             direction,
             scene,
             directionKeys,
@@ -1136,9 +1141,14 @@ export function Generator({
             {!spec.sections.has("character") ? (
               canNarrate ? null : <p className="text-sm text-muted-foreground">This video keeps its own audio.</p>
             ) : (
+              <>
               <CharacterPicker
                 value={characterId}
-                onChange={setCharacterId}
+                onChange={(next) => {
+                  setCharacterId(next);
+                  setLookId("");
+                  setUseClip(false);
+                }}
                 disabled={busy}
                 usesImage={acceptsReferences && Boolean(filmingModel?.referenceImages)}
                 detail={
@@ -1159,6 +1169,16 @@ export function Generator({
                         : undefined
                 }
               />
+              <CharacterLookOptions
+                characterId={characterId}
+                lookId={lookId}
+                onLookId={setLookId}
+                useClip={useClip}
+                onUseClip={setUseClip}
+                modelTakesVideo={Boolean(filmingModel?.inputs.includes("video"))}
+                disabled={busy}
+              />
+              </>
             )}
             {songFirst && acceptsReferences ? (
               <div className="mt-4">

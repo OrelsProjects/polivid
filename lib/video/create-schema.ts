@@ -62,6 +62,10 @@ export const CreateVideoSchema = z.object({
   presetId: z.string().trim().max(80).optional(),
   visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
   characterId: z.string().trim().max(80).optional().default(""),
+  /** One of the character's looks. Its pictures and wardrobe are used. */
+  characterLookId: z.string().trim().max(80).optional(),
+  /** Also send one of the character's clips to models that take video. */
+  useCharacterClip: z.boolean().optional(),
   /** Spoken lines. `none` means the video keeps only the footage sound. */
   vo: z.string().trim().max(2000).optional().default(""),
   /** An approved song take for a lyrics video. */

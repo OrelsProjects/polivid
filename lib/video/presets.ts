@@ -480,6 +480,8 @@ export const withVisualStyle = (
   prompt: string,
   preset: GenerationPreset | null | undefined,
   visualDirection?: string | null,
+  /** The character's written profile (lib/characters/media.ts characterNote). */
+  characterNote?: string | null,
 ) => {
   let next = prompt.trim();
   if (preset && preset.id !== AUTO_PRESET_ID && preset.promptFragment) {
@@ -488,6 +490,7 @@ export const withVisualStyle = (
   }
   const direction = visualDirection?.trim().slice(0, MAX_VISUAL_DIRECTION) ?? "";
   if (direction) next = appendBlock(next, `${DIRECTION_MARKER} ${direction}`);
+  if (characterNote?.trim()) next = appendBlock(next, characterNote.trim());
   return next;
 };
 

@@ -148,7 +148,7 @@ export const composeStills = async (userId: string, jobId: string, input: JobInp
     if (existing && isOwnedUploadKey(userId, existing) && isImageKey(existing)) return;
     const lead = index > 0 ? progress.imageKeys[0] : "";
     const picture = await generateImage(userId, {
-      prompt: `${withVisualStyle(progress.shows[index] ?? progress.says[index] ?? "", preset, input.visualDirection)}\n\n${NO_ON_SCREEN_TEXT}`,
+      prompt: `${withVisualStyle(progress.shows[index] ?? progress.says[index] ?? "", preset, input.visualDirection, input.characterNote)}\n\n${NO_ON_SCREEN_TEXT}`,
       format: input.format,
       draft,
       referenceKeys: lead ? [lead] : undefined,

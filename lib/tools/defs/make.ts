@@ -7,7 +7,9 @@ import { productionHintsField } from "@/lib/tools/defs/production";
 import {
   attachmentRolesField,
   briefField,
+  characterClipField,
   characterField,
+  characterLookField,
   clipsField,
   cutsField,
   formatField,
@@ -81,6 +83,8 @@ export const makeTools = [
       brief: briefField(),
       attachmentRoles: attachmentRolesField(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
+      useCharacterClip: characterClipField(),
       referenceKeys: referenceKeysField(),
       vo: z
         .string()
@@ -116,6 +120,8 @@ export const makeTools = [
       prompt: promptField("The script to speak, or the article text to turn into narration."),
       ...filmed(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
+      useCharacterClip: characterClipField(),
       media: z
         .enum(VISUAL_MEDIA)
         .optional()
@@ -151,6 +157,8 @@ export const makeTools = [
       prompt: promptField("The script, word for word. The character says exactly this."),
       ...filmed(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
+      useCharacterClip: characterClipField(),
       referenceKeys: z
         .array(z.string().trim().min(1))
         .max(1)
@@ -231,6 +239,8 @@ export const makeTools = [
       mediaKey: mediaKeyField("Still-image upload key. Omit to use the attached picture."),
       ...filmed(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
+      useCharacterClip: characterClipField(),
     }),
     approvalDetail: videoApprovalDetail("image"),
   }),
@@ -270,6 +280,8 @@ export const makeTools = [
       prompt: promptField("The lyric lines this video performs."),
       ...filmed(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
+      useCharacterClip: characterClipField(),
       referenceKeys: referenceKeysField(),
       songId: z.string().uuid().optional().describe("Song take id from compose_song or list_songs. Omit to compose during the video."),
       direction: note("Camera, pacing, and performance notes."),
@@ -410,6 +422,7 @@ export const makeTools = [
       presetId: presetField(),
       visualDirection: visualDirectionField(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
       voiceover: z
         .boolean()
         .optional()

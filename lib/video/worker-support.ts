@@ -34,6 +34,12 @@ export interface JobInput {
   directionKeys?: string[];
   sceneKeys?: string[];
   characterId?: string;
+  /** Written character profile added to every shot prompt. */
+  characterNote?: string;
+  /** Leading referenceKeys that show the character. */
+  characterRefs?: number;
+  /** Character clip sent to models that take video. */
+  referenceClipKey?: string;
   vo?: string;
   songId?: string;
   cuts?: { seconds: number; camera: string; images?: number[]; action?: string; samePlace?: boolean }[];

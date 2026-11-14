@@ -393,21 +393,69 @@ model UsageLedger {
 
 /// A person the user named, pictured, and optionally voiced for videos.
 model Character {
-  id               String   @id @default(uuid())
+  id               String           @id @default(uuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name             String
   imageKey         String?
   imagePrompt      String?
   providerVoiceId  String?
   voiceSource      String?
   voiceDescription String?
-  sampleCount      Int      @default(0)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  sampleCount      Int              @default(0)
+  /// Appearance, age, build, distinguishing features. Added to every prompt that uses the character.
+  description      String?
+  /// How they act and behave. Used when writing scripts and performance notes.
+  personality      String?
+  /// How they talk: tone, pace, vocabulary.
+  speakingStyle    String?
+  /// When the owner confirmed the person in the pictures is them, or agreed to be shown.
+  consentAt        DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  media            CharacterMedia[]
+  looks            CharacterLook[]
 
   @@index([userId, createdAt])
   @@map("characters")
+}
+
+/// A picture or short clip of a character. The character's imageKey is the main picture.
+model CharacterMedia {
+  id            String         @id @default(uuid())
+  characterId   String
+  character     Character      @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  /// image or video
+  kind          String
+  key           String
+  /// face, profile, full_body, expression, outfit, or other
+  label         String         @default("other")
+  lookId        String?
+  look          CharacterLook? @relation(fields: [lookId], references: [id], onDelete: SetNull)
+  caption       String?
+  durationSec   Float?
+  /// The clip a picture was pulled from.
+  sourceMediaId String?
+  position      Int            @default(0)
+  createdAt     DateTime       @default(now())
+
+  @@index([characterId, position])
+  @@map("character_media")
+}
+
+/// A named outfit or style of a character, such as "office" or "gym".
+model CharacterLook {
+  id          String           @id @default(uuid())
+  characterId String
+  character   Character        @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  name        String
+  wardrobe    String?
+  position    Int              @default(0)
+  createdAt   DateTime         @default(now())
+  media       CharacterMedia[]
+
+  @@index([characterId, position])
+  @@map("character_looks")
 }
 
 /// A user-authored visual style, reused on Create and in the Coach.

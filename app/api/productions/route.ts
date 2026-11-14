@@ -8,8 +8,8 @@ import { tickProductionJobs } from "@/lib/production/jobs/runner";
 import { plannerProvider } from "@/lib/production/planner";
 import { labelForPlanningStep } from "@/lib/production/progress";
 import { PRODUCTION_MODES } from "@/lib/production/schema";
-import { mergeCharacterImage } from "@/lib/characters/reference";
-import { resolveProductionCharacter } from "@/lib/production/create-request";
+import { mergeCharacterPictures } from "@/lib/characters/reference";
+import { hintsWithCharacter, resolveProductionCharacter } from "@/lib/production/create-request";
 import { ownedReferenceKeys, referenceAttachments } from "@/lib/production/references";
 import { createProductionForUser, listProductionsForUser, updateProduction } from "@/lib/production/store";
 import type { ProductionStreamEvent } from "@/lib/production/stream";
@@ -30,6 +30,7 @@ const CreateSchema = z.object({
   visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
   characterId: z.string().trim().max(80).optional().default(""),
   voiceover: z.boolean().optional().default(true),
+  characterLookId: z.string().trim().max(80).optional(),
 });
 
 export async function GET() {
@@ -55,11 +56,11 @@ export async function POST(request: Request) {
   }
   let character;
   try {
-    character = await resolveProductionCharacter(userId, parsed.data.characterId);
+    character = await resolveProductionCharacter(userId, parsed.data.characterId, parsed.data.characterLookId);
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Pick a character that has a picture." }, { status: 400 });
   }
-  const attachments = referenceAttachments(mergeCharacterImage(referenceKeys, character.imageKey));
+  const attachments = referenceAttachments(mergeCharacterPictures(referenceKeys, character.pictures));
   try {
     await requireCredits(userId, 1);
   } catch (error) {
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
         visualDirection: parsed.data.visualDirection,
         characterId: character.characterId,
         voiceover: parsed.data.voiceover,
+        hints: hintsWithCharacter(undefined, character.note),
       });
       emit({
         type: "created",

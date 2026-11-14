@@ -32,6 +32,14 @@ import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
 export const EDITOR_EXPORT_MODEL = "editor";
 
 export interface VideoJobInput {
+  /** Written character profile added to every shot prompt. Empty without a character. */
+  characterNote?: string;
+  /** How many of the leading referenceKeys show the character. */
+  characterRefs?: number;
+  /** The character look this video uses. */
+  characterLookId?: string;
+  /** A character clip sent as a video reference to models that take video. */
+  referenceClipKey?: string;
   prompt: string;
   format: string;
   length: number;
@@ -126,6 +134,10 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           showText: input.showText !== false,
           projectId: input.projectId ?? "",
           characterId: input.characterId ?? "",
+          characterNote: input.characterNote ?? "",
+          characterRefs: input.characterRefs ?? 0,
+          characterLookId: input.characterLookId ?? "",
+          referenceClipKey: input.referenceClipKey ?? "",
           direction: input.direction ?? "",
           scene: input.scene ?? "",
           directionKeys: input.directionKeys ?? [],

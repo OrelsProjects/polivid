@@ -1,7 +1,8 @@
 import "server-only";
 import { writeVoiceover } from "@/lib/ai/voiceover";
 import { getUpload, toDataUrl } from "@/lib/storage/s3";
-import { isAudioKey, isImageKey, isOwnedUploadKey } from "@/lib/storage/upload-key";
+import { isAudioKey, isImageKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
+import { generationModelBySlug } from "./models";
 import { OFF_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
 import { narrationSource, trimToWords, wordsForSeconds } from "./beat-text";
 import { writeBeats } from "./beats";
@@ -55,6 +56,12 @@ export const prepareModeJob = async (
     presetId?: string;
     visualDirection?: string;
     characterId?: string;
+    /** Written character profile, added to every shot. */
+    characterNote?: string;
+    /** How many leading referenceKeys show the character. Older jobs leave it 0: the first picture is the character. */
+    characterRefs?: number;
+    /** A character clip to send to models that take video. */
+    referenceClipKey?: string;
     segments?: number[];
     existingBeats?: string[];
     existingSpoken?: string;
@@ -122,7 +129,7 @@ export const prepareModeJob = async (
           )
         : mode?.id === "shorts"
           ? (split ? (input.segments ?? []) : [input.length]).map((_, index) =>
-              presenterAction(input.referenceKeys?.length ?? 0, index > 0),
+              presenterAction(input.referenceKeys?.length ?? 0, input.characterRefs ?? 0, index > 0),
             )
           : split
             ? await writeBeats({ prompt: content, segments: input.segments ?? [], mode: mode?.id })
@@ -134,11 +141,13 @@ export const prepareModeJob = async (
       : direct
         ? [rawPrompt]
         : actions.map((action) =>
-          dressBeat(action, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger),
+          dressBeat(action, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger, input.characterNote),
         );
   const prompt =
     beats[0] ??
-    (direct ? rawPrompt : dressBeat(content, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger));
+    (direct
+      ? rawPrompt
+      : dressBeat(content, mode?.id, preset, input.visualDirection, input.showText !== false, lockSinger, input.characterNote));
   const voiceOn = Boolean(input.characterId && input.characterId !== OFF_VOICE_ID);
   const spokenBeats = await spokenBeatsFor({
     existing: input.existingSpoken,
@@ -175,7 +184,7 @@ export const prepareModeJob = async (
   }
 
   if (!mode || mode.id === "prompt" || mode.id === "lyrics" || mode.id === "shorts") {
-    return withReferencePictures(userId, mode, input.referenceKeys, base);
+    return withReferenceClip(userId, input.referenceClipKey, await withReferencePictures(userId, mode, input.referenceKeys, base));
   }
 
   if (mode.id === "voiceover") return base;
@@ -301,16 +310,23 @@ const spokenBeatsFor = async (input: {
  * What a Shorts clip films. The script itself is spoken by the character's voice afterwards,
  * so the footage only needs the person talking. The character's picture is always first.
  */
-const presenterAction = (pictures: number, continued: boolean) =>
-  [
+const presenterAction = (pictures: number, characterPictures: number, continued: boolean) => {
+  // Older jobs stored no count: their first picture was the character and a second one the background.
+  const person = pictures > 0 ? Math.max(1, Math.min(characterPictures || 1, pictures)) : 0;
+  const background = pictures > person;
+  return [
     continued
       ? "The same presenter keeps talking straight to camera in the same place, picking up where the last shot ended."
       : "A presenter talks straight to camera for a vertical social video: steady eye contact, natural expressions, small hand gestures, mouth moving as they speak.",
-    pictures > 0 ? "The presenter is the person in the first reference picture. Keep the same face, hair, and clothes." : "",
-    pictures > 1 ? "Behind them is the place in the second reference picture. Keep that background." : "",
+    person === 1 ? "The presenter is the person in the first reference picture. Keep the same face, hair, and clothes." : "",
+    person > 1
+      ? `The presenter is the person shown in the first ${person} reference pictures, from different angles. Keep the same face, hair, and clothes.`
+      : "",
+    background ? "Behind them is the place in the last reference picture. Keep that background." : "",
   ]
     .filter(Boolean)
     .join(" ");
+};
 
 const SINGER_LOCK =
   "The singer is the person in the reference pictures. Keep the same face, hair, and clothes in every shot.";
@@ -339,11 +355,23 @@ const dressBeat = (
   visualDirection: string | undefined,
   showText: boolean,
   lockSinger: boolean,
+  characterNote?: string,
 ) => {
   const singer = mode === "lyrics" && lockSinger ? `\n${SINGER_LOCK}` : "";
   const wrapped =
     mode === "lyrics" ? `A lyrics music video. Sing these lyrics and show them on screen:\n${action}${singer}` : action;
-  return withOnScreenText(withVisualStyle(wrapped, preset, visualDirection), showText, mode);
+  return withOnScreenText(withVisualStyle(wrapped, preset, visualDirection, characterNote), showText, mode);
+};
+
+/**
+ * Adds the character's clip as a video reference, only for models that list video as an input.
+ * Other models keep just the pictures, so the job never fails because of the clip.
+ */
+const withReferenceClip = async (userId: string, clipKey: string | undefined, job: PreparedJob) => {
+  if (!clipKey || !isVideoKey(clipKey)) return job;
+  if (!generationModelBySlug(job.model)?.inputs.includes("video")) return job;
+  const clip = await readOwnedMedia(userId, clipKey);
+  return { ...job, inputReferences: [...(job.inputReferences ?? []), { type: "video_url", video_url: { url: clip.dataUrl } }] };
 };
 
 export const resolveJobPreset = async (input: {

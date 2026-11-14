@@ -15,6 +15,21 @@ import {
   usePreviewCharacterVoiceMutation,
 } from "@/lib/store/endpoints/characters";
 
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+/** "5 pictures · 1 clip · 2 looks" */
+const libraryLabel = (character: CharacterSummary) => {
+  const pictures = character.media.filter((item) => item.kind === "image").length;
+  const clips = character.media.filter((item) => item.kind === "video").length;
+  return [
+    plural(pictures, "picture"),
+    clips ? plural(clips, "clip") : "",
+    character.looks.length ? plural(character.looks.length, "look") : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
+
 const voiceLabel = (character: CharacterSummary) => {
   if (character.voiceSource === "recorded") return "Recorded voice";
   if (character.voiceSource === "designed") return "Designed voice";
@@ -124,6 +139,7 @@ export function CharacterLibrary() {
                 <div className="min-w-0">
                   <p className="font-medium">{character.name}</p>
                   <p className="text-xs text-muted-foreground">{character.hasImage ? voiceLabel(character) : "Add a picture"}</p>
+                  <p className="text-xs text-muted-foreground">{libraryLabel(character)}</p>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">

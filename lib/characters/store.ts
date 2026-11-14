@@ -5,9 +5,60 @@ import { isImageKey, isOwnedUploadKey, uploadFileUrl } from "@/lib/storage/uploa
 import { audioSampleType, extensionForSample } from "@/lib/voice/constants";
 import { MAX_SAVED_CHARACTERS } from "./constants";
 import { parseCharacterFields, recordedSamplesProblem, type CharacterFields } from "./input";
+import {
+  isMediaKind,
+  isMediaLabel,
+  MAX_DESCRIPTION,
+  MAX_PERSONALITY,
+  MAX_SPEAKING_STYLE,
+  type CharacterLookItem,
+  type CharacterMediaItem,
+} from "./media";
 import type { CharacterSummary } from "./types";
 
+export interface ProfileInput {
+  description?: unknown;
+  personality?: unknown;
+  speakingStyle?: unknown;
+  /** The person shown is the owner, or agreed to be shown. true or "yes" records it now; false clears it. */
+  pictureConsent?: unknown;
+}
+
+const textOrNull = (value: unknown, max: number) => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim().slice(0, max);
+  return trimmed || null;
+};
+
+/** Only the fields that were sent are written. */
+export const profileData = (input: ProfileInput) => {
+  const data: { description?: string | null; personality?: string | null; speakingStyle?: string | null; consentAt?: Date | null } = {};
+  const description = textOrNull(input.description, MAX_DESCRIPTION);
+  if (description !== undefined) data.description = description;
+  const personality = textOrNull(input.personality, MAX_PERSONALITY);
+  if (personality !== undefined) data.personality = personality;
+  const speakingStyle = textOrNull(input.speakingStyle, MAX_SPEAKING_STYLE);
+  if (speakingStyle !== undefined) data.speakingStyle = speakingStyle;
+  if (input.pictureConsent === true || input.pictureConsent === "yes") data.consentAt = new Date();
+  if (input.pictureConsent === false) data.consentAt = null;
+  return data;
+};
+
 export type CharacterView = CharacterSummary;
+
+type MediaRow = {
+  id: string;
+  kind: string;
+  key: string;
+  label: string;
+  lookId: string | null;
+  caption: string | null;
+  durationSec: number | null;
+  sourceMediaId: string | null;
+  position: number;
+};
+
+type LookRow = { id: string; name: string; wardrobe: string | null; position: number };
 
 type CharacterRow = {
   id: string;
@@ -18,9 +69,41 @@ type CharacterRow = {
   voiceSource: string | null;
   voiceDescription: string | null;
   sampleCount: number;
+  description: string | null;
+  personality: string | null;
+  speakingStyle: string | null;
+  consentAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  media?: MediaRow[];
+  looks?: LookRow[];
 };
+
+/** Media and looks ride along with every character read. */
+export const WITH_MEDIA = {
+  media: { orderBy: { position: "asc" as const } },
+  looks: { orderBy: { position: "asc" as const } },
+};
+
+export const mediaView = (row: MediaRow): CharacterMediaItem => ({
+  id: row.id,
+  kind: isMediaKind(row.kind) ? row.kind : "image",
+  key: row.key,
+  url: uploadFileUrl(row.key),
+  label: isMediaLabel(row.label) ? row.label : "other",
+  lookId: row.lookId,
+  caption: row.caption,
+  durationSec: row.durationSec,
+  sourceMediaId: row.sourceMediaId,
+  position: row.position,
+});
+
+export const lookView = (row: LookRow): CharacterLookItem => ({
+  id: row.id,
+  name: row.name,
+  wardrobe: row.wardrobe,
+  position: row.position,
+});
 
 const toView = (row: CharacterRow): CharacterView => ({
   id: row.id,
@@ -33,6 +116,12 @@ const toView = (row: CharacterRow): CharacterView => ({
   voiceSource: row.voiceSource,
   voiceDescription: row.voiceDescription,
   sampleCount: row.sampleCount,
+  description: row.description,
+  personality: row.personality,
+  speakingStyle: row.speakingStyle,
+  consented: Boolean(row.consentAt),
+  media: (row.media ?? []).map(mediaView),
+  looks: (row.looks ?? []).map(lookView),
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
@@ -89,12 +178,18 @@ export const listCharacters = async (userId: string) => {
   const rows = await db.character.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
+    include: WITH_MEDIA,
   });
   return rows.map(toView);
 };
 
 export const getCharacter = async (userId: string, id: string) =>
-  db.character.findFirst({ where: { id, userId } });
+  db.character.findFirst({ where: { id, userId }, include: WITH_MEDIA });
+
+export const getCharacterView = async (userId: string, id: string) => {
+  const row = await getCharacter(userId, id);
+  return row ? toView(row) : null;
+};
 
 export const getPickableCharacter = async (userId: string, id: string) => {
   const row = await getCharacter(userId, id);
@@ -113,7 +208,7 @@ export const createCharacter = async (
     generatedVoiceId?: unknown;
     voiceDescription?: unknown;
     files?: { bytes: Uint8Array; type: string; name: string }[];
-  },
+  } & ProfileInput,
 ) => {
   const fields = parseCharacterFields({ ...input, requireImage: true });
   const imageKey = ownedImageKey(userId, fields.imageKey);
@@ -133,7 +228,10 @@ export const createCharacter = async (
         voiceSource: voice.voiceSource,
         voiceDescription: voice.voiceDescription,
         sampleCount: voice.sampleCount,
+        ...profileData(input),
+        media: { create: { kind: "image", key: imageKey, label: "face", position: 0 } },
       },
+      include: WITH_MEDIA,
     });
     return toView(row);
   } catch (error) {
@@ -154,7 +252,7 @@ export const updateCharacter = async (
     voiceDescription?: unknown;
     files?: { bytes: Uint8Array; type: string; name: string }[];
     keepVoice?: boolean;
-  },
+  } & ProfileInput,
 ) => {
   const existing = await getCharacter(userId, id);
   if (!existing) return null;
@@ -190,12 +288,18 @@ export const updateCharacter = async (
         voiceSource: voice.voiceSource,
         voiceDescription: voice.voiceDescription,
         sampleCount: voice.sampleCount,
+        ...profileData(input),
       },
+      include: WITH_MEDIA,
     });
+    // A new main picture joins the media library, so it is never lost from the character.
+    if (imageKey !== existing.imageKey && !row.media.some((item) => item.key === imageKey)) {
+      await db.characterMedia.create({ data: { characterId: row.id, kind: "image", key: imageKey, label: "face", position: -1 } });
+    }
     if (!input.keepVoice && existing.providerVoiceId && existing.providerVoiceId !== voice.providerVoiceId) {
       await deleteInstantVoice(existing.providerVoiceId).catch(() => undefined);
     }
-    return toView(row);
+    return (await getCharacterView(userId, row.id)) ?? toView(row);
   } catch (error) {
     if (createdVoiceId) await deleteInstantVoice(createdVoiceId).catch(() => undefined);
     throw error;

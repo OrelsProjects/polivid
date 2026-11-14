@@ -14,6 +14,11 @@ export const readCharacterForm = (form: FormData) => {
     voiceDescription: asString(form.get("voiceDescription")),
     keepVoice: asString(form.get("keepVoice")) === "yes",
     consent: asString(form.get("consent")),
+    // Profile fields are only written when the form sends them.
+    ...(form.has("description") ? { description: asString(form.get("description")) } : {}),
+    ...(form.has("personality") ? { personality: asString(form.get("personality")) } : {}),
+    ...(form.has("speakingStyle") ? { speakingStyle: asString(form.get("speakingStyle")) } : {}),
+    ...(form.get("pictureConsent") === "yes" ? { pictureConsent: "yes" } : {}),
     samples,
   };
 };

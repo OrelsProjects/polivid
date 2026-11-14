@@ -1,4 +1,5 @@
 import "server-only";
+import { characterForAgent } from "./characters";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { getPickableCharacter } from "@/lib/characters/store";
 import { createCharacterFromInput } from "@/lib/characters/create-request";
@@ -112,7 +113,7 @@ export const designVoiceHandler: ToolHandler = async (input, ctx) => {
 export const createCharacterHandler: ToolHandler = async (input, ctx) => {
   try {
     const character = await createCharacterFromInput(ctx.userId, input);
-    return { id: character.id, name: character.name, hasVoice: character.hasVoice };
+    return characterForAgent(character);
   } catch (error) {
     return toolError(error, "Couldn't save that character.");
   }

@@ -36,6 +36,10 @@ export const listCharactersHandler: ToolHandler = async (_input, ctx) => {
         name: character.name,
         hasImage: character.hasImage,
         hasVoice: character.hasVoice,
+        description: character.description,
+        pictures: character.media.filter((item) => item.kind === "image").length,
+        clips: character.media.filter((item) => item.kind === "video").length,
+        looks: character.looks.map((look) => ({ id: look.id, name: look.name })),
       })),
     ],
   };

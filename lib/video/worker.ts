@@ -712,7 +712,7 @@ const filmSongVideo = async (userId: string, jobId: string, input: JobInput) => 
         input.visualDirection,
         hasSinger,
         input.scene,
-        references.note,
+        [references.note, input.characterNote].filter(Boolean).join("\n"),
       );
     });
     song = { style: brief.style, sections, shots, words: composed.words, prompts };
@@ -1088,6 +1088,9 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   directionKeys: input.directionKeys.length > 0 ? input.directionKeys : undefined,
   sceneKeys: input.sceneKeys.length > 0 ? input.sceneKeys : undefined,
   characterId: input.characterId || undefined,
+  characterNote: input.characterNote || undefined,
+  characterRefs: input.characterRefs || undefined,
+  referenceClipKey: input.referenceClipKey || undefined,
   songId: input.songId || undefined,
   vo: input.vo,
   cuts: input.cuts.length > 0 ? input.cuts : undefined,

@@ -107,6 +107,17 @@ import {
   productionRefilmShotHandler,
 } from "./production";
 
+import {
+  getCharacterHandler,
+  updateCharacterHandler,
+  characterAddMediaHandler,
+  characterUpdateMediaHandler,
+  characterRemoveMediaHandler,
+  characterAddLookHandler,
+  characterUpdateLookHandler,
+  characterRemoveLookHandler,
+} from "./characters";
+
 export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_prompt_video: makePromptVideoHandler,
   make_voiceover_video: makeVoiceoverVideoHandler,
@@ -140,6 +151,14 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   create_character_portrait: createCharacterPortraitHandler,
   design_voice: designVoiceHandler,
   create_character: createCharacterHandler,
+  get_character: getCharacterHandler,
+  update_character: updateCharacterHandler,
+  character_add_media: characterAddMediaHandler,
+  character_update_media: characterUpdateMediaHandler,
+  character_remove_media: characterRemoveMediaHandler,
+  character_add_look: characterAddLookHandler,
+  character_update_look: characterUpdateLookHandler,
+  character_remove_look: characterRemoveLookHandler,
   import_media_from_url: importMediaFromUrlHandler,
   list_modes: listModesHandler,
   list_models: listModelsHandler,

@@ -40,7 +40,13 @@ import {
 import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
 import { LOOP_MODEL, maxLengthForMedia, STILLS_MODEL } from "@/lib/video/stills";
 import { getPickableCharacter } from "@/lib/characters/store";
-import { mergeCharacterImage } from "@/lib/characters/reference";
+import {
+  characterNote,
+  MAX_CHARACTER_REFERENCES,
+  pickReferenceClip,
+  pickReferenceKeys,
+} from "@/lib/characters/media";
+import { mediaView } from "@/lib/characters/store";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
 import { readSongDraft, songCharacterId, songDraftFits } from "@/lib/music/song-draft";
 import { normalizeCuts, readSongBrief, type SongCut } from "@/lib/music/song-plan";
@@ -189,16 +195,40 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   if (resolved?.mode.id === "shorts" && requestedKeys.length > 1) {
     throw new CreateVideoError("Add one background picture at most.", 400);
   }
-  let characterImageKey: string | null = null;
+  let characterPictures: string[] = [];
+  let characterNoteText = "";
+  let referenceClipKey: string | undefined;
+  let characterLookId: string | undefined;
   if (characterId !== OFF_VOICE_ID && characterId !== STUDIO_VOICE_ID) {
     const character = await getPickableCharacter(userId, characterId);
     if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
-    characterImageKey = character.imageKey;
+    const media = character.media.map(mediaView);
+    const look = parsed.data.characterLookId ? character.looks.find((item) => item.id === parsed.data.characterLookId) : null;
+    if (parsed.data.characterLookId && !look) throw new CreateVideoError("That look isn't on this character.", 400);
+    characterLookId = look?.id;
+    // Shorts keep one slot for the background picture.
+    characterPictures = pickReferenceKeys({
+      mainKey: character.imageKey,
+      media,
+      lookId: look?.id,
+      max: MAX_CHARACTER_REFERENCES,
+    });
+    characterNoteText = characterNote(character, look ?? null);
+    if (parsed.data.useCharacterClip) {
+      const clip = pickReferenceClip(media, look?.id);
+      if (!clip) throw new CreateVideoError("This character has no clips. Add one, or leave the clip off.", 400);
+      referenceClipKey = clip.key;
+    }
   }
-  const canUseCharacterImage = Boolean(characterImageKey) && acceptsReferences && Boolean(videoModel?.referenceImages);
-  const referenceKeys = canUseCharacterImage
-    ? mergeCharacterImage(requestedKeys, characterImageKey, MAX_REFERENCE_IMAGES)
-    : requestedKeys.slice(0, MAX_REFERENCE_IMAGES);
+  const canUseCharacterImage = characterPictures.length > 0 && acceptsReferences && Boolean(videoModel?.referenceImages);
+  const characterSlots = canUseCharacterImage
+    ? Math.max(1, Math.min(characterPictures.length, MAX_REFERENCE_IMAGES - requestedKeys.length))
+    : 0;
+  const characterKeys = characterPictures.slice(0, characterSlots);
+  const referenceKeys = [...characterKeys, ...requestedKeys.filter((key) => !characterKeys.includes(key))].slice(
+    0,
+    MAX_REFERENCE_IMAGES,
+  );
   if (referenceKeys.length > 0) {
     const invalid = referenceKeys.some((key) => !isOwnedUploadKey(userId, key) || !isImageKey(key));
     if (invalid) throw new CreateVideoError("Upload a reference picture.", 400);
@@ -332,6 +362,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       presetId: direct ? undefined : parsed.data.presetId,
       visualDirection: direct ? undefined : parsed.data.visualDirection,
       characterId,
+      characterNote: direct ? undefined : characterNoteText || undefined,
+      characterRefs: characterKeys.length || undefined,
+      characterLookId,
+      referenceClipKey,
       direction,
       scene,
       directionKeys,

@@ -30,6 +30,10 @@ export interface CreateFormValues {
   presetId: string;
   visualDirection: string;
   characterId: string;
+  /** One of the character's looks. Empty for its default pictures. */
+  characterLookId?: string;
+  /** Also send one of the character's clips to models that take video. */
+  useCharacterClip?: boolean;
   direction: string;
   scene: string;
   directionKeys: readonly string[];
@@ -136,6 +140,8 @@ export const buildCreateBody = (input: {
         }
       : {}),
     ...(modeCanNarrate(mode.id) ? { characterId: values.characterId } : {}),
+    ...(modeCanNarrate(mode.id) && values.characterLookId ? { characterLookId: values.characterLookId } : {}),
+    ...(modeCanNarrate(mode.id) && values.useCharacterClip ? { useCharacterClip: true } : {}),
     ...(input.songId ? { songId: input.songId } : {}),
     ...(plan
       ? {

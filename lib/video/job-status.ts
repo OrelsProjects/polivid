@@ -136,6 +136,13 @@ export interface JobInputFields {
   presetId: string;
   visualDirection: string;
   characterId: string;
+  /** Written character profile for shot prompts. */
+  characterNote: string;
+  /** Leading referenceKeys that show the character. */
+  characterRefs: number;
+  characterLookId: string;
+  /** Character clip sent as a video reference. Empty when none. */
+  referenceClipKey: string;
   /** Camera, pacing, and performance notes. Empty outside lyrics videos. */
   direction: string;
   /** Location, set, and wardrobe. Empty outside lyrics videos. */
@@ -179,6 +186,10 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   presetId: "",
   visualDirection: "",
   characterId: "",
+  characterNote: "",
+  characterRefs: 0,
+  characterLookId: "",
+  referenceClipKey: "",
   direction: "",
   scene: "",
   directionKeys: [],
@@ -287,6 +298,13 @@ export const readJobInput = (input: unknown): JobInputFields => {
     presetId,
     visualDirection,
     characterId,
+    characterNote: typeof record.characterNote === "string" ? record.characterNote.slice(0, 2000) : "",
+    characterRefs:
+      typeof record.characterRefs === "number" && Number.isInteger(record.characterRefs) && record.characterRefs > 0
+        ? Math.min(record.characterRefs, referenceKeys.length)
+        : 0,
+    characterLookId: typeof record.characterLookId === "string" ? record.characterLookId : "",
+    referenceClipKey: typeof record.referenceClipKey === "string" ? record.referenceClipKey : "",
     direction: note(record.direction),
     scene: note(record.scene),
     directionKeys: pictureKeys(record.directionKeys),

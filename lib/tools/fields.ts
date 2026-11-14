@@ -170,3 +170,12 @@ export const sourceUrlField = () =>
 
 export const pictureKeysField = (description: string) =>
   z.array(z.string().trim().min(1).max(200)).max(MAX_LYRICS_REFERENCES).optional().describe(description);
+
+export const characterLookField = () =>
+  z.string().trim().max(80).optional().describe("Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures.");
+
+export const characterClipField = () =>
+  z
+    .boolean()
+    .optional()
+    .describe("true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it.");

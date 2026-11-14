@@ -44,6 +44,8 @@ Inputs:
 | brief | no | How to read the prompt. Only used together with cuts. |
 | attachmentRoles | no | What each reference picture is: subject, person, product, location, storyboard, framing. Only used together with cuts. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| useCharacterClip | no | true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 | vo | no | Spoken lines, one beat per line. Pass none when the brief has no voiceover. |
 
@@ -87,6 +89,8 @@ Inputs:
 | showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
 | template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| useCharacterClip | no | true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it. |
 | media | no | What illustrates it: video films every scene, stills draws and animates pictures, loop plays a background clip. Defaults to video. |
 | verbatim | no | Read the prompt word for word instead of rewriting it to fit the length. |
 | backgroundId | no | Built-in background for media loop (list_backgrounds). Defaults to aurora. |
@@ -124,6 +128,8 @@ Inputs:
 | showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
 | template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| useCharacterClip | no | true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it. |
 | referenceKeys | no | Optional. One picture key for the background. Leave it out to let the look decide the setting. |
 
 Examples:
@@ -247,6 +253,8 @@ Inputs:
 | showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
 | template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| useCharacterClip | no | true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it. |
 
 ### make_av_cut
 
@@ -308,6 +316,8 @@ Inputs:
 | showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
 | template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| useCharacterClip | no | true also sends one of the character's clips to models that take video (Wan, Seedance, Hailuo). Other models ignore it. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 | songId | no | Song take id from compose_song or list_songs. Omit to compose during the video. |
 | direction | no | Camera, pacing, and performance notes. |
@@ -436,6 +446,7 @@ Inputs:
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
 | voiceover | no | Set false when they want no spoken voiceover. Omit to keep the voices written into the plan. |
 | creativeDelegation | no | True lets the planner make creative calls on its own instead of asking. Defaults to false. |
 | budgetUsd | no | Spend cap in US dollars for filming, up to 500. Omit for no cap. |
@@ -832,6 +843,7 @@ Long-running.
 Use when:
 - They asked to keep a person for later videos.
 - imageKey is a portrait you generated or a picture they uploaded. voiceMode none skips the voice. designed uses a generatedVoiceId from design_voice.
+- Then add more pictures, clips, and looks with character_add_media and character_add_look.
 
 Don't use when:
 - They want to record a voice in the browser. Send them to the Characters page. This tool cannot take a recording.
@@ -847,6 +859,9 @@ Inputs:
 | voiceMode | no | none keeps them silent. designed needs generatedVoiceId. Defaults to none. |
 | generatedVoiceId | no | Id from design_voice. Required when voiceMode is designed. |
 | voiceDescription | no | The voice description you passed to design_voice. Required when voiceMode is designed. |
+| description | no | Appearance: age, build, hair, face, distinguishing features. Added to every prompt. |
+| personality | no | How they act and behave. |
+| speakingStyle | no | How they talk: tone, pace, vocabulary. |
 
 ### import_media_from_url
 
@@ -867,7 +882,146 @@ Inputs:
 | --- | --- | --- |
 | url | yes | Public http(s) link straight to the file. |
 
+### update_character
+
+**Update a character.** Rename a character or change its written description, personality, or speaking style. Free.
+
+No side effects.
+
+Use when:
+- They describe how the person looks, acts, or talks. The description goes into every shot prompt, so keep it visual and specific.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| name | no | New name. |
+| description | no | Appearance: age, build, hair, face, skin, distinguishing features. Empty clears it. |
+| personality | no | How they act and behave. Empty clears it. |
+| speakingStyle | no | How they talk: tone, pace, vocabulary. Empty clears it. |
+
+### character_add_media
+
+**Add pictures or clips.** Add uploaded pictures and short clips to a character (up to 24 pictures and 6 clips of 20 seconds). Free.
+
+No side effects.
+
+Use when:
+- They give more photos or a clip of the person: more angles keep the face consistent.
+- Get keys from list_uploads or import_media_from_url. Label each picture so the best ones are sent first.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| items | yes | Pictures and clips to add. |
+
+### character_update_media
+
+**Change a picture or clip.** Relabel a character's picture or clip, move it to a look, caption it, or make a picture the main one. Free.
+
+No side effects.
+
+Use when:
+- A picture is labelled wrong, belongs to a look, or should be the main picture.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| mediaId | yes | Picture or clip id from get_character. |
+| label | no | What the picture shows: face, profile, full_body, expression, outfit, or other. Face pictures matter most. |
+| lookId | no | Look id from get_character, or null for no look. |
+| caption | no | A short note on what it shows. |
+| main | no | true makes this picture the main one, sent first in every video. |
+
+### character_remove_media
+
+**Remove a picture or clip.** Take a picture or clip off a character. The upload itself stays. Free.
+
+No side effects.
+
+Use when:
+- A picture is blurry, wrong, or someone else.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| mediaId | yes | Picture or clip id from get_character. |
+
+### character_add_look
+
+**Add a look.** Add a named look (an outfit or style, like Office or Gym) with a wardrobe note. Free.
+
+No side effects.
+
+Use when:
+- The person appears in different outfits. A video then picks one look with characterLookId.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| name | yes | Short name, like Office. |
+| wardrobe | no | What they wear in this look. |
+
+### character_update_look
+
+**Change a look.** Rename a look or change its wardrobe note. Free.
+
+No side effects.
+
+Use when:
+- The outfit description needs to change.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| lookId | yes | Look id from get_character. |
+| name | no | New name. |
+| wardrobe | no | What they wear in this look. |
+
+### character_remove_look
+
+**Remove a look.** Delete a look. Its pictures stay on the character with no look. Free.
+
+No side effects.
+
+Use when:
+- They no longer use that outfit.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| lookId | yes | Look id from get_character. |
+
 ## Library
+
+### get_character
+
+**Read a character.** Everything about one character: description, personality, speaking style, voice, looks, and every picture and clip with ids and labels.
+
+Read only.
+
+Use when:
+- Before editing a character, or to pick a look or check which pictures a video will use.
+- Pictures are sent to video models face first; the main picture always leads.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
 
 ### list_modes
 

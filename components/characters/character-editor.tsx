@@ -9,7 +9,10 @@ import { Button } from "@/components/ui/button";
 import { MAX_CHARACTER_NAME, type VoiceMode } from "@/lib/characters/constants";
 import type { CharacterSummary } from "@/lib/characters/types";
 import { apiErrorMessage } from "@/lib/store/api-errors";
-import { useSaveCharacterMutation } from "@/lib/store/endpoints/characters";
+import { useGetCharactersQuery, useSaveCharacterMutation } from "@/lib/store/endpoints/characters";
+import { CharacterMediaPanel } from "@/components/characters/character-media-panel";
+import { Textarea } from "@/components/ui/textarea";
+import { MAX_DESCRIPTION, MAX_PERSONALITY, MAX_SPEAKING_STYLE } from "@/lib/characters/media";
 import { SAMPLE_PROMPTS } from "@/lib/voice/constants";
 import { clearVoiceTakes, loadVoiceTakes, moveVoiceTakes, writeVoiceTakes } from "@/lib/voice/take-draft";
 
@@ -40,6 +43,12 @@ export function CharacterEditor({
   const [draftReady, setDraftReady] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
+  const [description, setDescription] = useState(character?.description ?? "");
+  const [personality, setPersonality] = useState(character?.personality ?? "");
+  const [speakingStyle, setSpeakingStyle] = useState(character?.speakingStyle ?? "");
+  const [pictureConsent, setPictureConsent] = useState(Boolean(character?.consented));
+  const { data: characters } = useGetCharactersQuery();
+  const live = character ? (characters?.find((item) => item.id === character.id) ?? character) : null;
   const [saveCharacter, { isLoading: saving }] = useSaveCharacterMutation();
   const [error, setError] = useState<string | null>(null);
   const takesRef = useRef(takes);
@@ -129,6 +138,7 @@ export function CharacterEditor({
   const canSave =
     name.trim().length >= 2 &&
     Boolean(imageKey) &&
+    pictureConsent &&
     (voiceMode === "none" ||
       keepVoice ||
       (voiceMode === "recorded" && recordedReady && consent) ||
@@ -146,6 +156,10 @@ export function CharacterEditor({
       form.set("name", name.trim());
       form.set("imageKey", imageKey);
       form.set("imagePrompt", imagePrompt);
+      form.set("description", description);
+      form.set("personality", personality);
+      form.set("speakingStyle", speakingStyle);
+      if (pictureConsent) form.set("pictureConsent", "yes");
       form.set("voiceMode", keepVoice ? startingMode(character) : voiceMode);
       if (keepVoice) form.set("keepVoice", "yes");
       if (voiceMode === "recorded" && !keepVoice) {
@@ -200,6 +214,55 @@ export function CharacterEditor({
         onImageKey={setImageKey}
         onImagePrompt={setImagePrompt}
       />
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium">Appearance</span>
+        <Textarea
+          value={description}
+          maxLength={MAX_DESCRIPTION}
+          disabled={saving}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Late 30s, tall, short dark curly hair, light stubble, round glasses, a small scar over the left eyebrow"
+          aria-label="Appearance"
+          className="min-h-20 rounded-xl"
+        />
+        <span className="text-xs text-muted-foreground">Added to every shot, so the look holds even on models that take no pictures.</span>
+      </label>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">Personality</span>
+          <Textarea
+            value={personality}
+            maxLength={MAX_PERSONALITY}
+            disabled={saving}
+            onChange={(event) => setPersonality(event.target.value)}
+            placeholder="Calm, dry humour, never in a hurry"
+            aria-label="Personality"
+            className="min-h-16 rounded-xl"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">Speaking style</span>
+          <Textarea
+            value={speakingStyle}
+            maxLength={MAX_SPEAKING_STYLE}
+            disabled={saving}
+            onChange={(event) => setSpeakingStyle(event.target.value)}
+            placeholder="Short sentences, warm, a little sarcastic"
+            aria-label="Speaking style"
+            className="min-h-16 rounded-xl"
+          />
+        </label>
+      </div>
+      <label className="flex cursor-pointer items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={pictureConsent}
+          disabled={saving}
+          onChange={(event) => setPictureConsent(event.target.checked)}
+          className="mt-0.5 size-4 accent-primary"
+        />
+        <span>The person in these pictures and clips is me, or they agreed to appear in videos I make.</span>
+      </label>
       <CharacterVoiceField
         voiceMode={voiceMode}
         voiceDescription={voiceDescription}
@@ -264,6 +327,11 @@ export function CharacterEditor({
           Record all {SAMPLE_PROMPTS.length} parts before you save.
         </p>
       ) : null}
+      {live ? (
+        <CharacterMediaPanel character={live} />
+      ) : (
+        <p className="text-xs text-muted-foreground">Save the character to add more pictures, clips, and looks.</p>
+      )}
     </section>
   );
 }

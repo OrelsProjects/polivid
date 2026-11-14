@@ -90,6 +90,8 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       presetId: text(input.presetId) || undefined,
       visualDirection: typeof input.visualDirection === "string" ? input.visualDirection : undefined,
       characterId: attachedOrRequested(ctx.attachedCharacterId, input.characterId, modeCanNarrate(modeId)),
+      characterLookId: text(input.characterLookId) || undefined,
+      useCharacterClip: input.useCharacterClip === true ? true : undefined,
       vo: typeof input.vo === "string" ? input.vo : undefined,
       mediaKey,
       referenceKeys: referenceKeys.length > 0 ? referenceKeys : undefined,

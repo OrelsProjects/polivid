@@ -6,6 +6,24 @@ export type VoicePreview = { generatedVoiceId: string; audioBase64: string };
 export type SongTestInput = { characterId: string; style: string; lyrics: string; length: number };
 export type SongTestResult = { original: string; vocal: string; sung: string; mix: string };
 
+/** Every library call answers with the whole character, so the cached list is patched in place. */
+const patchCharacter =
+  () =>
+  async (_: unknown, { dispatch, queryFulfilled }: { dispatch: (action: unknown) => unknown; queryFulfilled: Promise<{ data: CharacterSummary }> }) => {
+    const { data: saved } = await queryFulfilled.catch(() => ({ data: null }));
+    if (!saved) return;
+    dispatch(
+      charactersApi.util.updateQueryData("getCharacters", undefined, (characters) => {
+        const index = characters.findIndex((item) => item.id === saved.id);
+        if (index >= 0) characters[index] = saved;
+      }),
+    );
+  };
+
+const characterOf = (body: { character: CharacterSummary }) => body.character;
+
+export type CharacterMediaAdd = { key: string; label?: string; lookId?: string | null; caption?: string; durationSec?: number; sourceMediaId?: string };
+
 export const charactersApi = api.injectEndpoints({
   endpoints: (build) => ({
     getCharacters: build.query<CharacterSummary[], void>({
@@ -60,6 +78,57 @@ export const charactersApi = api.injectEndpoints({
     testCharacterSong: build.mutation<SongTestResult, SongTestInput>({
       query: (body) => ({ url: "characters/song-test", method: "POST", body }),
     }),
+    updateCharacterProfile: build.mutation<
+      CharacterSummary,
+      { id: string; description?: string; personality?: string; speakingStyle?: string; pictureConsent?: boolean }
+    >({
+      query: ({ id, ...body }) => ({ url: `characters/${id}/profile`, method: "PATCH", body }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    addCharacterMedia: build.mutation<CharacterSummary, { id: string; items: CharacterMediaAdd[] }>({
+      query: ({ id, items }) => ({ url: `characters/${id}/media`, method: "POST", body: { items } }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    updateCharacterMedia: build.mutation<
+      CharacterSummary,
+      { id: string; mediaId: string; label?: string; lookId?: string | null; caption?: string; main?: boolean }
+    >({
+      query: ({ id, mediaId, ...body }) => ({ url: `characters/${id}/media/${mediaId}`, method: "PATCH", body }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    removeCharacterMedia: build.mutation<CharacterSummary, { id: string; mediaId: string }>({
+      query: ({ id, mediaId }) => ({ url: `characters/${id}/media/${mediaId}`, method: "DELETE" }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    addCharacterLook: build.mutation<CharacterSummary, { id: string; name: string; wardrobe?: string }>({
+      query: ({ id, ...body }) => ({ url: `characters/${id}/looks`, method: "POST", body }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    updateCharacterLook: build.mutation<CharacterSummary, { id: string; lookId: string; name?: string; wardrobe?: string }>({
+      query: ({ id, lookId, ...body }) => ({ url: `characters/${id}/looks/${lookId}`, method: "PATCH", body }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    removeCharacterLook: build.mutation<CharacterSummary, { id: string; lookId: string }>({
+      query: ({ id, lookId }) => ({ url: `characters/${id}/looks/${lookId}`, method: "DELETE" }),
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
+    voiceFromClip: build.mutation<CharacterSummary, { id: string; samples: Blob[] }>({
+      query: ({ id, samples }) => {
+        const body = new FormData();
+        body.set("consent", "yes");
+        samples.forEach((sample, index) => body.append("samples", new File([sample], `clip-${index + 1}.wav`, { type: "audio/wav" })));
+        return { url: `characters/${id}/voice-from-clip`, method: "POST", body };
+      },
+      transformResponse: characterOf,
+      onQueryStarted: patchCharacter(),
+    }),
     designVoices: build.mutation<VoicePreview[], string>({
       query: (description) => ({ url: "characters/voice-previews", method: "POST", body: { description } }),
       transformResponse: (body: { previews?: VoicePreview[] }) => body.previews ?? [],
@@ -75,4 +144,12 @@ export const {
   useGenerateCharacterImageMutation,
   useDesignVoicesMutation,
   useTestCharacterSongMutation,
+  useUpdateCharacterProfileMutation,
+  useAddCharacterMediaMutation,
+  useUpdateCharacterMediaMutation,
+  useRemoveCharacterMediaMutation,
+  useAddCharacterLookMutation,
+  useUpdateCharacterLookMutation,
+  useRemoveCharacterLookMutation,
+  useVoiceFromClipMutation,
 } = charactersApi;

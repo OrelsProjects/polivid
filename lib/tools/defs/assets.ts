@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION } from "@/lib/characters/constants";
+import { MAX_DESCRIPTION, MAX_PERSONALITY, MAX_SPEAKING_STYLE } from "@/lib/characters/media";
 import { defineTool } from "@/lib/tools/define";
 import { characterField, formatField, lengthField, promptField, referenceKeysField, tierField } from "@/lib/tools/fields";
 
@@ -129,6 +130,7 @@ export const assetTools = [
     whenToUse: [
       "They asked to keep a person for later videos.",
       "imageKey is a portrait you generated or a picture they uploaded. voiceMode none skips the voice. designed uses a generatedVoiceId from design_voice.",
+      "Then add more pictures, clips, and looks with character_add_media and character_add_look.",
     ],
     avoidWhen: [
       "They want to record a voice in the browser. Send them to the Characters page. This tool cannot take a recording.",
@@ -147,6 +149,9 @@ export const assetTools = [
         .max(MAX_VOICE_DESCRIPTION)
         .optional()
         .describe("The voice description you passed to design_voice. Required when voiceMode is designed."),
+      description: z.string().trim().max(MAX_DESCRIPTION).optional().describe("Appearance: age, build, hair, face, distinguishing features. Added to every prompt."),
+      personality: z.string().trim().max(MAX_PERSONALITY).optional().describe("How they act and behave."),
+      speakingStyle: z.string().trim().max(MAX_SPEAKING_STYLE).optional().describe("How they talk: tone, pace, vocabulary."),
     }),
     effects: { readOnly: false, spendsCredits: false, destructive: false, longRunning: true },
     approval: "none",

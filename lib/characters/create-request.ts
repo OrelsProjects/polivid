@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { MAX_CHARACTER_NAME, MAX_IMAGE_PROMPT, MAX_VOICE_DESCRIPTION } from "./constants";
+import { MAX_DESCRIPTION, MAX_PERSONALITY, MAX_SPEAKING_STYLE } from "./media";
 import { createCharacter } from "./store";
 
 const Schema = z.object({
@@ -10,6 +11,9 @@ const Schema = z.object({
   voiceMode: z.enum(["none", "designed"]).optional().default("none"),
   generatedVoiceId: z.string().trim().optional().default(""),
   voiceDescription: z.string().trim().max(MAX_VOICE_DESCRIPTION).optional().default(""),
+  description: z.string().trim().max(MAX_DESCRIPTION).optional(),
+  personality: z.string().trim().max(MAX_PERSONALITY).optional(),
+  speakingStyle: z.string().trim().max(MAX_SPEAKING_STYLE).optional(),
 });
 
 /** Saves a character from fields instead of a multipart form. Recorded voices stay on the Characters page. */
