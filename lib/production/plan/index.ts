@@ -3,6 +3,7 @@ import { DEVELOP_INSTRUCTIONS, formatDevelopInput, formatStructureInput, STRUCTU
 import { DevelopOutputSchema, StructureOutputSchema, type DevelopOutput, type StructureOutput } from "../schema";
 import { normalizeContinuity, validateDevelop, validateStructure, type ValidationResult } from "../validate";
 import { withoutSpeechTracks, withoutSpokenLines } from "../voiceover";
+import { applyHintsToStructure, type ProductionHints } from "../hints";
 
 export interface PlanContext {
   text: string;
@@ -13,6 +14,7 @@ export interface PlanContext {
   delegated: boolean;
   styleLock?: string | null;
   voiceover?: boolean;
+  hints?: ProductionHints;
 }
 
 export const runDevelopPass = async (planner: Planner, context: PlanContext) => {
@@ -30,7 +32,7 @@ export const runDevelopPass = async (planner: Planner, context: PlanContext) => 
 export const runStructurePass = async (
   planner: Planner,
   develop: DevelopOutput,
-  options: { retryNotes?: string | null; voiceover?: boolean } = {},
+  options: { retryNotes?: string | null; voiceover?: boolean; hints?: ProductionHints } = {},
 ) => {
   const result = await planner.run({
     task: "structure",
@@ -40,10 +42,14 @@ export const runStructurePass = async (
       developJson: JSON.stringify(develop),
       retryNotes: options.retryNotes,
       voiceover: options.voiceover,
+      hints: options.hints,
     }),
   });
   const normalized = normalizeContinuity(result.output);
-  const structure = options.voiceover === false ? withoutSpeechTracks(normalized) : normalized;
+  const structure = applyHintsToStructure(
+    options.voiceover === false ? withoutSpeechTracks(normalized) : normalized,
+    options.hints,
+  );
   const validation = validateStructure(develop, structure);
   return { structure, validation, usage: result.usage, model: result.model };
 };

@@ -1,6 +1,7 @@
 import "server-only";
 import { listCharacters } from "@/lib/characters/store";
 import { hasElevenLabsKey, listVoices } from "@/lib/production/adapters/elevenlabs";
+import { isProductionVideoModel } from "@/lib/production/hints";
 import { TOOL_DEFS } from "@/lib/tools/registry";
 import type { ToolHandler } from "@/lib/tools/types";
 import { isGenerationModelAvailable } from "@/lib/video/available-models";
@@ -75,6 +76,8 @@ export const listModelsHandler: ToolHandler = async (input) => {
       referencePictures: model.referenceImages,
       inputs: model.inputs,
       refusesRealPeople: model.refusesRealPeople === true,
+      /** Can film production shots (start_production hints, production_update_shot, production_refilm_shot). */
+      production: isProductionVideoModel(model.id),
       price: creditRateLabel(model),
     })),
   };

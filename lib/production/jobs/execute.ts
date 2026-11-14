@@ -28,6 +28,9 @@ import {
 import { openEditorProjectForProduction } from "../editor";
 import { loadBrief, loadStructure } from "./coordinator";
 import { db } from "@/lib/db";
+import { createOpenRouterVideoAdapter } from "../adapters/openrouter-video";
+import { readHints, shotModelSlug } from "../hints";
+import { productionProviders } from "../planner";
 import { resolveNarrationVoice } from "@/lib/voice/speak";
 
 const assetKindFor = (mime: string): "image" | "audio" | "video" => {
@@ -281,12 +284,15 @@ export const executeStep = async (userId: string, productionId: string, step: { 
       locationNotes: structure?.locations.find((location) => location.id === scene?.locationId)?.description ?? "",
       silent: source?.voiceover === false,
     });
+    // A model picked for this shot (or the whole production) films it, when the live OpenRouter adapter can run it.
+    const pickedSlug = shotModelSlug(shot.id, readHints(source?.hints));
+    const usePicked = Boolean(pickedSlug) && productionProviders() === "live";
     const result = await runAdapter({
       productionId,
       stepId: step.id,
-      adapter: adapters.video,
+      adapter: usePicked ? createOpenRouterVideoAdapter() : adapters.video,
       request: {
-        modelId: defaultVideoCapability().modelId,
+        modelId: usePicked && pickedSlug ? pickedSlug : defaultVideoCapability().modelId,
         prompt,
         durationSec: shot.generationDurationSec,
         format: (await db.production.findUnique({ where: { id: productionId } }))?.format,
@@ -416,7 +422,10 @@ export const executeStep = async (userId: string, productionId: string, step: { 
     const assets = (await listAssets(productionId)).filter((asset) => asset.status === "accepted");
     const jobs = await db.generationJob.findMany({ where: { productionId }, select: { id: true, stepId: true, providerJobId: true } });
     const steps = await listSteps(productionId);
-    const clips = assembleClips(structure, assetsByStep(assets, jobs, steps));
+    const input = await currentEntityData<InputRecord>(productionId, "input", "input");
+    const clips = assembleClips(structure, assetsByStep(assets, jobs, steps), {
+      transition: readHints(input?.hints).transition,
+    });
     const durationSec = clips.reduce((end, clip) => Math.max(end, clip.startSec + clip.durationSec), 0);
     const dims = production.format === "16:9" ? { width: 1920, height: 1080 } : production.format === "1:1" ? { width: 1080, height: 1080 } : { width: 1080, height: 1920 };
     await putEntity(

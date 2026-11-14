@@ -39,6 +39,8 @@ export const InputRecordSchema = z.object({
   classification: z.enum(INPUT_CLASSES).nullable(),
   /** False means nobody speaks. Missing means the plan keeps its voices. */
   voiceover: z.boolean().optional(),
+  /** Hard planning constraints (lib/production/hints.ts). Kept loose here so the schema module stays dependency-free. */
+  hints: z.record(z.string(), z.unknown()).optional(),
 });
 export type InputRecord = z.infer<typeof InputRecordSchema>;
 

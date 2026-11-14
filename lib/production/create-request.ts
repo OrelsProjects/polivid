@@ -12,6 +12,7 @@ import { createProductionForUser } from "@/lib/production/store";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
+import { ProductionHintsSchema } from "./hints";
 
 export const CreateProductionSchema = z.object({
   text: z.string().trim().min(3).max(20_000),
@@ -25,6 +26,7 @@ export const CreateProductionSchema = z.object({
   visualDirection: z.string().trim().max(MAX_VISUAL_DIRECTION).optional().default(""),
   characterId: z.string().trim().max(80).optional().default(""),
   voiceover: z.boolean().optional().default(true),
+  hints: ProductionHintsSchema.optional(),
 });
 
 export const resolveProductionCharacter = async (userId: string, choice: string) => {
@@ -59,6 +61,7 @@ export const startProductionFromInput = async (userId: string, raw: unknown) => 
     visualDirection: parsed.visualDirection,
     characterId: character.characterId,
     voiceover: parsed.voiceover,
+    hints: parsed.hints,
   });
   const result = await startPlanning(id, userId);
   void tickProductionJobs();

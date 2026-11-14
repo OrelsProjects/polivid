@@ -17,6 +17,7 @@ import { plannedStepsAfterApprove, stepIdentity } from "./graph";
 import { labelForPlanningStep, type PlanningProgress, type PlanningStepKey } from "../progress";
 import { persistDevelop, persistStructure } from "./persist";
 import { cloneProductionSettings } from "./clone";
+import { readHints } from "../hints";
 
 const hashOf = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24);
 
@@ -99,6 +100,7 @@ const planFromInput = async (productionId: string, userId: string, options: Plan
     delegated: productionMode.creativeDelegation,
     styleLock,
     voiceover: input.voiceover,
+    hints: readHints(input.hints),
   });
   if (options.answers) {
     developResult = {
@@ -144,6 +146,7 @@ const finishFromDevelop = async (
   const structured = await runStructurePass(planner, develop, {
     retryNotes: options.retryNotes,
     voiceover: source?.voiceover,
+    hints: readHints(source?.hints),
   });
   if (!structured.validation.ok) {
     return fail(structured.validation.issues.map((issue) => issue.message).join(" "));

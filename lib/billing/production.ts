@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { estimatePlanCost } from "@/lib/production/cost";
 import { currentEntityData } from "@/lib/production/store";
 import { approveGeneration, cloneProductionPlan, loadStructure } from "@/lib/production/jobs/coordinator";
-import type { DevelopOutput } from "@/lib/production/schema";
+import { readHints, shotUsdPerSecFor } from "@/lib/production/hints";
+import type { DevelopOutput, InputRecord } from "@/lib/production/schema";
 import { refundCredits, requireCredits, reserveCredits } from "./credits";
 import { productionCredits, spentCredits } from "./estimate";
 import { InsufficientCreditsError } from "./errors";
@@ -15,7 +16,8 @@ export const estimateProductionCredits = async (productionId: string) => {
   const develop = await currentEntityData<DevelopOutput>(productionId, "script", "script");
   const structure = await loadStructure(productionId);
   if (!develop || !structure) return 0;
-  const cost = estimatePlanCost({ develop, structure });
+  const input = await currentEntityData<InputRecord>(productionId, "input", "input");
+  const cost = estimatePlanCost({ develop, structure }, { shotUsdPerSec: shotUsdPerSecFor(readHints(input?.hints)) });
   return productionCredits(cost.total, !hasOpenRouterKey());
 };
 

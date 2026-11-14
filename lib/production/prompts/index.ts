@@ -1,3 +1,4 @@
+import { hintsNote, type ProductionHints } from "../hints";
 import { VOICEOVER_OFF_NOTE, VOICEOVER_OFF_STRUCTURE_NOTE } from "../voiceover";
 
 export { DEVELOP_INSTRUCTIONS } from "./develop";
@@ -12,6 +13,7 @@ export const formatDevelopInput = (args: {
   delegated: boolean;
   styleLock?: string | null;
   voiceover?: boolean;
+  hints?: ProductionHints;
 }) => {
   const answers =
     args.answers && Object.keys(args.answers).length > 0
@@ -29,17 +31,18 @@ Language: ${args.language}
 Creative delegation: ${args.delegated ? "yes — do not ask questions" : "no"}
 
 User request:
-${args.text}${answers}${lock}${voice}`;
+${args.text}${answers}${lock}${voice}${hintsNote(args.hints, "develop")}`;
 };
 
 export const formatStructureInput = (args: {
   developJson: string;
   retryNotes?: string | null;
   voiceover?: boolean;
+  hints?: ProductionHints;
 }) => {
   const retry = args.retryNotes?.trim()
     ? `\n\nThe previous shot plan failed these checks. Fix every one:\n${args.retryNotes.trim()}`
     : "";
   const voice = args.voiceover === false ? `\n\n${VOICEOVER_OFF_STRUCTURE_NOTE}` : "";
-  return `Create the shot plan, sound plan, and production records from this accepted development:\n${args.developJson}${retry}${voice}`;
+  return `Create the shot plan, sound plan, and production records from this accepted development:\n${args.developJson}${retry}${voice}${hintsNote(args.hints, "structure")}`;
 };

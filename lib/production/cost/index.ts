@@ -21,7 +21,12 @@ const roundUsd = (value: number) => Math.round(value * 10000) / 10000;
 
 export const estimatePlanCost = (
   plan: Pick<ProductionPlan, "develop"> & { structure: StructureOutput | null },
-  extras: { plannerUsd?: number; imageCount?: number } = {},
+  extras: {
+    plannerUsd?: number;
+    imageCount?: number;
+    /** USD per second for a shot filmed with a picked model. Undefined uses the default video model. */
+    shotUsdPerSec?: (shotId: string) => number | undefined;
+  } = {},
 ): CostBreakdown => {
   const structure = plan.structure;
   const video = defaultVideoCapability();
@@ -46,7 +51,7 @@ export const estimatePlanCost = (
 
   if (structure) {
     for (const shot of structure.shots) {
-      videoUsd += shot.generationDurationSec * video.pricing.usd;
+      videoUsd += shot.generationDurationSec * (extras.shotUsdPerSec?.(shot.id) ?? video.pricing.usd);
       reviewUsd += review.pricing.usd;
     }
     for (const segment of structure.audioSegments) {

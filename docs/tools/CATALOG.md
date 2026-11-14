@@ -418,6 +418,8 @@ Use when:
 - They asked for a multi-scene film, dialogue, or tighter control than a single Create video.
 - Pass characterId when an attached character should speak every line and add its picture as a reference.
 - Set voiceover to false when they want no spoken lines. Omit it so the plan keeps its voices.
+- Pass hints to fix the scene count, scene lengths, music, sfx, ambience, narrator voice, transitions, or model.
+- After planning, get_production shows every shot and sound; the production_* tools change them before approve_production.
 
 Don't use when:
 - A short first cut is enough. Use the matching make_* tool.
@@ -438,6 +440,7 @@ Inputs:
 | creativeDelegation | no | True lets the planner make creative calls on its own instead of asking. Defaults to false. |
 | budgetUsd | no | Spend cap in US dollars for filming, up to 500. Omit for no cap. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
+| hints | no | Hard planning constraints. Leave a field out to let the planner decide it. |
 
 Examples:
 
@@ -578,6 +581,132 @@ Inputs:
 | name | yes | Short name they will recognize. |
 | promptFragment | yes | Render description: materials, light, camera, and mood. No studio names. |
 | negativeFragment | no | What the look should avoid. |
+
+### production_replan
+
+**Re-plan a production.** Set planning hints (scene count, scene lengths, music, sfx, ambience, narrator, transitions, model) and plan the production again. No credits.
+
+Long-running.
+
+Use when:
+- They want a different number of scenes, other scene lengths, no music, more sound effects, or a different model, before filming.
+- The plan came back wrong and a few hard rules will fix it.
+
+Don't use when:
+- Changing one shot or one sound. Use production_update_shot or production_update_audio. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| hints | yes | Hard planning rules. Fields you leave out keep their earlier value. |
+
+### production_update_shot
+
+**Change a shot.** Rewrite one planned shot: action, framing, camera move, length, speech mode, or model. Free. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+No side effects.
+
+Use when:
+- They want a specific shot different: longer, a close-up, a slow push-in, another model.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| shotId | yes | Shot id from get_production. |
+| action | no | What happens in the shot. |
+| purpose | no | Why the shot is there. |
+| framing | no | e.g. wide, medium, close-up, over the shoulder. |
+| cameraMotion | no | e.g. static, slow push-in, handheld, orbit. |
+| emotionalArc | no | How the feeling changes across the shot. |
+| intendedBeginning | no | The first frame. |
+| intendedEnding | no | The last frame. |
+| seconds | no | Length on screen. |
+| speechMode | no | offscreen, native (the model voices it), or lipsync. |
+| model | no | Model for this shot, or empty to use the production's. |
+
+### production_remove_shot
+
+**Remove a shot.** Drop a planned shot, and any sound that only played under it. Free. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+No side effects.
+
+Use when:
+- A shot isn't needed, or the film should be shorter.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| shotId | yes | Shot id from get_production. |
+
+### production_update_audio
+
+**Change a sound.** Change a planned line, narration, music, ambience, or sound effect: words, voice, prompt, timing, fades, or which shots it plays under. Free. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+No side effects.
+
+Use when:
+- They want a line reworded, a different voice, calmer music, or an effect moved.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| audioId | yes | Audio segment id from get_production. |
+| text | no | Words, for dialogue and narration. |
+| prompt | no | Sound description, for music, ambience, and sfx. |
+| voiceId | no | Speech library voice id from list_voices. |
+| seconds | no | How long it plays. |
+| startOffsetSec | no | Start, from the beginning of its first shot. |
+| fadeInSec | no | Fade in, in seconds. |
+| fadeOutSec | no | Fade out, in seconds. |
+| shotIds | no | Shots it plays under. |
+
+### production_add_audio
+
+**Add a sound.** Add a line, narration, music bed, ambience, or sound effect under chosen shots. Free. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+No side effects.
+
+Use when:
+- They want music added, a whoosh on a cut, rain ambience, or an extra narrated line.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| track | yes | dialogue, narration, music, ambience, or sfx. |
+| shotIds | yes | Shots it plays under, from get_production. |
+| seconds | yes | How long it plays. |
+| text | no | Words, required for dialogue and narration. |
+| prompt | no | Sound description, required for music, ambience, and sfx. |
+| voiceId | no | Speech library voice id, for dialogue and narration. |
+| startOffsetSec | no | Start, from the beginning of its first shot. Defaults to 0. |
+| fadeInSec | no | Fade in, in seconds. Music defaults to 0.5. |
+| fadeOutSec | no | Fade out, in seconds. Music defaults to 1. |
+
+### production_remove_audio
+
+**Remove a sound.** Drop a planned line, music bed, ambience, or sound effect. Free. Only before approval. Once filming starts, use production_refilm_shot or the edit_* tools on the finished cut.
+
+No side effects.
+
+Use when:
+- They want no music, or one effect or line gone.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| audioId | yes | Audio segment id from get_production. |
 
 ## Assets
 
@@ -961,12 +1090,14 @@ Inputs:
 
 ### get_production
 
-**Read a production.** Read one staged production.
+**Read a production.** Read one staged production: status, scenes, every shot and sound segment with ids and seconds, planning hints, steps, and versions.
 
 Read only.
 
 Use when:
 - You have a production id and need its stage, status, or error before answering or approving it.
+- Before editing the plan or refilming a shot, to get shot and audio ids.
+- To find a stepId for retry_production or a versionId for restore_version.
 
 Inputs:
 
@@ -1014,6 +1145,28 @@ Inputs:
 - None.
 
 ## Jobs
+
+### production_refilm_shot
+
+**Refilm a shot.** Film one shot of a production again, optionally with another model, then rebuild the film. Spends credits for that shot only.
+
+Spends credits. Long-running. Needs approval at 1 credits or more.
+
+Use when:
+- Filming started or finished and one shot came out wrong.
+- They want a single shot redone with a better model.
+
+Don't use when:
+- Nothing is filmed yet. Change the plan with production_update_shot instead.
+- They want the whole film again. Use regenerate_production.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| productionId | yes | Production id from list_my_productions or start_production. |
+| shotId | yes | Shot id from get_production. |
+| model | no | Footage model id. Only models list_models marks production: true can film production shots. |
 
 ### retry_video
 

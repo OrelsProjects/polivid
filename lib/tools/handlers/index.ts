@@ -97,6 +97,16 @@ import {
 
 import { importMediaFromUrlHandler } from "./import-media";
 
+import {
+  productionReplanHandler,
+  productionUpdateShotHandler,
+  productionRemoveShotHandler,
+  productionUpdateAudioHandler,
+  productionAddAudioHandler,
+  productionRemoveAudioHandler,
+  productionRefilmShotHandler,
+} from "./production";
+
 export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_prompt_video: makePromptVideoHandler,
   make_voiceover_video: makeVoiceoverVideoHandler,
@@ -112,6 +122,13 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   quick_edit_video: quickEditVideoHandler,
   create_video: createVideoHandler,
   start_production: startProductionHandler,
+  production_replan: productionReplanHandler,
+  production_update_shot: productionUpdateShotHandler,
+  production_remove_shot: productionRemoveShotHandler,
+  production_update_audio: productionUpdateAudioHandler,
+  production_add_audio: productionAddAudioHandler,
+  production_remove_audio: productionRemoveAudioHandler,
+  production_refilm_shot: productionRefilmShotHandler,
   make_storyboard: makeStoryboardHandler,
   plan_shots: planShotsHandler,
   improve_narration: improveNarrationHandler,

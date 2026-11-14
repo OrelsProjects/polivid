@@ -118,8 +118,12 @@ export const libraryTools = [
     name: "get_production",
     title: "Read a production",
     category: "library",
-    summary: "Read one staged production.",
-    whenToUse: ["You have a production id and need its stage, status, or error before answering or approving it."],
+    summary: "Read one staged production: status, scenes, every shot and sound segment with ids and seconds, planning hints, steps, and versions.",
+    whenToUse: [
+      "You have a production id and need its stage, status, or error before answering or approving it.",
+      "Before editing the plan or refilming a shot, to get shot and audio ids.",
+      "To find a stepId for retry_production or a versionId for restore_version.",
+    ],
     inputSchema: z.object({
       productionId: idField("Id from list_my_productions."),
     }),

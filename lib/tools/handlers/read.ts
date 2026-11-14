@@ -5,7 +5,11 @@ import { videoJobCredits } from "@/lib/billing/estimate";
 import { estimateProductionCredits } from "@/lib/billing/production";
 import { listCharacters } from "@/lib/characters/store";
 import { listSongDrafts } from "@/lib/music/song-draft";
-import { getProductionForUser, listProductionsForUser } from "@/lib/production/store";
+import { readHints } from "@/lib/production/hints";
+import { loadStructure } from "@/lib/production/jobs/coordinator";
+import { audioView, shotView } from "@/lib/production/plan-edits";
+import type { DevelopOutput, InputRecord } from "@/lib/production/schema";
+import { currentEntityData, getProductionForUser, listProductionsForUser } from "@/lib/production/store";
 import { listUploads } from "@/lib/storage/s3";
 import { isAudioKey, isImageKey, isVideoKey } from "@/lib/storage/upload-key";
 import { listCustomPresets } from "@/lib/video/custom-presets";
@@ -92,15 +96,46 @@ export const listMyProductionsHandler: ToolHandler = async (_input, ctx) => list
 export const getProductionHandler: ToolHandler = async (input, ctx) => {
   const production = await getProductionForUser(ctx.userId, text(asRecord(input).productionId));
   if (!production) return { error: "Production not found." };
+  const [structure, script, inputRecord] = await Promise.all([
+    loadStructure(production.id),
+    currentEntityData<DevelopOutput["script"]>(production.id, "script", "script"),
+    currentEntityData<InputRecord>(production.id, "input", "input"),
+  ]);
+  const questions = production.entities.find((entity) => entity.kind === "questions")?.current?.data as
+    | { questions?: { id: string; question?: string; answer?: string | null }[] }
+    | undefined;
   return {
     id: production.id,
     title: production.title,
     status: production.status,
     stage: production.stage,
+    mode: production.mode,
     format: production.format,
     targetDurationSec: production.targetDurationSec,
     presetId: production.presetId,
     error: production.error,
+    editProjectId: production.editProjectId,
+    budgetUsd: production.budgetUsd,
+    spentUsd: production.spentUsd,
+    estimatedCredits: production.status === "preview" ? await estimateProductionCredits(production.id) : undefined,
+    hints: readHints(inputRecord?.hints),
+    openQuestions: (questions?.questions ?? []).filter((question) => !question.answer),
+    scenes: (script?.scenes ?? []).map((scene) => ({
+      id: scene.id,
+      order: scene.order,
+      heading: scene.heading,
+      action: scene.action,
+      dialogue: scene.dialogue,
+      estimatedSec: scene.estimatedSec,
+    })),
+    characters: (structure?.characters ?? []).map((character) => ({ id: character.id, name: character.name, voiceId: character.voice.voiceId })),
+    locations: (structure?.locations ?? []).map((location) => ({ id: location.id, name: location.name })),
+    shots: [...(structure?.shots ?? [])].sort((a, b) => a.order - b.order).map(shotView),
+    audio: (structure?.audioSegments ?? []).map(audioView),
+    steps: production.steps.map((step) => ({ id: step.id, kind: step.kind, target: step.targetKey, status: step.status, attempt: step.attempt, error: step.error })),
+    versions: production.entities
+      .filter((entity) => entity.current)
+      .map((entity) => ({ kind: entity.kind, key: entity.stableKey, versionId: entity.current!.id, version: entity.current!.version, origin: entity.current!.origin })),
   };
 };
 

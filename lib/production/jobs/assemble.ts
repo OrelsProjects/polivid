@@ -38,7 +38,11 @@ const audioForSegment = (segmentId: string, assets: StepAsset[]) =>
   assets.findLast((asset) => asset.kind === "audio" && asset.targetKey?.split(":")[1] === segmentId) ?? null;
 
 /** Builds the production timeline: one clip per filmed shot and one per generated audio segment. */
-export const assembleClips = (structure: StructureOutput | null, assets: StepAsset[]): TimelineClip[] => {
+export const assembleClips = (
+  structure: StructureOutput | null,
+  assets: StepAsset[],
+  options: { transition?: "cut" | "dissolve" } = {},
+): TimelineClip[] => {
   const shots = [...(structure?.shots ?? [])].sort((a, b) => a.order - b.order);
   const clips: TimelineClip[] = [];
   let cursor = 0;
@@ -57,7 +61,8 @@ export const assembleClips = (structure: StructureOutput | null, assets: StepAss
         volume: 0,
         fadeInSec: 0,
         fadeOutSec: 0,
-        transition: "cut",
+        // The first shot has nothing to dissolve from.
+        transition: options.transition === "dissolve" && clips.some((clip) => clip.kind === "video") ? "dissolve" : "cut",
       });
     }
     cursor += shot.editDurationSec;

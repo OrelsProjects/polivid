@@ -59,6 +59,7 @@ export const createProductionForUser = async (
     visualDirection?: string | null;
     characterId?: string | null;
     voiceover?: boolean;
+    hints?: Record<string, unknown>;
   },
 ) => {
   const title = titleFrom(input.text);
@@ -85,6 +86,7 @@ export const createProductionForUser = async (
     attachments: input.attachments ?? [],
     classification: null,
     ...(input.voiceover === false ? { voiceover: false } : {}),
+    ...(input.hints && Object.keys(input.hints).length > 0 ? { hints: input.hints } : {}),
   }, "user");
   return production.id;
 };
@@ -475,7 +477,14 @@ const resetStep = (step: StepRow, status: "ready" | "pending") =>
   });
 
 /** A rejected review means the take itself is wrong: discard it, film the shot again, then review the new take. */
-const regenerateRejectedShot = async (productionId: string, review: StepRow & { targetKey: string }) => {
+const regenerateRejectedShot = async (productionId: string, review: StepRow & { targetKey: string }) =>
+  discardShotTake(productionId, review);
+
+/**
+ * Discards a shot's current take and puts its film, lipsync, and review steps back in the queue.
+ * The old clip is marked rejected; jobs from that take are never reused.
+ */
+export const discardShotTake = async (productionId: string, review: StepRow & { targetKey: string }) => {
   const takeSteps = await db.productionStep.findMany({
     where: { productionId, targetKey: review.targetKey, kind: { in: ["shot_video", "lipsync"] } },
   });
@@ -521,4 +530,12 @@ export const retryStep = async (productionId: string, stepId: string) => {
 const titleFrom = (text: string) => {
   const line = text.trim().split("\n")[0] ?? "Untitled production";
   return line.length > 72 ? `${line.slice(0, 72).trim()}…` : line || "Untitled production";
+};
+
+/** Puts the assemble, final review, and export steps back so a changed shot reaches the finished film. */
+export const reopenFinishingSteps = async (productionId: string) => {
+  const steps = await db.productionStep.findMany({
+    where: { productionId, kind: { in: ["assemble", "final_review", "export"] } },
+  });
+  for (const step of steps) await resetStep(step, "pending");
 };

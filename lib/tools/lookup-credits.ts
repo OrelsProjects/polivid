@@ -3,6 +3,7 @@ import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { videoJobCredits } from "@/lib/billing/estimate";
 import { estimateProductionCredits } from "@/lib/billing/production";
 import { db } from "@/lib/db";
+import { refilmCredits } from "@/lib/production/refilm";
 import { getProductionForUser } from "@/lib/production/store";
 import { toolByName } from "@/lib/tools/registry";
 import { creditsForToolCall, type ToolCreditOptions } from "@/lib/tools/tool-credits";
@@ -34,6 +35,12 @@ export const lookupCredits = async (userId: string, name: string, input: Record<
       songReady: Boolean(stored.songId),
       cuts: stored.cuts,
     });
+  }
+  if (name === "production_refilm_shot") {
+    const id = text(input.productionId);
+    const production = id ? await getProductionForUser(userId, id) : null;
+    if (!production) return null;
+    return refilmCredits(production.id, text(input.shotId), text(input.model) || undefined);
   }
   if (name === "approve_production" || name === "regenerate_production") {
     const id = text(input.productionId);

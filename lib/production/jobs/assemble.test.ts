@@ -64,3 +64,11 @@ test("segments without audio are left out instead of borrowing another file", ()
   assert.equal(clipAsset(clips, "clip_aud_music"), undefined);
   assert.equal(clipAsset(clips, "clip_aud_dialogue_1"), "a_speech");
 });
+
+test("shots join with a dissolve when the hints ask for one, except the first", () => {
+  const clips = assembleClips(mockStructure(), assetsByStep(assets, jobs, steps), { transition: "dissolve" });
+  const videos = clips.filter((clip) => clip.kind === "video");
+  assert.deepEqual(videos.map((clip) => clip.transition), ["cut", "dissolve", "dissolve"]);
+  const plain = assembleClips(mockStructure(), assetsByStep(assets, jobs, steps));
+  assert.ok(plain.filter((clip) => clip.kind === "video").every((clip) => clip.transition === "cut"));
+});

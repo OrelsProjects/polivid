@@ -87,3 +87,26 @@ When a chat queues a video, `CoachThread.videoJobId` points at that job. Once th
 ## Test
 
 `lib/tools/registry.test.ts` checks names, handlers, field descriptions, the description length, approval rules, the hidden legacy tool, the catalog file, and that every MCP-tagged tool converts to JSON Schema.
+
+## Productions
+
+`get_production` returns the whole plan: scenes, every shot and sound segment with ids and seconds, planning hints, steps (for `retry_production`), and entity versions (for `restore_version`).
+
+- **Before filming** (status `preview`, no steps yet), the plan is free to change:
+  - `production_update_shot`, `production_remove_shot`
+  - `production_update_audio`, `production_add_audio`, `production_remove_audio`
+
+  Each edit is checked with the planner's own `validateStructure`, so a broken reference is refused. Each one returns the new credit estimate. Code: `lib/production/plan-edits.ts`.
+- **Planning hints** (`lib/production/hints.ts`) are hard rules the planner must follow:
+  - scene count and scene seconds
+  - longest shot
+  - music, sfx, and ambience, each on or off; music style
+  - narrator voice
+  - cut or dissolve
+  - footage model, for the whole film or per shot
+
+  Set them on `start_production` or later with `production_replan`, which plans again. They are stored on the `input` entity, so the planner's output schema never changes. The planner gets them as a note. `applyHintsToStructure` then enforces the on/off sound choices, the shot cap, and the narrator voice, whatever the planner wrote.
+- **Per-shot models** are any Create model with the `openrouter` provider (`list_models` shows `production: true`). The cost estimate prices each shot at its own model's rate, so the credit hold matches.
+- **After filming starts**, the plan is locked:
+  - `production_refilm_shot` discards one shot's take, queues it again (optionally with another model), and reopens assemble, final review, and export.
+  - It holds that shot's credits on top of what the production already used, and settlement at the end refunds whatever the new take didn't need. Code: `lib/production/refilm.ts`.

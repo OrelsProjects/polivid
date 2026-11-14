@@ -9,11 +9,13 @@ import { libraryTools } from "./library";
 import { makeTools } from "./make";
 import { navigateTools } from "./navigate";
 import { planTools } from "./plan";
+import { productionTools } from "./production";
 
 /** Every tool, including legacy ones. Order is the catalog order. */
 export const TOOL_DEFS = [
   ...makeTools,
   ...planTools,
+  ...productionTools,
   ...assetTools,
   ...catalogTools,
   ...libraryTools,

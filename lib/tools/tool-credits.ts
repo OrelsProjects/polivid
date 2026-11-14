@@ -16,7 +16,7 @@ const ONE_CREDIT = 1;
  * These spends depend on a saved job or production, so the price is looked up
  * on the server. Anything else that spends credits is priced from the tool input.
  */
-export const LOOKUP_CREDIT_TOOLS = ["retry_video", "approve_production", "regenerate_production"] as const;
+export const LOOKUP_CREDIT_TOOLS = ["retry_video", "approve_production", "regenerate_production", "production_refilm_shot"] as const;
 
 const ONE_CREDIT_TOOLS = new Set([
   "generate_image",

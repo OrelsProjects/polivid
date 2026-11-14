@@ -3,6 +3,7 @@ import { BACKGROUND_IDS } from "@/lib/video/backgrounds";
 import { VISUAL_MEDIA } from "@/lib/video/stills";
 import { z } from "zod";
 import { defineModeTool, defineTool } from "@/lib/tools/define";
+import { productionHintsField } from "@/lib/tools/defs/production";
 import {
   attachmentRolesField,
   briefField,
@@ -394,6 +395,8 @@ export const makeTools = [
       "They asked for a multi-scene film, dialogue, or tighter control than a single Create video.",
       "Pass characterId when an attached character should speak every line and add its picture as a reference.",
       "Set voiceover to false when they want no spoken lines. Omit it so the plan keeps its voices.",
+      "Pass hints to fix the scene count, scene lengths, music, sfx, ambience, narrator voice, transitions, or model.",
+      "After planning, get_production shows every shot and sound; the production_* tools change them before approve_production.",
     ],
     avoidWhen: [
       "A short first cut is enough. Use the matching make_* tool.",
@@ -417,6 +420,7 @@ export const makeTools = [
         .describe("True lets the planner make creative calls on its own instead of asking. Defaults to false."),
       budgetUsd: z.number().positive().max(500).optional().describe("Spend cap in US dollars for filming, up to 500. Omit for no cap."),
       referenceKeys: referenceKeysField(),
+      hints: productionHintsField(),
     }),
     effects: { readOnly: false, spendsCredits: true, destructive: false, longRunning: true },
     approval: "user",
