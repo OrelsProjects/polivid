@@ -134,4 +134,35 @@ export const characterTools = [
     whenToUse: ["They no longer use that outfit."],
     inputSchema: z.object({ characterId: characterId(), lookId: idField("Look id from get_character.") }),
   }),
+  defineTool({
+    name: "set_character_voice",
+    title: "Give a character a voice from a recording",
+    category: "assets",
+    summary:
+      "Clone the voice in one to three audio recordings (MP3, M4A, WAV) onto a character, replacing its voice. Only for the person's own voice.",
+    whenToUse: [
+      "They want a character to speak in their own voice and have a recording of themselves.",
+      "Get keys with list_uploads, or import_media_from_url for a direct link to their own audio file.",
+      "Before confirming, ask the person to confirm the recording is their own voice. Never confirm on their behalf.",
+    ],
+    avoidWhen: [
+      "The recording is someone else, a public figure, or from a video they don't own. Refuse.",
+      "They want a made-up voice. Use design_voice.",
+      "The recording is a video. Send them to the Upload a recording button on the Characters page, which takes the sound out in the browser.",
+    ],
+    inputSchema: z.object({
+      characterId: characterId(),
+      mediaKeys: z
+        .array(z.string().trim().min(1).max(200))
+        .min(1)
+        .max(3)
+        .describe("Upload keys of audio recordings of their own voice. One to two minutes of clear speech in total works best."),
+    }),
+    effects: { readOnly: false, spendsCredits: false, destructive: true, longRunning: true },
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: () =>
+      "Replaces this character's voice with a clone of the recording. Confirm only if the recording is your own voice.",
+  }),
 ];

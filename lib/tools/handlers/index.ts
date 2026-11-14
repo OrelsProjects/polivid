@@ -116,6 +116,7 @@ import {
   characterAddLookHandler,
   characterUpdateLookHandler,
   characterRemoveLookHandler,
+  setCharacterVoiceHandler,
 } from "./characters";
 
 export const toolHandlers: Record<HandlerName, ToolHandler> = {
@@ -159,6 +160,7 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   character_add_look: characterAddLookHandler,
   character_update_look: characterUpdateLookHandler,
   character_remove_look: characterRemoveLookHandler,
+  set_character_voice: setCharacterVoiceHandler,
   import_media_from_url: importMediaFromUrlHandler,
   list_modes: listModesHandler,
   list_models: listModelsHandler,

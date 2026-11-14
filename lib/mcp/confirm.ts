@@ -43,17 +43,18 @@ export const quoteToolCall = async (userId: string, definition: ToolDefinition, 
   const cost =
     credits === null ? "an amount that can only be known once it runs" : credits === 0 ? "no credits" : `${credits} credits`;
   const what = definition.effects.destructive ? `${definition.title} can't be undone and costs ${cost}` : `${definition.title} costs ${cost}`;
+  const detail = definition.approvalDetail?.(input) ?? definition.summary;
   const result: QuoteResult = {
     needsConfirmation: true,
     tool: definition.name,
     credits,
     balance: balance.total,
     destructive: definition.effects.destructive,
-    detail: definition.approvalDetail?.(input) ?? definition.summary,
+    detail,
     confirmToken: token,
     expiresAt: expiresAt.toISOString(),
     next:
-      `${what}. The person has ${balance.total} credits. Tell them the cost and ask before going on. ` +
+      `${what}. ${detail} The person has ${balance.total} credits. Tell them this and ask before going on. ` +
       `If they agree, call ${definition.name} again with exactly the same arguments plus "${CONFIRM_FIELD}": "${token}". ` +
       `The token works once, for this exact input, for 10 minutes.`,
   };

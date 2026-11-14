@@ -40,6 +40,7 @@ export const HANDLER_KEYS = [
   "character_add_look",
   "character_update_look",
   "character_remove_look",
+  "set_character_voice",
   "import_media_from_url",
   "list_modes",
   "list_models",

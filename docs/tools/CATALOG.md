@@ -1006,6 +1006,29 @@ Inputs:
 | characterId | yes | Character id from list_characters. |
 | lookId | yes | Look id from get_character. |
 
+### set_character_voice
+
+**Give a character a voice from a recording.** Clone the voice in one to three audio recordings (MP3, M4A, WAV) onto a character, replacing its voice. Only for the person's own voice.
+
+Destructive. Long-running. Needs approval.
+
+Use when:
+- They want a character to speak in their own voice and have a recording of themselves.
+- Get keys with list_uploads, or import_media_from_url for a direct link to their own audio file.
+- Before confirming, ask the person to confirm the recording is their own voice. Never confirm on their behalf.
+
+Don't use when:
+- The recording is someone else, a public figure, or from a video they don't own. Refuse.
+- They want a made-up voice. Use design_voice.
+- The recording is a video. Send them to the Upload a recording button on the Characters page, which takes the sound out in the browser.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| characterId | yes | Character id from list_characters. |
+| mediaKeys | yes | Upload keys of audio recordings of their own voice. One to two minutes of clear speech in total works best. |
+
 ## Library
 
 ### get_character
