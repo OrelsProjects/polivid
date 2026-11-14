@@ -330,7 +330,7 @@ export function CharacterEditor({
       {live ? (
         <CharacterMediaPanel character={live} />
       ) : (
-        <p className="text-xs text-muted-foreground">Save the character to add more pictures, clips, and looks.</p>
+        <p className="text-xs text-muted-foreground">Save the character to add more pictures, clips, and looks, or to build its voice from an uploaded recording or video.</p>
       )}
     </section>
   );

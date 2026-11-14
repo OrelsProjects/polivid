@@ -3,7 +3,7 @@
 import { Film, ImagePlus, LoaderCircle, Mic, Plus, Scissors, Star, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { clipDuration, extractSharpFrames, extractVoiceWav } from "@/lib/characters/clip-tools";
+import { clipDuration, extractSharpFrames, extractVoiceWav, MAX_VOICE_UPLOAD_SECONDS } from "@/lib/characters/clip-tools";
 import {
   MAX_CHARACTER_CLIPS,
   MAX_CHARACTER_IMAGES,
@@ -53,9 +53,11 @@ export function CharacterMediaPanel({ character }: { character: CharacterSummary
   const [notice, setNotice] = useState<string | null>(null);
   const [lookName, setLookName] = useState("");
   const [lookWardrobe, setLookWardrobe] = useState("");
-  const [voiceClip, setVoiceClip] = useState<CharacterMediaItem | null>(null);
+  /** Where the voice comes from: one of the character's clips, or a file picked just for the voice. */
+  const [voiceSource, setVoiceSource] = useState<{ clip: CharacterMediaItem } | { file: File } | null>(null);
   const [voiceConsent, setVoiceConsent] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const voiceInput = useRef<HTMLInputElement>(null);
 
   const images = character.media.filter((item) => item.kind === "image");
   const clips = character.media.filter((item) => item.kind === "video");
@@ -117,15 +119,31 @@ export function CharacterMediaPanel({ character }: { character: CharacterSummary
     });
 
   const buildVoice = () => {
-    const clip = voiceClip;
-    if (!clip || !voiceConsent) return;
-    void run(`voice:${clip.id}`, async () => {
-      const wav = await extractVoiceWav(clip.url);
+    const source = voiceSource;
+    if (!source || !voiceConsent) return;
+    void run("voice", async () => {
+      const wav =
+        "clip" in source
+          ? await extractVoiceWav(source.clip.url, MAX_VOICE_UPLOAD_SECONDS)
+          : await extractVoiceWav(source.file, MAX_VOICE_UPLOAD_SECONDS);
       await voiceFromClip({ id: character.id, samples: [wav] }).unwrap();
-      setVoiceClip(null);
+      setVoiceSource(null);
       setVoiceConsent(false);
-      return "Built the voice from that clip. Preview it on the character card.";
+      return "Built the voice. Preview it on the character card.";
     });
+  };
+
+  const pickVoiceFile = (files: FileList | null) => {
+    const file = files?.[0];
+    if (voiceInput.current) voiceInput.current.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("audio/") && !file.type.startsWith("video/")) {
+      setError("Pick an audio file (MP3, M4A, WAV) or a video with them talking.");
+      return;
+    }
+    setError(null);
+    setVoiceSource({ file });
+    setVoiceConsent(false);
   };
 
   const looks = character.looks;
@@ -329,7 +347,7 @@ export function CharacterMediaPanel({ character }: { character: CharacterSummary
                         size="sm"
                         disabled={busy !== null}
                         onClick={() => {
-                          setVoiceClip(item);
+                          setVoiceSource({ clip: item });
                           setVoiceConsent(false);
                         }}
                         title="Build the character's voice from this clip's sound"
@@ -357,12 +375,36 @@ export function CharacterMediaPanel({ character }: { character: CharacterSummary
         </ul>
       </div>
 
-      {voiceClip ? (
+      <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-0.5">
+            <h3 className="text-sm font-medium">Voice from a recording</h3>
+            <p className="text-xs text-muted-foreground">
+              Upload an MP3, M4A, or WAV, or a video of you talking. One to two minutes of clear speech works best.
+            </p>
+          </div>
+          <input
+            ref={voiceInput}
+            type="file"
+            accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/aac,audio/ogg,audio/webm,video/mp4,video/quicktime,video/webm"
+            className="hidden"
+            onChange={(event) => pickVoiceFile(event.target.files)}
+          />
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => voiceInput.current?.click()}>
+            <Mic aria-hidden data-icon="inline-start" />
+            Upload a recording
+          </Button>
+        </div>
+      </div>
+
+      {voiceSource ? (
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/40 p-4">
-          <p className="text-sm font-medium">Build the voice from this clip</p>
+          <p className="text-sm font-medium">
+            {"clip" in voiceSource ? "Build the voice from this clip" : `Build the voice from ${voiceSource.file.name}`}
+          </p>
           <p className="text-sm text-muted-foreground">
-            Uses up to 30 seconds of the clip&apos;s sound and replaces the character&apos;s current voice. A clip with only them
-            talking, and no music, works best.
+            Uses up to {Math.round(MAX_VOICE_UPLOAD_SECONDS / 60 * 10) / 10} minutes of the sound, taken in your browser, and
+            replaces the character&apos;s current voice. Only them talking, with no music, works best.
           </p>
           <label className="flex cursor-pointer items-start gap-2 text-sm">
             <input
@@ -375,10 +417,10 @@ export function CharacterMediaPanel({ character }: { character: CharacterSummary
           </label>
           <div className="flex gap-2">
             <Button type="button" disabled={!voiceConsent || busy !== null} onClick={buildVoice}>
-              {busy?.startsWith("voice:") ? <LoaderCircle className="animate-spin" data-icon="inline-start" aria-hidden /> : null}
-              {busy?.startsWith("voice:") ? "Building…" : "Build voice"}
+              {busy === "voice" ? <LoaderCircle className="animate-spin" data-icon="inline-start" aria-hidden /> : null}
+              {busy === "voice" ? "Building…" : "Build voice"}
             </Button>
-            <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => setVoiceClip(null)}>
+            <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => setVoiceSource(null)}>
               Cancel
             </Button>
           </div>

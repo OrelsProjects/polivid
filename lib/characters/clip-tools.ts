@@ -96,13 +96,23 @@ export const extractSharpFrames = async (url: string, count = 4) => {
 };
 
 const VOICE_SAMPLE_RATE = 22_050;
-const MAX_VOICE_SECONDS = 30;
+/** At 22.05 kHz mono 16-bit, 150 seconds is about 6.6 MB, under the 8 MB sample limit. */
+export const MAX_VOICE_UPLOAD_SECONDS = 150;
 
-/** The clip's sound as a mono WAV, for building a voice. Throws when the clip is silent. */
-export const extractVoiceWav = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Couldn't download that clip.");
-  const data = await response.arrayBuffer();
+/**
+ * The sound of a clip (by URL) or of a file the person picked (audio or video), as a mono WAV
+ * for building a voice. Decoding in the browser means MP3, M4A, WAV, MP4, MOV, and WebM all take the same path.
+ * Throws when there is no sound.
+ */
+export const extractVoiceWav = async (source: string | Blob, maxSeconds = 30) => {
+  let data: ArrayBuffer;
+  if (typeof source === "string") {
+    const response = await fetch(source);
+    if (!response.ok) throw new Error("Couldn't download that clip.");
+    data = await response.arrayBuffer();
+  } else {
+    data = await source.arrayBuffer();
+  }
   const AudioCtx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
   const context = new AudioCtx();
   let decoded: AudioBuffer;
@@ -113,14 +123,15 @@ export const extractVoiceWav = async (url: string) => {
   } finally {
     void context.close();
   }
-  const seconds = Math.min(decoded.duration, MAX_VOICE_SECONDS);
+  const seconds = Math.min(decoded.duration, maxSeconds, MAX_VOICE_UPLOAD_SECONDS);
+  if (seconds < 3) throw new Error("That recording is too short. Use at least 10 seconds of them talking.");
   const offline = new OfflineAudioContext(1, Math.ceil(seconds * VOICE_SAMPLE_RATE), VOICE_SAMPLE_RATE);
-  const source = offline.createBufferSource();
-  source.buffer = decoded;
-  source.connect(offline.destination);
-  source.start(0, 0, seconds);
+  const player = offline.createBufferSource();
+  player.buffer = decoded;
+  player.connect(offline.destination);
+  player.start(0, 0, seconds);
   const rendered = await offline.startRendering();
   const samples = rendered.getChannelData(0);
-  if (loudShare(samples) < 0.05) throw new Error("That clip is almost silent. Use one where they talk.");
+  if (loudShare(samples) < 0.05) throw new Error("That recording is almost silent. Use one where they talk.");
   return new Blob([encodeWav(samples, VOICE_SAMPLE_RATE) as BlobPart], { type: "audio/wav" });
 };
