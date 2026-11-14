@@ -133,23 +133,24 @@ model Video {
 
 /// A timeline the user is editing. Copy-on-edit: the source video is never written.
 model EditProject {
-  id            String        @id @default(uuid())
+  id            String                @id @default(uuid())
   userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   sourceVideoId String?
-  sourceVideo   Video?        @relation("EditSource", fields: [sourceVideoId], references: [id], onDelete: SetNull)
+  sourceVideo   Video?                @relation("EditSource", fields: [sourceVideoId], references: [id], onDelete: SetNull)
   title         String
   format        String
   timeline      Json
-  version       Int           @default(1)
+  version       Int                   @default(1)
   /// Last finished MP4 for this edit. It matches the timeline at exportVersion.
   exportVideoId String?
   exportVersion Int?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  exports       Video[]       @relation("EditExports")
-  productions   Production[]  @relation("ProductionEdit")
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  exports       Video[]               @relation("EditExports")
+  productions   Production[]          @relation("ProductionEdit")
   coachThreads  CoachThread[]
+  revisions     EditProjectRevision[]
 
   @@index([userId, updatedAt])
   @@map("edit_projects")
@@ -551,4 +552,24 @@ model SpendQuote {
 
   @@index([userId, createdAt])
   @@map("spend_quote")
+}
+
+/// The timeline as it was before an agent edit or a revert, so it can be undone after a reload.
+model EditProjectRevision {
+  id           String      @id @default(uuid())
+  projectId    String
+  project      EditProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// The project version this snapshot was.
+  version      Int
+  /// The version the edit saved. Undo only applies while the project is still at it.
+  afterVersion Int
+  title        String
+  format       String
+  timeline     Json
+  /// What replaced it: the edit tool's summary.
+  reason       String
+  createdAt    DateTime    @default(now())
+
+  @@index([projectId, createdAt])
+  @@map("edit_project_revisions")
 }

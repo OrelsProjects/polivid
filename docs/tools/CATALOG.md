@@ -1259,6 +1259,7 @@ Inputs:
 | Field | Required | Description |
 | --- | --- | --- |
 | projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| detail | no | True adds every clip property (transform, opacity, text style, transitions, fades, trim) and the media list. |
 
 ### edit_add_text
 
@@ -1355,12 +1356,13 @@ Inputs:
 
 ### edit_move
 
-**Move a clip.** Slide a clip to a new start time. Free.
+**Move a clip.** Slide a clip to a new start time, or onto another track of the same kind. Free.
 
 No side effects.
 
 Use when:
 - They want a title or song to start later or earlier.
+- They want a clip on a different layer. Pass trackId.
 
 Inputs:
 
@@ -1368,16 +1370,18 @@ Inputs:
 | --- | --- | --- |
 | projectId | no | Editor project id. Omit it in this chat; the open project is used. |
 | itemId | yes | Clip id from edit_read_timeline. |
-| startSec | yes | New start, in seconds. |
+| startSec | no | New start, in seconds. Omit to keep the start when only changing track. |
+| trackId | no | Track to move it onto. Must be the same kind (visual, text, audio). |
 
 ### edit_add_music
 
-**Add music.** Lay a song or an attached audio file under the video. Free.
+**Add music.** Lay a song, a sound effect, or an attached audio file on the audio track. Free.
 
 No side effects.
 
 Use when:
 - They want music under the cut. Use a song id, an upload key, or the attached audio.
+- They want a sound effect at a moment. Pass role sfx, startSec, and the upload key; sfx defaults to full volume and no fades.
 
 Don't use when:
 - They want a new music video from scratch. Use make_music_video.
@@ -1394,6 +1398,8 @@ Inputs:
 | fadeInSec | no | Fade in, in seconds. |
 | fadeOutSec | no | Fade out, in seconds. |
 | seconds | no | Length when the file's length is unknown. |
+| role | no | music (default) or sfx. |
+| durationSec | no | Play only this many seconds of it. |
 
 ### edit_set_volume
 
@@ -1416,7 +1422,7 @@ Inputs:
 | itemId | no | Audio or video clip id. |
 | trackId | no | Track id to mute or unmute. |
 | volume | no | Loudness from 0 to 2. |
-| muted | no | Mute the track when true. |
+| muted | no | With trackId: true mutes, false unmutes. Defaults to true. |
 
 ### edit_add_captions
 
@@ -1429,6 +1435,395 @@ Use when:
 
 Don't use when:
 - There is no project yet. add_captions makes a new captioned video and spends credits.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+
+### edit_set_project
+
+**Rename or reshape.** Rename the project or change its frame (9:16, 1:1, 16:9). Free.
+
+No side effects.
+
+Use when:
+- They want a different title or aspect ratio for the edit.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| title | no | New project title. |
+| format | no | New frame. Clips keep their framing; check with edit_read_timeline. |
+
+### edit_add_track
+
+**Add a track.** Add a visual, text, or audio track (a layer). Free.
+
+No side effects.
+
+Use when:
+- They want another layer: a picture-in-picture, a second title row, or music and sound effects on separate lanes.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| kind | yes | visual for video and pictures, text for titles, audio for sound. |
+| name | no | Track name. |
+| index | no | Position in the track list, 0 first. Omit to add at the end. |
+
+### edit_update_track
+
+**Update a track.** Rename a track, or mute, hide, lock, or unlock it. Free.
+
+No side effects.
+
+Use when:
+- They want a layer silent, invisible, or protected from changes.
+- An edit failed with "This track is locked." Unlock it first, if they agree.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| trackId | yes | Track id from edit_read_timeline. |
+| name | no | New name. |
+| muted | no | Silence an audio track. |
+| hidden | no | Hide a visual or text track. |
+| locked | no | Lock or unlock the track. |
+
+### edit_remove_track
+
+**Remove a track.** Delete a track and every clip on it. Free; edit_undo brings it back.
+
+No side effects.
+
+Use when:
+- They want a whole layer gone.
+
+Don't use when:
+- They want one clip gone. Use edit_remove.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| trackId | yes | Track id from edit_read_timeline. |
+
+### edit_reorder_track
+
+**Reorder a track.** Move a track up or down the list. Later visual tracks draw on top. Free.
+
+No side effects.
+
+Use when:
+- A layer should sit above or below another.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| trackId | yes | Track id from edit_read_timeline. |
+| index | yes | New position, 0 first. |
+
+### edit_duplicate
+
+**Duplicate a clip.** Copy a clip. The copy goes right after the original unless you say where. Free.
+
+No side effects.
+
+Use when:
+- They want a clip, title, or sound repeated.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemId | yes | Clip id from edit_read_timeline. |
+| startSec | no | Where the copy starts. |
+| trackId | no | Track for the copy, same kind. |
+
+### edit_crossfade
+
+**Crossfade two clips.** Overlap two clips on the same track with a fade between them. Free.
+
+No side effects.
+
+Use when:
+- They want a smooth blend from one clip into the next.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| firstId | yes | The earlier clip. |
+| secondId | yes | The later clip. |
+| seconds | no | Overlap length. Defaults to 0.4. |
+
+### edit_set_transition
+
+**Set a transition.** Set how a clip enters or leaves: fade, slide, wipe, zoom, or none. Free.
+
+No side effects.
+
+Use when:
+- They want a clip, picture, scene, or title to fade, slide, wipe, or zoom in or out.
+
+Don't use when:
+- It is an audio clip. Use edit_set_audio fades.
+- Two clips should blend into each other. Use edit_crossfade.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemId | yes | Clip id from edit_read_timeline. |
+| type | yes | fade, slide, wipe, zoom, or none to remove it. |
+| edge | no | Which end. Defaults to both. |
+| seconds | no | Length. Defaults to 0.4. |
+
+### edit_set_transform
+
+**Position and size.** Move, scale, rotate, fit, or fade a video, picture, or text clip on the frame. Free.
+
+No side effects.
+
+Use when:
+- They want a picture-in-picture, a zoomed crop, a tilt, or a semi-transparent overlay.
+- fillFrame true resets to centred, full size, unrotated.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemId | yes | Clip id from edit_read_timeline. |
+| x | no | Horizontal offset, percent of the frame width. 0 is centred. |
+| y | no | Vertical offset, percent of the frame height. 0 is centred, negative is up. |
+| scale | no | Size. 1 fills the frame; 0.4 is a small inset. Video never shrinks below 1. |
+| rotation | no | Degrees clockwise. |
+| fit | no | cover crops to fill, contain shows the whole picture. |
+| opacity | no | 0 invisible to 1 solid. Not for text. |
+| fillFrame | no | Reset position, size, and rotation first. |
+
+### edit_style_text
+
+**Style text.** Change the font, size, weight, color, box, alignment, position, and in/out animation of one or more text clips. Free.
+
+No side effects.
+
+Use when:
+- They want titles bigger, bolder, a different color or font, without a box, or animated differently.
+
+Don't use when:
+- They want every caption restyled. Use edit_style_captions.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemIds | yes | Text clip ids from edit_read_timeline. |
+| fontFamily | no | CSS font family, e.g. Inter, Georgia, Impact. |
+| fontSize | no | Size in pixels on the full-size frame. Titles 60-110, captions 36-48. |
+| fontWeight | no | 100 thin to 900 black. 700 is bold. |
+| color | no | Text color, e.g. #FFFFFF or rgb(255,200,0). |
+| background | no | Box behind the words, e.g. rgba(0,0,0,0.55). null removes the box. |
+| align | no | left, center, or right. |
+| position | no | Where the words sit: top, center, or bottom. |
+| animationIn | no | How the words appear. |
+| animationOut | no | How the words leave. |
+
+### edit_style_captions
+
+**Style captions.** Restyle every caption at once: font, size, color, box, position, animation. Free.
+
+No side effects.
+
+Use when:
+- They want the captions bigger, higher, yellow, without a box, and so on.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| fontFamily | no | CSS font family, e.g. Inter, Georgia, Impact. |
+| fontSize | no | Size in pixels on the full-size frame. Titles 60-110, captions 36-48. |
+| fontWeight | no | 100 thin to 900 black. 700 is bold. |
+| color | no | Text color, e.g. #FFFFFF or rgb(255,200,0). |
+| background | no | Box behind the words, e.g. rgba(0,0,0,0.55). null removes the box. |
+| align | no | left, center, or right. |
+| position | no | Where the words sit: top, center, or bottom. |
+| animationIn | no | How the words appear. |
+| animationOut | no | How the words leave. |
+
+### edit_remove_captions
+
+**Remove captions.** Delete every caption, keeping other titles. Free; edit_undo brings them back.
+
+No side effects.
+
+Use when:
+- They want the captions gone, or want to add them again with a different style.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+
+### edit_set_audio
+
+**Set sound.** Change a clip's volume, an audio clip's fade in and out, or mark it as music, sfx, or voice. Free.
+
+No side effects.
+
+Use when:
+- The music should fade out at the end, a sound effect is too quiet, or the voice should duck.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemId | yes | Audio or video clip id from edit_read_timeline. |
+| volume | no | 0 silent, 1 as recorded, 2 double. |
+| fadeInSec | no | Audio clips only. |
+| fadeOutSec | no | Audio clips only. |
+| role | no | music, sfx, or voice. Audio clips only. |
+
+### edit_set_image_motion
+
+**Camera move on a picture.** Give a still picture a slow zoom or pan, or stop it. Free.
+
+No side effects.
+
+Use when:
+- A picture clip should feel alive: Ken Burns zoom in, pan left, and so on.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| itemId | yes | Picture clip id from edit_read_timeline. |
+| motion | yes | The move, or none. |
+| amount | no | How far it travels, as a share of the frame. Defaults to 0.12. |
+
+### edit_add_media
+
+**Add a picture, clip, or sound.** Put an uploaded picture, video, or audio file, or one of their finished videos, on the timeline. Free.
+
+No side effects.
+
+Use when:
+- They want a B-roll clip, a logo, a picture, or a sound placed at a time.
+- Get a key with list_uploads or import_media_from_url, or a videoId from list_my_videos.
+
+Don't use when:
+- It is a song or background music. edit_add_music sets music defaults.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| mediaKey | no | Upload key of a picture, video, or audio file. |
+| videoId | no | A finished video from list_my_videos, placed as a clip. |
+| startSec | no | Where it starts. Defaults to 0. |
+| durationSec | no | How long it shows. Pictures default to 3 s; clips and sounds to their length. |
+| trackId | no | Track to put it on. Defaults to the first unlocked track of the right kind. |
+| role | no | For audio: music, sfx, or voice. |
+
+### edit_batch
+
+**Several edits at once.** Apply a list of edits in order as one change, so they land together and undo together. Free.
+
+No side effects.
+
+Use when:
+- You have several edits planned, e.g. trim three clips and restyle the titles.
+- Each op names an edit tool and its arguments, without projectId.
+
+Don't use when:
+- The edits need media lookups (music, media, captions). Call those tools on their own.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| ops | yes | Edits to apply, in order. If any fails, none are saved. |
+
+### edit_undo
+
+**Undo the last edit.** Put the timeline back to how it was before the last agent edit. Free.
+
+No side effects.
+
+Use when:
+- They don't like the last change, or an edit went wrong.
+
+Don't use when:
+- They want an older version. Use edit_list_revisions and edit_restore_revision.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+
+### edit_list_revisions
+
+**List edit history.** List saved versions of the timeline, newest first, with what changed. Free.
+
+Read only.
+
+Use when:
+- They want to go back further than one undo, or see what changed.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+
+### edit_restore_revision
+
+**Restore a version.** Put back a saved version from edit_list_revisions. The current timeline is kept as a version too. Free.
+
+No side effects.
+
+Use when:
+- They want the edit as it was at an earlier point.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| revisionId | yes | Revision id from edit_list_revisions. |
+
+### edit_revert_to_original
+
+**Revert to the original.** Throw away every edit and rebuild the timeline from the source video. edit_undo can still bring the edits back.
+
+Destructive. Needs approval.
+
+Use when:
+- They want to start the edit over from the generated video.
 
 Inputs:
 

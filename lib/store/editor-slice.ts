@@ -201,11 +201,11 @@ export const editorSlice = createSlice({
     /** A save that already happened on the server. Undo can still step back to the previous cut. */
     applyRemoteEdit: (
       state,
-      action: PayloadAction<{ timeline: Timeline; version: number; changedItemIds: string[] }>,
+      action: PayloadAction<{ timeline: Timeline; version: number; changedItemIds: string[]; title?: string }>,
     ) => {
       const base = baseDocument(state);
       if (!base || !state.document) return;
-      const snapshot = { timeline: action.payload.timeline, title: base.history.present.title };
+      const snapshot = { timeline: action.payload.timeline, title: action.payload.title ?? base.history.present.title };
       if (!sameSnapshot(base.history.present, snapshot)) {
         state.document.history = {
           past: [...base.history.past, base.history.present].slice(-HISTORY_LIMIT),

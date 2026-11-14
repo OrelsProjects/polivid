@@ -136,9 +136,18 @@ export const SceneItemSchema = z.object({
 });
 export type SceneItem = z.infer<typeof SceneItemSchema>;
 
+/** Marks text the editor made as captions, so they can be restyled or removed together. Unset is a plain title. */
+export const TEXT_ROLES = ["caption"] as const;
+export type TextRole = (typeof TEXT_ROLES)[number];
+
+/** What an audio clip is for. Unset is any other sound. */
+export const AUDIO_ROLES = ["music", "sfx", "voice"] as const;
+export type AudioRole = (typeof AUDIO_ROLES)[number];
+
 export const TextItemSchema = z.object({
   ...ItemBaseSchema,
   kind: z.literal("text"),
+  role: z.enum(TEXT_ROLES).optional(),
   text: z.string(),
   style: TextStyleSchema,
   transform: TransformSchema,
@@ -150,6 +159,7 @@ export type TextItem = z.infer<typeof TextItemSchema>;
 export const AudioItemSchema = z.object({
   ...ItemBaseSchema,
   kind: z.literal("audio"),
+  role: z.enum(AUDIO_ROLES).optional(),
   assetId: z.string().min(1),
   trimStart: z.number().int().min(0),
   volume: z.number().min(0).max(2),

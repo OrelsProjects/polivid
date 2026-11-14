@@ -2,7 +2,7 @@ import { accountTools } from "./account";
 import { askTools } from "./ask";
 import { assetTools } from "./assets";
 import { catalogTools } from "./catalog";
-import { timelineEditTools } from "./edit";
+import { moreEditTools, timelineEditTools } from "./edit";
 import { editorTools } from "./editor";
 import { jobTools } from "./jobs";
 import { libraryTools } from "./library";
@@ -20,6 +20,7 @@ export const TOOL_DEFS = [
   ...jobTools,
   ...editorTools,
   ...timelineEditTools,
+  ...moreEditTools,
   ...accountTools,
   ...navigateTools,
   ...askTools,

@@ -6,6 +6,7 @@ import { useRef, useState, type CSSProperties, type ReactNode, type RefObject, t
 import { CoachThreadList, type CoachThreadItem } from "@/components/coach/coach-thread-list";
 import { EditorProvider } from "@/components/editor/editor-provider";
 import { TimelinePanel } from "@/components/editor/timeline/timeline";
+import { useAgentSync } from "@/components/editor/use-agent-sync";
 import { useAutosave } from "@/components/editor/use-autosave";
 import { useEditorShortcuts } from "@/components/editor/use-editor-shortcuts";
 import { useMotionSafe } from "@/components/motion/motion";
@@ -108,6 +109,7 @@ function ReadyBody({
 }) {
   useAutosave(flushRef);
   useEditorShortcuts();
+  useAgentSync();
   useRemoteEdits(messages);
   const safe = useMotionSafe();
   const columnRef = useRef<HTMLDivElement>(null);

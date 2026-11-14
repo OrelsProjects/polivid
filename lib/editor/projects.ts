@@ -247,28 +247,109 @@ export const saveProjectForUser = async (
   throw new ProjectConflictError();
 };
 
-/** Applies one timeline edit and saves it. Retries once when another save landed first. */
+/** Snapshots kept per project for undo. Older ones are dropped. */
+export const MAX_REVISIONS = 50;
+
+const recordRevision = async (project: EditProjectView, afterVersion: number, reason: string) => {
+  await db.editProjectRevision.create({
+    data: {
+      projectId: project.id,
+      version: project.version,
+      afterVersion,
+      title: project.title,
+      format: project.timeline.format,
+      timeline: project.timeline as unknown as Prisma.InputJsonValue,
+      reason: reason.slice(0, 200),
+    },
+  });
+  const stale = await db.editProjectRevision.findMany({
+    where: { projectId: project.id },
+    orderBy: { createdAt: "desc" },
+    skip: MAX_REVISIONS,
+    select: { id: true },
+  });
+  if (stale.length > 0) await db.editProjectRevision.deleteMany({ where: { id: { in: stale.map((row) => row.id) } } });
+};
+
+/**
+ * Applies one timeline edit and saves it. Retries once when another save landed first.
+ * With `reason`, the timeline before the edit is kept as a revision so it can be undone.
+ */
 export const applyProjectEdit = async (
   userId: string,
   projectId: string,
   edit: (timeline: Timeline) => Timeline,
+  options: { title?: string; reason?: string } = {},
 ): Promise<EditProjectView> => {
   let last: unknown;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const current = await getProjectForUser(userId, projectId);
     if (!current) throw new Error("Not found.");
     try {
-      return await saveProjectForUser(userId, projectId, {
+      const saved = await saveProjectForUser(userId, projectId, {
         timeline: edit(current.timeline),
-        title: current.title,
+        title: options.title ?? current.title,
         version: current.version,
       });
+      if (options.reason) {
+        await recordRevision(current, saved.version, options.reason).catch((error) => console.error("Could not keep a revision", error));
+      }
+      return saved;
     } catch (error) {
       last = error;
       if (!(error instanceof ProjectConflictError) || attempt === 1) throw error;
     }
   }
   throw last;
+};
+
+export const listRevisionsForUser = async (userId: string, projectId: string) => {
+  const project = await db.editProject.findFirst({ where: { id: projectId, userId }, select: { id: true } });
+  if (!project) return null;
+  const rows = await db.editProjectRevision.findMany({
+    where: { projectId },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, version: true, title: true, reason: true, createdAt: true },
+  });
+  return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+};
+
+const restoreRow = async (
+  userId: string,
+  projectId: string,
+  revision: { timeline: unknown; title: string },
+  reason: string,
+) => {
+  const timeline = TimelineSchema.parse(revision.timeline);
+  return applyProjectEdit(userId, projectId, () => timeline, { title: revision.title, reason });
+};
+
+/**
+ * Puts back the timeline from before the newest agent edit, and forgets that revision.
+ * Refuses when the project changed since then, so a person's later work is not thrown away.
+ */
+export const undoLastEditForUser = async (userId: string, projectId: string) => {
+  const project = await getProjectForUser(userId, projectId);
+  if (!project) return { result: "missing" as const };
+  const latest = await db.editProjectRevision.findFirst({ where: { projectId }, orderBy: { createdAt: "desc" } });
+  if (!latest) return { result: "empty" as const };
+  if (project.version !== latest.afterVersion) return { result: "moved" as const, reason: latest.reason };
+  const restored = await applyProjectEdit(userId, projectId, () => TimelineSchema.parse(latest.timeline), { title: latest.title });
+  await db.editProjectRevision.delete({ where: { id: latest.id } }).catch(() => undefined);
+  // The project now matches the state the previous edit saved, so that edit can be undone next.
+  await db.editProjectRevision
+    .updateMany({ where: { projectId, afterVersion: latest.version }, data: { afterVersion: restored.version } })
+    .catch(() => undefined);
+  return { result: "undone" as const, project: restored, reason: latest.reason };
+};
+
+/** Restores any kept revision. The current timeline becomes a revision too, so this can be undone. */
+export const restoreRevisionForUser = async (userId: string, projectId: string, revisionId: string) => {
+  const project = await db.editProject.findFirst({ where: { id: projectId, userId }, select: { id: true } });
+  if (!project) return null;
+  const revision = await db.editProjectRevision.findFirst({ where: { id: revisionId, projectId } });
+  if (!revision) return null;
+  return restoreRow(userId, projectId, revision, `Restored the version from before “${revision.reason}”.`);
 };
 
 export const saveMyProject = async (id: string, input: { timeline: Timeline; title: string; version: number }) =>
@@ -287,6 +368,9 @@ export const revertProjectForUser = async (userId: string, id: string): Promise<
   const video = await getVideoForUser(userId, project.sourceVideoId);
   if (!video) return null;
   const timeline = timelineFromVideo(video, await footageOptions(userId, video.id));
+  await recordRevision(toView(project), project.version + 1, "Reverted to the original video.").catch((error) =>
+    console.error("Could not keep a revision", error),
+  );
   const row = await db.editProject.update({
     where: { id: project.id },
     data: {

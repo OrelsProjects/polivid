@@ -62,7 +62,23 @@ Do not delete a tool that a saved chat may mention. Set `status: "legacy"`.
 
 ## Project mode
 
-When a chat queues a video, `CoachThread.videoJobId` points at that job. Once the video is ready, `ensureThreadProject` opens an editor project and stores `editProjectId`. The Coach then edits that timeline with the `edit_*` tools. Those tools are free. `make_*` is for a new video, not a change to the open cut. The finished file is one clip, so a section comes out with `edit_split` and then `edit_remove`.
+When a chat queues a video, `CoachThread.videoJobId` points at that job. Once the video is ready, `ensureThreadProject` opens an editor project and stores `editProjectId`. The Coach then edits that timeline with the `edit_*` tools. Over MCP, `open_in_editor` returns the `projectId`, and every edit tool takes it.
+
+- The edit tools are free, and together they cover everything the editor UI can do:
+  - project title and frame
+  - tracks: add, rename, mute, hide, lock, reorder, remove
+  - clips: trim, split, move (also across tracks), duplicate, crossfade, transitions, position, size, rotation, fit, opacity
+  - text style and animation
+  - captions (marked with `role: "caption"`)
+  - music, sound effects, and fades
+  - pictures, clips, and sounds from uploads
+  - camera moves on stills
+- `make_*` is for a new video, not a change to the open cut. The finished file is one clip, so a section comes out with `edit_split` and then `edit_remove`.
+- Each simple edit is a builder in `lib/tools/handlers/edit-builders.ts`, over a pure function in `lib/editor/coach-edits.ts`. `edit_batch` runs several builders as one save.
+- Every agent edit keeps the timeline it replaced in `EditProjectRevision` (50 per project). `edit_undo` steps back one edit at a time, as long as nobody changed the project since. `edit_list_revisions` and `edit_restore_revision` reach older versions.
+- The open editor picks up agent saves on its own:
+  - Coach edits arrive through `use-remote-edits.ts`.
+  - MCP edits arrive through `use-agent-sync.ts`, which polls every 5 s while the tab is visible and nothing is unsaved.
 
 ## Create modes
 

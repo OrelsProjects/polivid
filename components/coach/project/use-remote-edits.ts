@@ -30,7 +30,7 @@ export const useRemoteEdits = (messages: UIMessage[]) => {
         if (applied.current.has(part.toolCallId)) continue;
         const output = "output" in part ? part.output : null;
         if (!output || typeof output !== "object") continue;
-        const row = output as { project?: { timeline?: Timeline; version?: number }; changedItemIds?: unknown };
+        const row = output as { project?: { timeline?: Timeline; version?: number; title?: string }; changedItemIds?: unknown };
         if (!row.project?.timeline || typeof row.project.version !== "number") continue;
         const document = selectEditorDocument(store.getState());
         applied.current.add(part.toolCallId);
@@ -38,7 +38,12 @@ export const useRemoteEdits = (messages: UIMessage[]) => {
         const changedItemIds = Array.isArray(row.changedItemIds)
           ? row.changedItemIds.filter((id): id is string => typeof id === "string")
           : [];
-        applyRemoteEdit({ timeline: row.project.timeline, version: row.project.version, changedItemIds });
+        applyRemoteEdit({
+          timeline: row.project.timeline,
+          version: row.project.version,
+          changedItemIds,
+          title: typeof row.project.title === "string" ? row.project.title : undefined,
+        });
       }
     }
   }, [applyRemoteEdit, messages, store]);

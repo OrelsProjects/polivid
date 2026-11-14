@@ -7,6 +7,7 @@ import { EditorToolbar } from "./editor-toolbar";
 import { InspectorPanel } from "./inspector/inspector-panel";
 import { MediaPanel } from "./media-panel";
 import { TimelinePanel } from "./timeline/timeline";
+import { useAgentSync } from "./use-agent-sync";
 import { useAutosave } from "./use-autosave";
 import { useEditorShortcuts } from "./use-editor-shortcuts";
 
@@ -17,6 +18,7 @@ const PreviewPlayer = dynamic(() => import("./preview-player").then((module) => 
 function EditorWorkspace({ videos }: { videos: LibraryVideo[] }) {
   useAutosave();
   useEditorShortcuts();
+  useAgentSync();
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-background">
       <p role="note" className="shrink-0 bg-amber-500/10 px-3 py-2 text-center text-xs text-amber-800 lg:hidden">
