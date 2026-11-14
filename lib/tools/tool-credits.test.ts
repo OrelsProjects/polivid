@@ -113,3 +113,23 @@ test("every credit tool is priced from its input or looked up", () => {
     else assert.equal(typeof credits, "number", `${definition.name} ${credits}`);
   }
 });
+
+test("a model named in the tool call changes the price", () => {
+  const base = { prompt: "A street at night", format: "9:16", length: 10, tier: "pro" };
+  const tierPrice = creditsForToolInput("make_prompt_video", base);
+  const klingPrice = creditsForToolInput("make_prompt_video", { ...base, model: "kling-4" });
+  assert.equal(typeof tierPrice, "number");
+  assert.equal(typeof klingPrice, "number");
+  assert.notEqual(tierPrice, klingPrice);
+  // A model picked on the approval card still wins over the one typed into the call.
+  assert.equal(
+    creditsForToolInput("make_prompt_video", { ...base, model: "kling-4" }, { generationModelId: "wan" }),
+    creditsForToolInput("make_prompt_video", { ...base, model: "wan" }),
+  );
+});
+
+test("the direct mode tool is priced like a filmed clip", () => {
+  const credits = creditsForToolInput("make_direct_video", { prompt: "rain", format: "9:16", length: 5, model: "kling-4" });
+  assert.equal(typeof credits, "number");
+  assert.ok((credits ?? 0) > 0);
+});

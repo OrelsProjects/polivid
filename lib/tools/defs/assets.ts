@@ -70,6 +70,12 @@ export const assetTools = [
     avoidWhen: ["They uploaded a finished track. Use make_music_video with that file."],
     inputSchema: z.object({
       prompt: promptField("Lyrics, plus any style note. The lyrics themselves are required."),
+      style: z
+        .string()
+        .trim()
+        .max(300)
+        .optional()
+        .describe("Musical direction as a short comma list: genre, mood, tempo, instruments, vocal type. E.g. lo-fi hip hop, mellow, 80 bpm, female vocal."),
       length: lengthField(),
       tier: tierField(),
       characterId: characterField(),
@@ -143,6 +149,24 @@ export const assetTools = [
         .describe("The voice description you passed to design_voice. Required when voiceMode is designed."),
     }),
     effects: { readOnly: false, spendsCredits: false, destructive: false, longRunning: true },
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+  }),
+  defineTool({
+    name: "import_media_from_url",
+    title: "Import media from a link",
+    category: "assets",
+    summary: "Download a public picture, song, or clip into the person's uploads and get its key.",
+    whenToUse: [
+      "You have a file as a public https link and a tool needs an upload key (mediaKey, referenceKeys, backgroundKey, edit_add_media).",
+      "Over MCP this is how you attach your own media: there is no chat composer.",
+    ],
+    avoidWhen: ["The file is already uploaded. Use list_uploads to find its key."],
+    inputSchema: z.object({
+      url: z.string().trim().url().max(2000).describe("Public http(s) link straight to the file."),
+    }),
+    effects: { readOnly: false, spendsCredits: false, destructive: false, longRunning: false },
     approval: "none",
     runsOn: "server",
     surfaces: ["coach", "mcp"],

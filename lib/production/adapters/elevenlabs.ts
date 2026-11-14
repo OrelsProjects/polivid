@@ -4,6 +4,8 @@ import type { AdapterJob, AdapterRequest, MediaAdapter } from "./types";
 
 const BASE = "https://api.elevenlabs.io";
 
+export const hasElevenLabsKey = () => Boolean(process.env.ELEVENLABS_API_KEY?.trim());
+
 const key = () => {
   const value = process.env.ELEVENLABS_API_KEY?.trim();
   if (!value) throw new Error("ELEVENLABS_API_KEY is not set.");
@@ -36,7 +38,8 @@ const done = (id: string, bytes: Uint8Array, mime: string, usd: number, json?: u
 
 let voices: { id: string; name: string }[] | null = null;
 
-const listVoices = async () => {
+/** Voices on the ElevenLabs account, cached for the process. */
+export const listVoices = async () => {
   if (voices) return voices;
   const response = await fetch(`${BASE}/v1/voices`, { headers: { "xi-api-key": key() } });
   if (!response.ok) {

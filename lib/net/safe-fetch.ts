@@ -50,7 +50,9 @@ interface RawResponse {
   body: Buffer;
 }
 
-const requestOnce = (url: URL, signal: AbortSignal) =>
+const PAGE_ACCEPT = "text/html,application/xhtml+xml,text/plain;q=0.8";
+
+const requestOnce = (url: URL, signal: AbortSignal, maxBytes = MAX_BYTES, accept = PAGE_ACCEPT) =>
   new Promise<RawResponse>((resolve, reject) => {
     const transport = url.protocol === "https:" ? https : http;
     const request = transport.request(
@@ -60,7 +62,7 @@ const requestOnce = (url: URL, signal: AbortSignal) =>
         lookup: publicLookup,
         signal,
         headers: {
-          accept: "text/html,application/xhtml+xml,text/plain;q=0.8",
+          accept,
           "accept-language": "en",
           "user-agent": "Mozilla/5.0 (compatible; page-reader/1.0)",
         },
@@ -75,7 +77,7 @@ const requestOnce = (url: URL, signal: AbortSignal) =>
           return;
         }
         const declared = Number(response.headers["content-length"] ?? 0);
-        if (declared > MAX_BYTES) {
+        if (declared > maxBytes) {
           request.destroy();
           reject(new FetchPageError("That page is too large to read."));
           return;
@@ -84,7 +86,7 @@ const requestOnce = (url: URL, signal: AbortSignal) =>
         let size = 0;
         response.on("data", (chunk: Buffer) => {
           size += chunk.byteLength;
-          if (size > MAX_BYTES) {
+          if (size > maxBytes) {
             request.destroy();
             reject(new FetchPageError("That page is too large to read."));
             return;
@@ -140,6 +142,34 @@ export const fetchPublicPage = async (raw: string) => {
       throw new FetchPageError("That link isn't a web page. Paste the text instead.");
     }
     return { url: url.toString(), contentType: response.contentType, text: decode(response.body, response.contentType) };
+  }
+  throw new FetchPageError("That link redirects too many times.");
+};
+
+/**
+ * Downloads one public file (a picture, a song, a clip) with the same address checks as a page.
+ * Gives up on anything slow or over maxBytes.
+ */
+export const fetchPublicFile = async (raw: string, maxBytes: number) => {
+  let url = parsePublicUrl(raw);
+  const signal = AbortSignal.timeout(30_000);
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let response: RawResponse;
+    try {
+      response = await requestOnce(url, signal, maxBytes, "*/*");
+    } catch (error) {
+      if (error instanceof UnsafeUrlError) throw error;
+      if (error instanceof FetchPageError) throw new FetchPageError(`That file is over ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+      if (signal.aborted) throw new FetchPageError("That file took too long to download.");
+      throw new FetchPageError("We couldn't reach that file.");
+    }
+    if (response.status >= 300 && response.status < 400) {
+      if (!response.location) throw new FetchPageError("That link doesn't lead to a file.");
+      url = parsePublicUrl(new URL(response.location, url).toString());
+      continue;
+    }
+    if (response.status < 200 || response.status >= 300) throw new FetchPageError(`That file didn't download (${response.status}).`);
+    return { url: url.toString(), contentType: response.contentType.split(";")[0].trim().toLowerCase(), bytes: response.body };
   }
   throw new FetchPageError("That link redirects too many times.");
 };

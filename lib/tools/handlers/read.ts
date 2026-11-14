@@ -13,6 +13,9 @@ import { listActiveVideoJobs } from "@/lib/video/jobs";
 import { listPresetsFor, summarizePreset } from "@/lib/video/presets";
 import { suggestPreset } from "@/lib/video/suggest-preset";
 import { getVideoForUser, listMyVideos } from "@/lib/videos";
+import { priceToolCall } from "@/lib/tools/lookup-credits";
+import { TOOL_DEFS, toolByName } from "@/lib/tools/registry";
+import { creditsForToolCall } from "@/lib/tools/tool-credits";
 import type { ToolHandler } from "@/lib/tools/types";
 import { asRecord, text } from "./support";
 
@@ -138,11 +141,23 @@ export const estimateCreditsHandler: ToolHandler = async (input, ctx) => {
     if (!production) return { error: "Production not found." };
     return { credits: await estimateProductionCredits(production.id) };
   }
-  if (typeof row.length !== "number") return { error: "Pass a length, or a productionId." };
+  const toolName = text(row.tool);
+  if (toolName) {
+    const definition = toolByName(toolName);
+    if (!definition) return { error: `Unknown tool ${toolName}.` };
+    if (!definition.effects.spendsCredits) return { credits: 0, note: `${toolName} does not spend credits.` };
+    const credits = await priceToolCall(ctx.userId, toolName, asRecord(row.arguments));
+    return credits === null ? { error: `Can't price ${toolName} from those arguments. Include length, or the id it needs.` } : { credits };
+  }
+  if (typeof row.length !== "number") return { error: "Pass a length, a tool with its arguments, or a productionId." };
+  const mode = typeof row.mode === "string" ? row.mode : "prompt";
+  const makeTool = TOOL_DEFS.find((definition) => definition.videoMode === mode && (definition.status ?? "live") === "live");
+  const credits = makeTool ? creditsForToolCall(makeTool.name, row, { demo: !hasOpenRouterKey() }) : null;
+  if (credits !== null) return { credits };
   return {
     credits: videoJobCredits({
       demo: !hasOpenRouterKey(),
-      mode: typeof row.mode === "string" ? row.mode : undefined,
+      mode,
       tier: typeof row.tier === "string" ? row.tier : undefined,
       length: row.length,
     }),

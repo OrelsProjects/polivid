@@ -4,8 +4,17 @@ import { VISUAL_MEDIA } from "@/lib/video/stills";
 import { z } from "zod";
 import { defineModeTool, defineTool } from "@/lib/tools/define";
 import {
+  attachmentRolesField,
+  briefField,
   characterField,
+  clipsField,
+  cutsField,
   formatField,
+  modelField,
+  pictureKeysField,
+  showTextField,
+  sourceUrlField,
+  templateField,
   lengthField,
   mediaKeyField,
   optionalPromptField,
@@ -24,8 +33,22 @@ const filmed = () => ({
   format: formatField(),
   length: lengthField(),
   tier: tierField(),
+  model: modelField(),
   presetId: presetField(),
   visualDirection: visualDirectionField(),
+  showText: showTextField(),
+  template: templateField(),
+});
+
+/** Motion graphics are drawn in code, not filmed, so there is no footage model to pick. */
+const drawn = () => ({
+  format: formatField(),
+  length: lengthField(),
+  tier: tierField(),
+  presetId: presetField(),
+  visualDirection: visualDirectionField(),
+  showText: showTextField(),
+  template: templateField(),
 });
 
 const note = (description: string) =>
@@ -42,6 +65,7 @@ export const makeTools = [
       "Write the video prompt as numbered beats, one action each, in order. Do not describe later beats inside an earlier one.",
       "Pass vo as the brief's spoken lines, one beat per line. Pass none when the brief has no voiceover.",
       "When a brief lists frames:, pass those keys as referenceKeys in the same order.",
+      "To control the shots yourself, pass cuts (seconds and camera per shot, from make_storyboard scenes). Otherwise clips sets only the shot count.",
     ],
     avoidWhen: [
       "They pasted a script to be spoken. Use make_voiceover_video.",
@@ -51,7 +75,10 @@ export const makeTools = [
     inputSchema: z.object({
       prompt: promptField("What to film. Numbered beats, one action each, in order."),
       ...filmed(),
-      showText: z.boolean().optional().describe("Whether on-screen text is allowed. Defaults to yes."),
+      clips: clipsField(),
+      cuts: cutsField(),
+      brief: briefField(),
+      attachmentRoles: attachmentRolesField(),
       characterId: characterField(),
       referenceKeys: referenceKeysField(),
       vo: z
@@ -99,7 +126,9 @@ export const makeTools = [
       backgroundId: z
         .enum(BACKGROUND_IDS)
         .optional()
-        .describe("Built-in background for media loop. Defaults to aurora."),
+        .describe("Built-in background for media loop (list_backgrounds). Defaults to aurora."),
+      backgroundKey: mediaKeyField("Their own uploaded video to loop behind the words, instead of backgroundId. Media loop only."),
+      sourceUrl: sourceUrlField(),
     }),
     approvalDetail: videoApprovalDetail("voiceover"),
   }),
@@ -148,7 +177,7 @@ export const makeTools = [
     ],
     inputSchema: z.object({
       prompt: promptField("The idea. Name any figures that should appear. On ultra, include where each number came from."),
-      ...filmed(),
+      ...drawn(),
     }),
     approvalDetail: videoApprovalDetail("motion-graphics"),
   }),
@@ -184,9 +213,7 @@ export const makeTools = [
     inputSchema: z.object({
       prompt: promptField("The words this person should say, looking at the camera."),
       mediaKey: mediaKeyField("Photo upload key. Omit to use the attached picture."),
-      format: formatField(),
-      length: lengthField(),
-      tier: tierField(),
+      ...filmed(),
     }),
     approvalDetail: videoApprovalDetail("avatar"),
   }),
@@ -246,6 +273,9 @@ export const makeTools = [
       songId: z.string().uuid().optional().describe("Song take id from compose_song or list_songs. Omit to compose during the video."),
       direction: note("Camera, pacing, and performance notes."),
       scene: note("Location, set, and wardrobe."),
+      directionKeys: pictureKeysField("Upload keys of shot reference pictures for the direction."),
+      sceneKeys: pictureKeysField("Upload keys of pictures of the location, set, or wardrobe."),
+      cuts: cutsField(),
     }),
     approvalDetail: videoApprovalDetail("lyrics"),
   }),
@@ -267,6 +297,7 @@ export const makeTools = [
       format: formatField(),
       length: lengthField(),
       tier: tierField(),
+      template: templateField(),
     }),
     approvalDetail: videoApprovalDetail("captions"),
   }),
@@ -287,10 +318,38 @@ export const makeTools = [
       mediaKey: mediaKeyField("Video upload key. Omit to use the attached video."),
       op: z.enum(EDIT_OPS).describe("The change to make."),
       opValue: z.string().trim().max(20).optional().describe("The setting for that change. Omit for its default."),
+      template: templateField(),
     }),
     approvalDetail: (value) =>
       isEditOp(value.op) ? `${describeEdit(value.op, editValueFor(value.op, String(value.opValue ?? "")))} · ${EDIT_CREDITS} credits` : "Quick edit",
     examples: [{ request: "This clip is sideways, fix it.", input: { op: "rotate", opValue: "90" } }],
+  }),
+  defineModeTool({
+    modeId: "direct",
+    name: "make_direct_video",
+    whenToUse: [
+      "They wrote the exact prompt for the video model and want it sent untouched: no planning, no look, no voice, one clip.",
+      "Pick the model with model (list_models). The length must be one that model films.",
+    ],
+    avoidWhen: [
+      "They described an idea and want it planned into shots. Use make_prompt_video.",
+      "They want narration or a character voice. Use make_voiceover_video or make_prompt_video.",
+    ],
+    inputSchema: z.object({
+      prompt: promptField("The whole prompt for the video model. Sent exactly as written."),
+      format: formatField(),
+      length: lengthField(),
+      tier: tierField(),
+      model: modelField(),
+      template: templateField(),
+    }),
+    approvalDetail: videoApprovalDetail("direct"),
+    examples: [
+      {
+        request: "Send this exact prompt to Kling 4: 'macro shot of rain on a leaf, 4k'",
+        input: { prompt: "macro shot of rain on a leaf, 4k", format: "9:16", length: 5, model: "kling-4" },
+      },
+    ],
   }),
   defineTool({
     name: "create_video",
@@ -352,6 +411,12 @@ export const makeTools = [
         .boolean()
         .optional()
         .describe("Set false when they want no spoken voiceover. Omit to keep the voices written into the plan."),
+      creativeDelegation: z
+        .boolean()
+        .optional()
+        .describe("True lets the planner make creative calls on its own instead of asking. Defaults to false."),
+      budgetUsd: z.number().positive().max(500).optional().describe("Spend cap in US dollars for filming, up to 500. Omit for no cap."),
+      referenceKeys: referenceKeysField(),
     }),
     effects: { readOnly: false, spendsCredits: true, destructive: false, longRunning: true },
     approval: "user",

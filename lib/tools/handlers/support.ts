@@ -30,6 +30,9 @@ export const toolError = (error: unknown, fallback: string) => {
   return { error: fallback };
 };
 
+const stringList = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : undefined;
+
 const attachedOrRequested = (attached: string, requested: unknown, allowed: boolean) => {
   if (!allowed) return OFF_VOICE_ID;
   if (isCharacterId(attached) && attached !== OFF_VOICE_ID) return attached;
@@ -73,7 +76,16 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       mode: modeId,
       tier: typeof input.tier === "string" ? input.tier : "pro",
       ...(model ? { model } : {}),
-      ...(ctx.clipCount ? { clips: ctx.clipCount } : {}),
+      // A clip count the person picked on the approval card wins over the one the agent typed.
+      ...(ctx.clipCount ? { clips: ctx.clipCount } : typeof input.clips === "number" ? { clips: input.clips } : {}),
+      cuts: Array.isArray(input.cuts) && input.cuts.length > 0 ? input.cuts : undefined,
+      brief: input.brief && typeof input.brief === "object" ? input.brief : undefined,
+      attachmentRoles: Array.isArray(input.attachmentRoles) && input.attachmentRoles.length > 0 ? input.attachmentRoles : undefined,
+      tool: text(input.template) || undefined,
+      backgroundKey: text(input.backgroundKey) || undefined,
+      sourceUrl: text(input.sourceUrl) || undefined,
+      directionKeys: stringList(input.directionKeys),
+      sceneKeys: stringList(input.sceneKeys),
       showText: typeof input.showText === "boolean" ? input.showText : undefined,
       presetId: text(input.presetId) || undefined,
       visualDirection: typeof input.visualDirection === "string" ? input.visualDirection : undefined,

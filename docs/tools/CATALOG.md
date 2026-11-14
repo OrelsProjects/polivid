@@ -19,6 +19,7 @@ Use when:
 - Write the video prompt as numbered beats, one action each, in order. Do not describe later beats inside an earlier one.
 - Pass vo as the brief's spoken lines, one beat per line. Pass none when the brief has no voiceover.
 - When a brief lists frames:, pass those keys as referenceKeys in the same order.
+- To control the shots yourself, pass cuts (seconds and camera per shot, from make_storyboard scenes). Otherwise clips sets only the shot count.
 
 Don't use when:
 - They pasted a script to be spoken. Use make_voiceover_video.
@@ -33,9 +34,15 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
-| showText | no | Whether on-screen text is allowed. Defaults to yes. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
+| clips | no | How many clips (shots) to film, 1 to 12. Omit to let the planner use the fewest the model needs. |
+| cuts | no | Your own shot list, in order. Sets the number of shots and each one's length and camera, and skips the automatic planner. The seconds should add up to length. |
+| brief | no | How to read the prompt. Only used together with cuts. |
+| attachmentRoles | no | What each reference picture is: subject, person, product, location, storyboard, framing. Only used together with cuts. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 | vo | no | Spoken lines, one beat per line. Pass none when the brief has no voiceover. |
@@ -74,12 +81,17 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | media | no | What illustrates it: video films every scene, stills draws and animates pictures, loop plays a background clip. Defaults to video. |
 | verbatim | no | Read the prompt word for word instead of rewriting it to fit the length. |
-| backgroundId | no | Built-in background for media loop. Defaults to aurora. |
+| backgroundId | no | Built-in background for media loop (list_backgrounds). Defaults to aurora. |
+| backgroundKey | no | Their own uploaded video to loop behind the words, instead of backgroundId. Media loop only. |
+| sourceUrl | no | The page the script came from, kept as a record on the video. |
 
 ### make_shorts_video
 
@@ -106,8 +118,11 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | referenceKeys | no | Optional. One picture key for the background. Leave it out to let the look decide the setting. |
 
@@ -143,6 +158,8 @@ Inputs:
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 ### make_music_video
 
@@ -167,8 +184,11 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 ### make_avatar_video
 
@@ -193,6 +213,11 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
+| presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
+| visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 ### make_image_video
 
@@ -216,8 +241,11 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 
 ### make_av_cut
@@ -243,8 +271,11 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 ### make_lyrics_video
 
@@ -271,13 +302,19 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
+| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 | songId | no | Song take id from compose_song or list_songs. Omit to compose during the video. |
 | direction | no | Camera, pacing, and performance notes. |
 | scene | no | Location, set, and wardrobe. |
+| directionKeys | no | Upload keys of shot reference pictures for the direction. |
+| sceneKeys | no | Upload keys of pictures of the location, set, or wardrobe. |
+| cuts | no | Your own shot list, in order. Sets the number of shots and each one's length and camera, and skips the automatic planner. The seconds should add up to length. |
 
 ### add_captions
 
@@ -303,6 +340,7 @@ Inputs:
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 ### quick_edit_video
 
@@ -327,6 +365,7 @@ Inputs:
 | mediaKey | no | Video upload key. Omit to use the attached video. |
 | op | yes | The change to make. |
 | opValue | no | The setting for that change. Omit for its default. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
 
 Examples:
 
@@ -334,6 +373,39 @@ Examples:
 
 ```json
 {"op":"rotate","opValue":"90"}
+```
+
+### make_direct_video
+
+**Direct Prompt.** Your prompt goes to the video model exactly as you typed it. Nothing is planned, rewritten, or added.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They wrote the exact prompt for the video model and want it sent untouched: no planning, no look, no voice, one clip.
+- Pick the model with model (list_models). The length must be one that model films.
+
+Don't use when:
+- They described an idea and want it planned into shots. Use make_prompt_video.
+- They want narration or a character voice. Use make_voiceover_video or make_prompt_video.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| prompt | yes | The whole prompt for the video model. Sent exactly as written. |
+| format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
+| length | yes | Length in seconds, from 2 to 90. |
+| tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
+| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
+
+Examples:
+
+> Send this exact prompt to Kling 4: 'macro shot of rain on a leaf, 4k'
+
+```json
+{"prompt":"macro shot of rain on a leaf, 4k","format":"9:16","length":5,"model":"kling-4"}
 ```
 
 ### start_production
@@ -363,6 +435,9 @@ Inputs:
 | visualDirection | no | Look and shot notes, at most 600 characters. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | voiceover | no | Set false when they want no spoken voiceover. Omit to keep the voices written into the plan. |
+| creativeDelegation | no | True lets the planner make creative calls on its own instead of asking. Defaults to false. |
+| budgetUsd | no | Spend cap in US dollars for filming, up to 500. Omit for no cap. |
+| referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 
 Examples:
 
@@ -418,6 +493,7 @@ Long-running.
 Use when:
 - They want to see the shot list or the price before approving a prompt or lyrics video.
 - You are about to write a brief and want the cut count to match the length.
+- Pass the planned cuts (and brief and attachmentRoles for prompt) straight to make_prompt_video or make_lyrics_video, with the same model, so it films exactly this plan.
 
 Don't use when:
 - The mode is not prompt or lyrics. Those are the only modes with this planner.
@@ -430,6 +506,7 @@ Inputs:
 | length | yes | Length in seconds, from 2 to 90. |
 | mode | no | Which planner. Defaults to lyrics. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
 | format | no | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | direction | no | Camera and performance notes for lyrics. |
 | scene | no | Location and wardrobe notes for lyrics. |
@@ -575,6 +652,7 @@ Inputs:
 | Field | Required | Description |
 | --- | --- | --- |
 | prompt | yes | Lyrics, plus any style note. The lyrics themselves are required. |
+| style | no | Musical direction as a short comma list: genre, mood, tempo, instruments, vocal type. E.g. lo-fi hip hop, mellow, 80 bpm, female vocal. |
 | length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
@@ -641,7 +719,115 @@ Inputs:
 | generatedVoiceId | no | Id from design_voice. Required when voiceMode is designed. |
 | voiceDescription | no | The voice description you passed to design_voice. Required when voiceMode is designed. |
 
+### import_media_from_url
+
+**Import media from a link.** Download a public picture, song, or clip into the person's uploads and get its key.
+
+No side effects.
+
+Use when:
+- You have a file as a public https link and a tool needs an upload key (mediaKey, referenceKeys, backgroundKey, edit_add_media).
+- Over MCP this is how you attach your own media: there is no chat composer.
+
+Don't use when:
+- The file is already uploaded. Use list_uploads to find its key.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| url | yes | Public http(s) link straight to the file. |
+
 ## Library
+
+### list_modes
+
+**List video modes.** Every Create mode, the make_* tool that queues it, what it needs, and which model each tier films with.
+
+Read only.
+
+Use when:
+- Before choosing how to make a video, or when they ask what kinds of videos PoliVid makes.
+- To see which tier maps to which footage model and resolution.
+
+Inputs:
+- None.
+
+### list_models
+
+**List footage models.** Footage models you can pass as model: clip lengths, resolutions, native audio, reference pictures, and price.
+
+Read only.
+
+Use when:
+- Before passing model to a make_* tool or estimate_credits.
+- They ask which model is best, cheapest, longest, or has sound.
+
+Don't use when:
+- Motion graphics, captions, and quick edits film nothing and take no model.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| mode | no | Only models that suit this mode, e.g. those that take reference pictures for lyrics. |
+
+### list_templates
+
+**List templates.** Ready-made Create templates (product ad, explainer, top list…) with their mode and default settings.
+
+Read only.
+
+Use when:
+- They name a kind of video (an ad, a listicle, a quote card) and you want a starting point.
+- Pass the slug as template on that mode's make_* tool, and copy its defaults into the call.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| query | no | Search words matched against name, description, and keywords. |
+| mode | no | Only templates for this mode. |
+
+### list_voices
+
+**List voices.** Voices that can speak: the studio narrator, saved characters with a voice, and the speech library used by productions.
+
+Read only.
+
+Use when:
+- Before passing characterId for narration, or a voiceId to a production.
+- They ask what voices are available.
+
+Don't use when:
+- They want a new voice. Use design_voice or create_character.
+
+Inputs:
+- None.
+
+### list_backgrounds
+
+**List backgrounds.** Built-in looping backgrounds for a voiceover read over a loop (media loop).
+
+Read only.
+
+Use when:
+- Before passing backgroundId to make_voiceover_video with media loop.
+
+Inputs:
+- None.
+
+### list_options
+
+**List options.** Every fixed choice in one call: formats, length limits, tiers, visual media, quick-edit ops and values, attachment roles, caption and edit limits.
+
+Read only.
+
+Use when:
+- You need the allowed values for a field and the tool description doesn't list them.
+
+Inputs:
+- None.
 
 ### list_characters
 
@@ -997,6 +1183,26 @@ Inputs:
 | productionId | yes | Production id from list_my_productions. |
 | versionId | yes | Entity version id to make current. |
 
+### continue_video_with_model
+
+**Continue with another model.** Restart a video that stopped waiting for a different footage model, using the model you name. Uses the credits already held for it.
+
+Long-running.
+
+Use when:
+- get_video shows the video waiting for a model, often because the first one refused the prompt or the shape.
+- Pick one from list_models that films this format and is not the one that failed.
+
+Don't use when:
+- The video failed for another reason. Use retry_video.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| videoId | yes | Video or job id from list_my_videos. |
+| model | yes | Footage model id from list_models. |
+
 ## Editor
 
 ### open_in_editor
@@ -1253,6 +1459,7 @@ Read only.
 Use when:
 - You are writing a brief and want a price before they approve.
 - They ask what a production will cost. Pass its productionId.
+- To compare models or media, call it once per option. It is free.
 
 Don't use when:
 - You are only checking the balance. Use get_credit_balance.
@@ -1261,9 +1468,14 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| mode | no | Create mode to price. Ignored when productionId is set. |
+| tool | no | Name of any tool that spends credits, e.g. make_prompt_video. Pass its arguments in arguments to get the exact price that call would hold. |
+| arguments | no | The arguments you would send to that tool. |
+| mode | no | Create mode to price. Ignored when tool or productionId is set. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
-| length | no | Seconds to price for a Create video. Required unless productionId is set. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
+| media | no | video, stills, or loop. Stills and loop are much cheaper than filming. |
+| length | no | Seconds to price for a Create video. Required unless tool or productionId is set. |
+| cuts | no | Your own shot list, in order. Sets the number of shots and each one's length and camera, and skips the automatic planner. The seconds should add up to length. |
 | productionId | no | Existing production to price. |
 
 Examples:

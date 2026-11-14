@@ -24,6 +24,10 @@ export interface QuoteResult {
 /** First call of an approval tool: price it and hand back a single-use token. Nothing runs. */
 export const quoteToolCall = async (userId: string, definition: ToolDefinition, input: Record<string, unknown>) => {
   const [credits, balance] = await Promise.all([priceToolCall(userId, definition.name, input), getBalance(userId)]);
+  // Old quotes are only a record of what was offered. Drop the expired ones as new ones come in.
+  void db.spendQuote
+    .deleteMany({ where: { userId, expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } } })
+    .catch(() => undefined);
   const token = newToken("quote");
   const expiresAt = new Date(Date.now() + QUOTE_TTL_MS);
   await db.spendQuote.create({

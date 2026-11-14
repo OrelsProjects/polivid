@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineTool } from "@/lib/tools/define";
-import { idField } from "@/lib/tools/fields";
+import { idField, modelField } from "@/lib/tools/fields";
 import type { ToolEffects } from "@/lib/tools/types";
 
 const videoId = z.object({
@@ -152,5 +152,24 @@ export const jobTools = [
     runsOn: "server",
     surfaces: ["coach", "mcp"],
     approvalDetail: (input) => `restore ${String(input.versionId ?? "")}`,
+  }),
+  defineTool({
+    name: "continue_video_with_model",
+    title: "Continue with another model",
+    category: "jobs",
+    summary: "Restart a video that stopped waiting for a different footage model, using the model you name. Uses the credits already held for it.",
+    whenToUse: [
+      "get_video shows the video waiting for a model, often because the first one refused the prompt or the shape.",
+      "Pick one from list_models that films this format and is not the one that failed.",
+    ],
+    avoidWhen: ["The video failed for another reason. Use retry_video."],
+    inputSchema: z.object({
+      videoId: idField("Video or job id from list_my_videos."),
+      model: modelField().unwrap().describe("Footage model id from list_models."),
+    }),
+    effects: { readOnly: false, spendsCredits: false, destructive: false, longRunning: true },
+    approval: "none",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
   }),
 ];

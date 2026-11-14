@@ -33,6 +33,7 @@ import {
   resumeVideoHandler,
   retryProductionHandler,
   retryVideoHandler,
+  continueVideoWithModelHandler,
 } from "./jobs";
 import {
   addCaptionsHandler,
@@ -42,6 +43,7 @@ import {
   makeAvCutHandler,
   makeImageVideoHandler,
   makeLyricsVideoHandler,
+  makeDirectVideoHandler,
   makeMotionGraphicsHandler,
   makeMusicVideoHandler,
   makePromptVideoHandler,
@@ -64,6 +66,17 @@ import {
   suggestPresetHandler,
 } from "./read";
 
+import {
+  listModesHandler,
+  listModelsHandler,
+  listTemplatesHandler,
+  listVoicesHandler,
+  listBackgroundsHandler,
+  listOptionsHandler,
+} from "./catalog";
+
+import { importMediaFromUrlHandler } from "./import-media";
+
 export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_prompt_video: makePromptVideoHandler,
   make_voiceover_video: makeVoiceoverVideoHandler,
@@ -74,6 +87,7 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   make_image_video: makeImageVideoHandler,
   make_av_cut: makeAvCutHandler,
   make_lyrics_video: makeLyricsVideoHandler,
+  make_direct_video: makeDirectVideoHandler,
   add_captions: addCaptionsHandler,
   quick_edit_video: quickEditVideoHandler,
   create_video: createVideoHandler,
@@ -89,6 +103,13 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   create_character_portrait: createCharacterPortraitHandler,
   design_voice: designVoiceHandler,
   create_character: createCharacterHandler,
+  import_media_from_url: importMediaFromUrlHandler,
+  list_modes: listModesHandler,
+  list_models: listModelsHandler,
+  list_templates: listTemplatesHandler,
+  list_voices: listVoicesHandler,
+  list_backgrounds: listBackgroundsHandler,
+  list_options: listOptionsHandler,
   list_characters: listCharactersHandler,
   list_presets: listPresetsHandler,
   suggest_preset: suggestPresetHandler,
@@ -99,6 +120,7 @@ export const toolHandlers: Record<HandlerName, ToolHandler> = {
   list_uploads: listUploadsHandler,
   list_songs: listSongsHandler,
   retry_video: retryVideoHandler,
+  continue_video_with_model: continueVideoWithModelHandler,
   pause_video: pauseVideoHandler,
   resume_video: resumeVideoHandler,
   cancel_video: cancelVideoHandler,

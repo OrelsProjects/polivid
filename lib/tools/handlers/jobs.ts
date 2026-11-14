@@ -12,6 +12,7 @@ import {
   resumePausedVideoJob,
 } from "@/lib/video/jobs";
 import { startVideoJob } from "@/lib/video/worker";
+import { continueVideoWithModel } from "@/lib/video/jobs";
 import type { ToolHandler } from "@/lib/tools/types";
 import { asRecord, text, toolError } from "./support";
 
@@ -149,4 +150,17 @@ export const cancelProductionHandler: ToolHandler = async (input, ctx) => {
 export const restoreVersionHandler: ToolHandler = async (input, ctx) => {
   const row = asRecord(input);
   return restoreProductionVersion(ctx.userId, text(row.productionId), text(row.versionId));
+};
+
+export const continueVideoWithModelHandler: ToolHandler = async (input, ctx) => {
+  const row = asRecord(input);
+  const id = text(row.videoId);
+  const outcome = await continueVideoWithModel(ctx.userId, id, text(row.model));
+  if (outcome.result === "missing") return { error: "Video not found." };
+  if (outcome.result === "invalid") return { error: "Pick a model id from list_models." };
+  if (outcome.result === "same") return { error: "Pick a different model. This one already failed." };
+  if (outcome.result === "format") return { error: `${outcome.name} does not film this shape. Pick another model.` };
+  if (outcome.result === "finished") return { error: "This video is not waiting for a model." };
+  kickVideo(ctx.userId, id);
+  return { jobId: id, status: "running" };
 };

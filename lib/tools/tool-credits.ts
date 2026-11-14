@@ -58,7 +58,9 @@ const videoCredits = (mode: string, input: Record<string, unknown>, options: Too
   const referenceCount = Array.isArray(input.referenceKeys)
     ? input.referenceKeys.filter((key) => typeof key === "string" && key.trim().length > 0).length
     : 0;
-  const filming = resolveFilming({ mode, tier, modelId: options.generationModelId });
+  // A model picked on the approval card wins, then the one in the tool call, then the tier's.
+  const requestedModel = typeof input.model === "string" && input.model.trim() ? input.model.trim() : undefined;
+  const filming = resolveFilming({ mode, tier, modelId: options.generationModelId || requestedModel });
   const media = input.media === "stills" || input.media === "loop" ? input.media : undefined;
   // A script read word for word runs as long as it takes to say, whatever length was passed.
   const verbatim = input.verbatim === true && mode === "voiceover" && typeof input.prompt === "string";

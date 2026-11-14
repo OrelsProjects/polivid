@@ -70,8 +70,10 @@ export const composeSongHandler: ToolHandler = async (input, ctx) => {
     const character = characterId ? await getPickableCharacter(ctx.userId, characterId) : null;
     if (characterId && !character) return { error: "Pick a character from your library." };
     const hasSinger = ctx.attachedReferenceKeys.length > 0 || Boolean(character?.imageKey && model.referenceImages);
+    const style = text(row.style).replace(/\s+/g, " ");
     const { draft, credits } = await createSongDraft(ctx.userId, {
-      prompt: text(row.prompt),
+      // A leading "Style:" line is how a song prompt carries its musical direction (readSongBrief).
+      prompt: style ? `Style: ${style}\n${text(row.prompt)}` : text(row.prompt),
       length: typeof row.length === "number" ? row.length : 30,
       model: model.slug,
       characterId,

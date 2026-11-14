@@ -3,7 +3,16 @@ import { STORYBOARD_AUTO_APPROVE_UNDER } from "@/lib/billing/auto-approve";
 import { MAX_STORYBOARD_SCENES, MIN_STORYBOARD_SCENES } from "@/lib/coach/storyboard";
 import { MAX_IMAGE_PROMPT } from "@/lib/characters/constants";
 import { defineTool } from "@/lib/tools/define";
-import { characterField, formatField, lengthField, presetField, referenceKeysField, tierField, visualDirectionField } from "@/lib/tools/fields";
+import {
+  characterField,
+  formatField,
+  lengthField,
+  modelField,
+  presetField,
+  referenceKeysField,
+  tierField,
+  visualDirectionField,
+} from "@/lib/tools/fields";
 import { MAX_LYRICS_NOTE, MAX_REFERENCE_IMAGES } from "@/lib/video/schema";
 import { MAX_PRESET_FRAGMENT, MAX_PRESET_NAME } from "@/lib/video/presets";
 
@@ -83,6 +92,7 @@ export const planTools = [
     whenToUse: [
       "They want to see the shot list or the price before approving a prompt or lyrics video.",
       "You are about to write a brief and want the cut count to match the length.",
+      "Pass the planned cuts (and brief and attachmentRoles for prompt) straight to make_prompt_video or make_lyrics_video, with the same model, so it films exactly this plan.",
     ],
     avoidWhen: ["The mode is not prompt or lyrics. Those are the only modes with this planner."],
     inputSchema: z.object({
@@ -90,6 +100,7 @@ export const planTools = [
       length: lengthField(),
       mode: z.enum(["prompt", "lyrics"]).optional().describe("Which planner. Defaults to lyrics."),
       tier: tierField(),
+      model: modelField(),
       format: formatField().optional(),
       direction: note("Camera and performance notes for lyrics."),
       scene: note("Location and wardrobe notes for lyrics."),
