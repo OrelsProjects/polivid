@@ -3,8 +3,15 @@
  * set APP_PUBLIC_URL in production. Locally it falls back to the request's own origin.
  */
 export const publicOrigin = (request?: Request) => {
-  const configured = process.env.APP_PUBLIC_URL?.trim().replace(/\/$/, "");
-  if (configured) return configured;
+  const configured = process.env.APP_PUBLIC_URL?.trim();
+  if (configured) {
+    // Only the scheme and host count, so a value like https://example.com/api/mcp still works.
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // Not a URL: fall through to the request's origin.
+    }
+  }
   if (request) return new URL(request.url).origin;
   return "http://localhost:3100";
 };
