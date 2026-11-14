@@ -1,6 +1,6 @@
 # Tools
 
-The Coach's tools, and later an MCP endpoint, come from one registry in `lib/tools`. A tool is defined once. The model, the approval card, the catalog, and a future adapter all read that definition.
+The Coach's tools and the MCP server (`/api/mcp`, see [MCP.md](MCP.md)) come from one registry in `lib/tools`. A tool is defined once. The model, the approval card, the catalog, and the MCP listing all read that definition.
 
 ## Layout
 
@@ -11,7 +11,7 @@ The Coach's tools, and later an MCP endpoint, come from one registry in `lib/too
 | `lib/tools/handlers/` | Server `execute` functions. Not imported by client components |
 | `lib/tools/handlers/keys.ts` | The list of server tool names. The test checks it against the definitions |
 | `lib/tools/describe.ts` | The text the model sees, the system-prompt index, and the catalog |
-| `lib/tools/to-json-schema.ts` | JSON Schema for a future MCP adapter |
+| `lib/tools/to-json-schema.ts` | JSON Schema and annotations for the MCP listing |
 | `docs/tools/CATALOG.md` | Generated. Do not edit by hand |
 
 `lib/coach/tools.ts` is only the AI SDK adapter. Do not add a new capability there.
@@ -28,7 +28,7 @@ Each tool sets:
 
 A tool that spends credits or is destructive must use `approval: "user"`. The registry test fails otherwise.
 
-In the Coach, a video or production tool waits unless the person approved a brief or asked to run wild. With either of those, a spend under 200 runs without another ask, and 200 or more still asks. A storyboard asks only at 30 credits or more. The estimate comes from the tool input, or from the saved job for a retry or a production approval. Destructive tools always ask. That check is `coachToolApproval`. An MCP client should keep confirming every `approval: "user"` tool.
+In the Coach, a video or production tool waits unless the person approved a brief or asked to run wild. With either of those, a spend under 200 runs without another ask, and 200 or more still asks. A storyboard asks only at 30 credits or more. The estimate comes from the tool input, or from the saved job for a retry or a production approval. Destructive tools always ask. That check is `coachToolApproval`. Over MCP every `approval: "user"` tool runs only after a quote and a confirm token (see MCP.md).
 
 `runsOn: "server"` needs a handler. `runsOn: "client"` is finished in the browser (`app_open_*`). Ask tools are client tools with `awaitsPerson: true`: the person answers, and the browser does not run them automatically.
 

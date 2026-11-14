@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, LogOut } from "lucide-react";
+import { CreditCard, LogOut, Plug } from "lucide-react";
 import Link from "next/link";
 import { useTransition, type ReactNode } from "react";
 import { signOutAction } from "@/app/login/actions";
@@ -48,6 +48,10 @@ export function AccountMenu({
         <DropdownMenuItem render={<Link href="/billing" />} className="gap-2.5 rounded-lg px-2.5 py-2">
           <CreditCard className="size-4" aria-hidden />
           Billing
+        </DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/settings/connect" />} className="gap-2.5 rounded-lg px-2.5 py-2">
+          <Plug className="size-4" aria-hidden />
+          Connect agents
         </DropdownMenuItem>
         <DropdownMenuItem
           disabled={leaving}

@@ -38,6 +38,10 @@ model User {
   characters         Character[]
   coachThreads       CoachThread[]
   sources            Source[]
+  apiKeys            ApiKey[]
+  oauthCodes         OAuthCode[]
+  oauthTokens        OAuthToken[]
+  spendQuotes        SpendQuote[]
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 }
@@ -464,4 +468,87 @@ model Source {
 
   @@index([userId, createdAt])
   @@map("sources")
+}
+
+/// Personal key an agent sends as a Bearer token to /api/mcp. Only the sha256 hash is stored.
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  /// First characters of the key, shown so the person can tell keys apart.
+  prefix     String
+  hash       String    @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("api_key")
+}
+
+/// An MCP client that registered itself (OAuth dynamic client registration). Public clients only, PKCE required.
+model OAuthClient {
+  clientId     String       @id
+  clientName   String
+  redirectUris String[]
+  createdAt    DateTime     @default(now())
+  codes        OAuthCode[]
+  tokens       OAuthToken[]
+
+  @@map("oauth_client")
+}
+
+/// One-time authorization code. Only the hash is stored.
+model OAuthCode {
+  hash          String      @id
+  clientId      String
+  client        OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  resource      String?
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@map("oauth_code")
+}
+
+/// An access and refresh token pair. A refresh rotates the pair into a new row.
+model OAuthToken {
+  id               String      @id @default(cuid())
+  clientId         String
+  client           OAuthClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId           String
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessHash       String      @unique
+  refreshHash      String      @unique
+  scope            String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime    @default(now())
+
+  @@index([userId])
+  @@map("oauth_token")
+}
+
+/// A price quote an agent must send back to run a tool that spends credits or is destructive.
+model SpendQuote {
+  tokenHash String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  toolName  String
+  inputHash String
+  credits   Int
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@map("spend_quote")
 }

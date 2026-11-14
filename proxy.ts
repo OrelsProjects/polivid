@@ -34,5 +34,7 @@ export const config = {
     "/coach/:path*",
     "/studio",
     "/studio/:path*",
+    "/settings/:path*",
+    "/oauth/:path*",
   ],
 };
