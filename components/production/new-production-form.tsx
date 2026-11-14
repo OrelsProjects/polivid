@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { MediaUpload } from "@/components/media-upload";
 import { PresetPicker } from "@/components/preset-picker";
 import { CharacterPicker } from "@/components/characters/character-picker";
+import { CharacterLookOptions } from "@/components/characters/character-look-options";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { VisualDirectionField } from "@/components/visual-direction-field";
 import { StatusTimeline } from "@/components/production/status-timeline";
@@ -37,6 +38,7 @@ export function NewProductionForm() {
   const [presetId, setPresetId] = useState("auto");
   const [visualDirection, setVisualDirection] = useState("");
   const [characterId, setCharacterId] = useState(STUDIO_VOICE_ID);
+  const [lookId, setLookId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [items, setItems] = useState<StatusItem[]>([]);
@@ -74,6 +76,7 @@ export function NewProductionForm() {
           presetId,
           visualDirection,
           characterId,
+          ...(lookId ? { characterLookId: lookId } : {}),
           voiceover: characterId !== OFF_VOICE_ID,
         }),
       });
@@ -217,7 +220,10 @@ export function NewProductionForm() {
         <div className="mt-4">
           <CharacterPicker
             value={characterId}
-            onChange={setCharacterId}
+            onChange={(next) => {
+              setCharacterId(next);
+              setLookId("");
+            }}
             disabled={pending}
             studioLabel="Plan voice"
             offLabel="No voiceover"
@@ -229,6 +235,15 @@ export function NewProductionForm() {
                   ? "A character speaks every line and adds their picture as a reference. Plan voice keeps the voice written into the plan."
                   : "This character speaks every line and adds their picture as a reference."
             }
+          />
+          <CharacterLookOptions
+            characterId={characterId}
+            lookId={lookId}
+            onLookId={setLookId}
+            useClip={false}
+            onUseClip={() => undefined}
+            modelTakesVideo={false}
+            disabled={pending}
           />
         </div>
       </div>

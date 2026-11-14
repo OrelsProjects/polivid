@@ -32,6 +32,8 @@ export const generateImage = async (
     sourceKey?: string;
     /** A person who should appear in a new picture. Does not turn the call into an edit. */
     subjectKey?: string;
+    /** More pictures of that same person (other angles), sent as subject references too. */
+    moreSubjectKeys?: string[];
     /** Use the faster draft model. Storyboard frames are drafts, so they skip the final-quality model. */
     draft?: boolean;
   },
@@ -43,9 +45,15 @@ export const generateImage = async (
   } else if (input.subjectKey) {
     const subject = await loadPicture(userId, input.subjectKey);
     refs.push({ role: "subject_ref" as const, bytes: subject.bytes, mime: subject.mime });
+    for (const key of input.moreSubjectKeys ?? []) {
+      if (key === input.subjectKey) continue;
+      const more = await loadPicture(userId, key);
+      refs.push({ role: "subject_ref" as const, bytes: more.bytes, mime: more.mime });
+    }
   }
+  const subjects = new Set([input.subjectKey, ...(input.moreSubjectKeys ?? [])]);
   for (const key of input.referenceKeys ?? []) {
-    if (key === input.sourceKey || key === input.subjectKey) continue;
+    if (key === input.sourceKey || subjects.has(key)) continue;
     const reference = await loadPicture(userId, key);
     refs.push({ role: "style_ref" as const, bytes: reference.bytes, mime: reference.mime });
   }

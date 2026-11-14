@@ -110,3 +110,23 @@ When a chat queues a video, `CoachThread.videoJobId` points at that job. Once th
 - **After filming starts**, the plan is locked:
   - `production_refilm_shot` discards one shot's take, queues it again (optionally with another model), and reopens assemble, final review, and export.
   - It holds that shot's credits on top of what the production already used, and settlement at the end refunds whatever the new take didn't need. Code: `lib/production/refilm.ts`.
+
+## Characters
+
+A character is a person who can appear and speak across videos (`Character`, `CharacterMedia`, `CharacterLook` in `prisma/schema.prisma`).
+
+- **Pictures and clips.** Up to 24 labelled pictures (face, profile, full_body, expression, outfit, other) and 6 clips of up to 20 seconds. `Character.imageKey` is the main picture, and it is also a media row.
+- **Looks.** Named outfits with a wardrobe note. Pictures and clips can belong to one look.
+- **Profile.** Appearance description, personality, and speaking style, plus `consentAt`: the owner confirmed the person shown is them, or agreed to appear. The editor requires it.
+- **Which pictures a video gets.** `pickReferenceKeys` (`lib/characters/media.ts`):
+  - The main picture leads. With a look chosen, that look's best picture leads instead.
+  - Then one picture per label, face first.
+  - Other looks are left out.
+  - Videos take at most 4; storyboards take 3.
+  - `characterRefs` on the job records how many leading reference pictures show the character, so the Shorts prompt can tell the person apart from the background.
+- **Description.** `characterNote` builds the text added to every shot prompt (through `withVisualStyle`), to storyboard frames, and, with the speaking style, to the production planner's hints.
+- **Clips.**
+  - The browser pulls the sharpest frames as new pictures (`extractSharpFrames`, `lib/characters/clip-tools.ts`).
+  - The browser takes the clip's sound as a voice sample (`extractVoiceWav` → `POST /api/characters/[id]/voice-from-clip`, own voice only).
+  - With `useCharacterClip`, the clip is sent as a `video_url` reference, but only to models whose `inputs` include video (`withReferenceClip` in `lib/video/mode-prepare.ts`).
+- **Agent tools.** `get_character`, `update_character`, `character_add_media`, `character_update_media`, `character_remove_media`, `character_add_look`, `character_update_look`, `character_remove_look`. The make tools, `make_storyboard`, and `start_production` take `characterLookId`.

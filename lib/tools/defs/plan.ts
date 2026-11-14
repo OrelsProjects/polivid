@@ -5,6 +5,7 @@ import { MAX_IMAGE_PROMPT } from "@/lib/characters/constants";
 import { defineTool } from "@/lib/tools/define";
 import {
   characterField,
+  characterLookField,
   formatField,
   lengthField,
   modelField,
@@ -42,6 +43,7 @@ export const planTools = [
       format: formatField().optional().describe("Frame of every still. Defaults to 9:16."),
       presetId: presetField(),
       characterId: characterField(),
+      characterLookId: characterLookField(),
       referenceKeys: referenceKeysField(),
       scenes: z
         .array(

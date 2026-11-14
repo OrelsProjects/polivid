@@ -487,6 +487,7 @@ Inputs:
 | format | no | Frame of every still. Defaults to 9:16. |
 | presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
 | referenceKeys | no | Upload keys for reference pictures of a person or a look. Copy keys from an attached-pictures note. |
 | scenes | yes | One still per scene, in order. One to six. A new video uses one frame per beat. |
 

@@ -1,4 +1,6 @@
 import "server-only";
+import { characterNote, pickReferenceKeys } from "@/lib/characters/media";
+import { mediaView } from "@/lib/characters/store";
 import { improveNarration } from "@/lib/ai/improve";
 import { polishPresetFragment } from "@/lib/ai/polish-preset";
 import { MAX_IMAGE_PROMPT } from "@/lib/characters/constants";
@@ -65,20 +67,31 @@ export const makeStoryboardHandler: ToolHandler = async (input, ctx) => {
 
   const requestedCharacter = text(row.characterId) || ctx.attachedCharacterId;
   let subjectKey = "";
+  let moreSubjectKeys: string[] = [];
+  let personNote = "";
   if (
     isCharacterId(requestedCharacter) &&
     requestedCharacter !== OFF_VOICE_ID &&
     requestedCharacter !== STUDIO_VOICE_ID
   ) {
     const character = await getPickableCharacter(ctx.userId, requestedCharacter).catch(() => null);
-    subjectKey = character?.imageKey ?? "";
+    if (character) {
+      const lookId = text(row.characterLookId);
+      const look = lookId ? character.looks.find((item) => item.id === lookId) : null;
+      if (lookId && !look) return { error: "That look isn't on this character. Use a look id from get_character." };
+      // Up to three pictures of the person: more angles hold the face, more than that crowds out the scene.
+      const pictures = pickReferenceKeys({ mainKey: character.imageKey, media: character.media.map(mediaView), lookId: look?.id, max: 3 });
+      subjectKey = pictures[0] ?? character.imageKey ?? "";
+      moreSubjectKeys = pictures.slice(1);
+      personNote = characterNote(character, look ?? null);
+    }
   }
 
   const requestedKeys = Array.isArray(row.referenceKeys)
     ? row.referenceKeys.filter((key): key is string => typeof key === "string")
     : [...ctx.attachedReferenceKeys];
   const referenceKeys = [...new Set(requestedKeys.map((key) => key.trim()).filter(Boolean))]
-    .filter((key) => key !== subjectKey)
+    .filter((key) => key !== subjectKey && !moreSubjectKeys.includes(key))
     .slice(0, MAX_REFERENCE_IMAGES);
 
   const format = formatOf(row.format, "9:16");
@@ -96,7 +109,12 @@ export const makeStoryboardHandler: ToolHandler = async (input, ctx) => {
   const made = await Promise.all(
     scenes.map(async (scene, index) => {
       const shot = subjectKey
-        ? `${scene.shotPrompt} The referenced person is the subject of this shot.`
+        ? [
+            `${scene.shotPrompt} The referenced person is the subject of this shot${moreSubjectKeys.length ? "; every subject picture shows that same person from a different angle" : ""}.`,
+            personNote,
+          ]
+            .filter(Boolean)
+            .join("\n")
         : scene.shotPrompt;
       try {
         const image = await generateImage(ctx.userId, {
@@ -104,6 +122,7 @@ export const makeStoryboardHandler: ToolHandler = async (input, ctx) => {
           format,
           referenceKeys,
           subjectKey: subjectKey || undefined,
+          moreSubjectKeys: moreSubjectKeys.length ? moreSubjectKeys : undefined,
           draft: true,
         });
         return { index: index + 1, seconds: scene.seconds, beat: scene.beat, ...image };
