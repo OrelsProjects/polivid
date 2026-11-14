@@ -5,7 +5,6 @@ import { getProjectForUser } from "@/lib/editor/projects";
 import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { createQueuedVideoJob, EDITOR_EXPORT_MODEL } from "@/lib/video/jobs";
 import { FPS } from "@/lib/video/schema";
-import { startVideoJob } from "@/lib/video/worker";
 
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -41,9 +40,12 @@ export const exportProjectFromInput = async (userId: string, projectId: string) 
       mode: "editor-export",
       projectId: project.id,
     });
-    void startVideoJob(userId, job.id).catch((error) => {
-      console.error("Edit export stopped", error);
-    });
+    // Loaded on demand: the renderer behind the worker can't load on every host, and this route shouldn't need it to start.
+    void import("@/lib/video/worker")
+      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
+      .catch((error) => {
+        console.error("Edit export stopped", error);
+      });
     return { jobId: job.id, resumed: false };
   } catch (error) {
     console.error("Could not start the edit export", error);
