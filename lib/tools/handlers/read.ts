@@ -13,7 +13,8 @@ import { currentEntityData, getProductionForUser, listProductionsForUser } from 
 import { listUploads } from "@/lib/storage/s3";
 import { isAudioKey, isImageKey, isVideoKey } from "@/lib/storage/upload-key";
 import { listCustomPresets } from "@/lib/video/custom-presets";
-import { listActiveVideoJobs } from "@/lib/video/jobs";
+import { getVideoJobForUser, listActiveVideoJobs } from "@/lib/video/jobs";
+import { stepLabel } from "@/lib/video/job-stages";
 import { listPresetsFor, summarizePreset } from "@/lib/video/presets";
 import { suggestPreset } from "@/lib/video/suggest-preset";
 import { getVideoForUser, listMyVideos } from "@/lib/videos";
@@ -81,14 +82,49 @@ export const listMyVideosHandler: ToolHandler = async (_input, ctx) => {
   };
 };
 
+/**
+ * A video by id: a finished library video, or a job that is still being made.
+ * Jobs report live progress so an agent (or the PoliVid card in the chat) can follow them.
+ */
 export const getVideoHandler: ToolHandler = async (input, ctx) => {
-  const video = await getVideoForUser(ctx.userId, text(asRecord(input).videoId));
+  const id = text(asRecord(input).videoId);
+  const job = await getVideoJobForUser(ctx.userId, id).catch(() => null);
+  if (job) {
+    const ready = job.status === "succeeded";
+    return {
+      id: job.id,
+      status: job.status,
+      ready,
+      step: job.currentStep,
+      stepLabel: job.currentStep ? stepLabel(job.currentStep, job.mode) : null,
+      progressPct: ready ? 100 : job.progressPct,
+      clipIndex: job.clipIndex,
+      clipTotal: job.clipTotal,
+      clipsDone: job.clipsDone,
+      needsModel: job.needsModel,
+      prompt: job.prompt,
+      format: job.format,
+      length: job.length,
+      mode: job.mode,
+      model: job.model,
+      error: job.error,
+      next: ready
+        ? "The video is ready. open_in_editor edits it."
+        : job.needsModel
+          ? "The model refused. Call continue_video_with_model with another model from list_models."
+          : job.status === "failed"
+            ? "It failed. retry_video continues from the last saved clip."
+            : "Still working. Check again in a little while.",
+    };
+  }
+  const video = await getVideoForUser(ctx.userId, id);
   if (!video) return { error: "Video not found." };
   return {
     id: video.id,
     title: video.title,
     prompt: video.prompt,
     status: video.status,
+    ready: video.status === "ready",
     format: video.format,
     length: video.length,
     error: video.error,

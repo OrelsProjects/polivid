@@ -91,10 +91,13 @@ export const libraryTools = [
     name: "get_video",
     title: "Read a video",
     category: "library",
-    summary: "Read one of the person's videos.",
-    whenToUse: ["You have a video id and need its prompt, status, format, or error before acting on it."],
+    summary: "Read one video, finished or still being made: status, current step, progress, clips, and what to do next.",
+    whenToUse: [
+      "You have a video id and need its prompt, status, format, or error before acting on it.",
+      "A make_* tool returned a jobId: poll this until ready is true or the status is failed.",
+    ],
     inputSchema: z.object({
-      videoId: idField("Id from list_my_videos or from a link the person pasted."),
+      videoId: idField("Job id from a make_* tool, an id from list_my_videos, or one from a link the person pasted."),
     }),
     effects: { readOnly: true, spendsCredits: false, destructive: false, longRunning: false },
     approval: "none",

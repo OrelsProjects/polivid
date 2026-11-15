@@ -139,16 +139,16 @@ export const characterTools = [
     title: "Give a character a voice from a recording",
     category: "assets",
     summary:
-      "Clone the voice in one to three audio recordings (MP3, M4A, WAV) onto a character, replacing its voice. Only for the person's own voice.",
+      "Clone a voice from one to three audio or video recordings onto a character. Requires the person's permission to clone and use the speaker's voice.",
     whenToUse: [
-      "They want a character to speak in their own voice and have a recording of themselves.",
-      "Get keys with list_uploads, or import_media_from_url for a direct link to their own audio file.",
-      "Before confirming, ask the person to confirm the recording is their own voice. Never confirm on their behalf.",
+      "They have a recording of themselves or a speaker whose voice they are authorized to clone and use.",
+      "Get keys with list_uploads or import_media_from_url. MP4, MOV, and WebM audio is extracted automatically, up to 150 seconds per file.",
+      "Before confirming, have the person confirm their rights and permission, unless they already did so for these recordings. Never attest on their behalf.",
     ],
     avoidWhen: [
-      "The recording is someone else, a public figure, or from a video they don't own. Refuse.",
+      "The person has not confirmed permission to clone and use the voice. Ask for that confirmation first.",
       "They want a made-up voice. Use design_voice.",
-      "The recording is a video. Send them to the Upload a recording button on the Characters page, which takes the sound out in the browser.",
+      "They only have a YouTube watch URL. Ask for an audio/video upload or a direct media file URL.",
     ],
     inputSchema: z.object({
       characterId: characterId(),
@@ -156,13 +156,13 @@ export const characterTools = [
         .array(z.string().trim().min(1).max(200))
         .min(1)
         .max(3)
-        .describe("Upload keys of audio recordings of their own voice. One to two minutes of clear speech in total works best."),
+        .describe("Upload keys for authorized voice references, MP3, M4A, WAV, MP4, MOV, or WebM. One to two minutes of one speaker's clear speech works best."),
     }),
     effects: { readOnly: false, spendsCredits: false, destructive: true, longRunning: true },
     approval: "user",
     runsOn: "server",
     surfaces: ["coach", "mcp"],
     approvalDetail: () =>
-      "Replaces this character's voice with a clone of the recording. Confirm only if the recording is your own voice.",
+      "Replaces this character's voice. Confirm you have the rights and permission to upload, clone, and use the speaker's voice, agree to PoliVid's policy at /policy, and agree to send the audio to ElevenLabs for voice processing.",
   }),
 ];

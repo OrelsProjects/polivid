@@ -1008,26 +1008,26 @@ Inputs:
 
 ### set_character_voice
 
-**Give a character a voice from a recording.** Clone the voice in one to three audio recordings (MP3, M4A, WAV) onto a character, replacing its voice. Only for the person's own voice.
+**Give a character a voice from a recording.** Clone a voice from one to three audio or video recordings onto a character. Requires the person's permission to clone and use the speaker's voice.
 
 Destructive. Long-running. Needs approval.
 
 Use when:
-- They want a character to speak in their own voice and have a recording of themselves.
-- Get keys with list_uploads, or import_media_from_url for a direct link to their own audio file.
-- Before confirming, ask the person to confirm the recording is their own voice. Never confirm on their behalf.
+- They have a recording of themselves or a speaker whose voice they are authorized to clone and use.
+- Get keys with list_uploads or import_media_from_url. MP4, MOV, and WebM audio is extracted automatically, up to 150 seconds per file.
+- Before confirming, have the person confirm their rights and permission, unless they already did so for these recordings. Never attest on their behalf.
 
 Don't use when:
-- The recording is someone else, a public figure, or from a video they don't own. Refuse.
+- The person has not confirmed permission to clone and use the voice. Ask for that confirmation first.
 - They want a made-up voice. Use design_voice.
-- The recording is a video. Send them to the Upload a recording button on the Characters page, which takes the sound out in the browser.
+- They only have a YouTube watch URL. Ask for an audio/video upload or a direct media file URL.
 
 Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
 | characterId | yes | Character id from list_characters. |
-| mediaKeys | yes | Upload keys of audio recordings of their own voice. One to two minutes of clear speech in total works best. |
+| mediaKeys | yes | Upload keys for authorized voice references, MP3, M4A, WAV, MP4, MOV, or WebM. One to two minutes of one speaker's clear speech works best. |
 
 ## Library
 
@@ -1238,18 +1238,19 @@ Examples:
 
 ### get_video
 
-**Read a video.** Read one of the person's videos.
+**Read a video.** Read one video, finished or still being made: status, current step, progress, clips, and what to do next.
 
 Read only.
 
 Use when:
 - You have a video id and need its prompt, status, format, or error before acting on it.
+- A make_* tool returned a jobId: poll this until ready is true or the status is failed.
 
 Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| videoId | yes | Id from list_my_videos or from a link the person pasted. |
+| videoId | yes | Job id from a make_* tool, an id from list_my_videos, or one from a link the person pasted. |
 
 ### list_my_productions
 

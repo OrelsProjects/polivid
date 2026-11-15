@@ -1,12 +1,25 @@
 import "server-only";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ListToolsRequestSchema,
+  ReadResourceRequestSchema,
+  type CallToolResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import { signAssetToken } from "@/lib/editor/asset-token";
 import { toolHandlers } from "@/lib/tools/handlers";
 import type { ToolContext } from "@/lib/tools/types";
 import type { McpPrincipal } from "./auth/principal";
 import { splitConfirmToken } from "./canonical";
 import { quoteToolCall, redeemQuote } from "./confirm";
 import { listMcpTools, MCP_TOOLS, mcpInstructions, needsConfirmation } from "./tool-list";
+import { hasVideoCard, withVideoCard } from "./apps/card-data";
+import { MCP_APP_MIME_TYPE, VIDEO_CARD_URI, videoCardHtml, videoCardResourceMeta } from "./apps/video-card";
+import { publicOrigin } from "./origin";
+
+/** Playback links in the card last long enough to watch, not long enough to pass around. */
+const PLAYBACK_LINK_MS = 2 * 60 * 60 * 1000;
 
 export const MCP_SERVER_NAME = "polivid";
 export const MCP_SERVER_VERSION = "1.0.0";
@@ -38,6 +51,8 @@ const validTimezone = (value: string | null) => {
 export interface McpRequestContext {
   principal: McpPrincipal;
   timezone?: string | null;
+  /** Public origin the card links and plays from. Defaults to APP_PUBLIC_URL. */
+  origin?: string;
 }
 
 /** Runs one tool call as the principal. Exported for tests and for the route. */
@@ -69,7 +84,15 @@ export const callMcpTool = async (name: string, args: unknown, context: McpReque
     timezone: validTimezone(context.timezone ?? null),
   };
   try {
-    return toResult(await handler(data, ctx));
+    const output = await handler(data, ctx);
+    if (!hasVideoCard(definition)) return toResult(output);
+    const origin = context.origin ?? publicOrigin();
+    return toResult(
+      withVideoCard(output, origin, (videoId) => {
+        const token = signAssetToken(userId, { type: "video", videoId }, PLAYBACK_LINK_MS);
+        return `${origin}/api/editor/assets/${encodeURIComponent(token)}`;
+      }),
+    );
   } catch (error) {
     console.error(`MCP tool ${name} failed`, error);
     return errorResult(`${definition.title} failed on the server. Try again, or report it if it keeps happening.`);
@@ -80,9 +103,30 @@ export const callMcpTool = async (name: string, args: unknown, context: McpReque
 export const buildMcpServer = (context: McpRequestContext) => {
   const server = new Server(
     { name: MCP_SERVER_NAME, title: "PoliVid", version: MCP_SERVER_VERSION },
-    { capabilities: { tools: {} }, instructions: mcpInstructions() },
+    { capabilities: { tools: {}, resources: {} }, instructions: mcpInstructions() },
   );
+  const origin = context.origin ?? publicOrigin();
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: listMcpTools() }));
+  // The PoliVid card (MCP Apps). Hosts without MCP Apps support never read it; tools still return text.
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: [
+      {
+        uri: VIDEO_CARD_URI,
+        name: "PoliVid video card",
+        description: "Shows a PoliVid video being made, then plays it.",
+        mimeType: MCP_APP_MIME_TYPE,
+        _meta: videoCardResourceMeta(origin),
+      },
+    ],
+  }));
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    if (request.params.uri !== VIDEO_CARD_URI) throw new Error(`Unknown resource: ${request.params.uri}`);
+    return {
+      contents: [
+        { uri: VIDEO_CARD_URI, mimeType: MCP_APP_MIME_TYPE, text: videoCardHtml(origin), _meta: videoCardResourceMeta(origin) },
+      ],
+    };
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request) =>
     callMcpTool(request.params.name, request.params.arguments ?? {}, context),
   );

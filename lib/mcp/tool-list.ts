@@ -3,6 +3,7 @@ import { effectNotes, renderDescription } from "@/lib/tools/describe";
 import { MCP_TOOL_DEFS } from "@/lib/tools/registry";
 import { mcpAnnotations, toolInputJsonSchema } from "@/lib/tools/to-json-schema";
 import { TOOL_CATEGORIES, TOOL_CATEGORY_LABELS, type ToolDefinition } from "@/lib/tools/types";
+import { cardToolMeta } from "./apps/card-data";
 import { CONFIRM_FIELD } from "./canonical";
 
 /** Over MCP every approval tool runs only after a quote is sent back. */
@@ -34,6 +35,8 @@ export const listMcpTools = () => {
     description: renderDescription(definition) + confirmNote(definition),
     inputSchema: jsonSchemaFor(definition),
     annotations: { title: definition.title, ...mcpAnnotations(definition.effects) },
+    // Hosts that support MCP Apps show the PoliVid card for video tools.
+    ...(cardToolMeta(definition) ? { _meta: cardToolMeta(definition) } : {}),
   }));
   return toolList;
 };

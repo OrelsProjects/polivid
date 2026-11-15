@@ -1,6 +1,6 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { resolveBearer } from "@/lib/mcp/auth/principal";
-import { corsPreflight, protectedResourceMetadataUrl, withCors } from "@/lib/mcp/origin";
+import { corsPreflight, protectedResourceMetadataUrl, publicOrigin, withCors } from "@/lib/mcp/origin";
 import { buildMcpServer } from "@/lib/mcp/server";
 
 /** Video tools can wait on a model, so give them the same budget as the Coach. */
@@ -30,7 +30,7 @@ const handle = async (request: Request) => {
   const principal = await resolveBearer(request);
   if (!principal) return unauthorized(request, hasToken ? "The token is invalid, expired, or revoked." : undefined);
 
-  const server = buildMcpServer({ principal, timezone: request.headers.get("x-timezone") });
+  const server = buildMcpServer({ principal, timezone: request.headers.get("x-timezone"), origin: publicOrigin(request) });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: true,
