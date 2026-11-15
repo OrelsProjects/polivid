@@ -12,9 +12,6 @@ import {
   type AddMediaInput,
 } from "@/lib/characters/library";
 import { getUpload } from "@/lib/storage/s3";
-import { withUploadFile } from "@/lib/video/compose/upload-file";
-import { extractVoiceSample } from "@/lib/voice/extract-sample";
-import { MAX_SAMPLE_BYTES } from "@/lib/voice/constants";
 import { isAudioKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
 import { pickReferenceKeys } from "@/lib/characters/media";
 import { getCharacterView } from "@/lib/characters/store";
@@ -123,25 +120,21 @@ export const characterRemoveLookHandler: ToolHandler = async (input, ctx) => {
   return run(() => removeCharacterLook(ctx.userId, text(row.characterId), text(row.lookId)));
 };
 
+const MAX_RECORDING_BYTES = 8_000_000;
+
 export const setCharacterVoiceHandler: ToolHandler = async (input, ctx) => {
   const row = asRecord(input);
   const keys = Array.isArray(row.mediaKeys) ? row.mediaKeys.map(text).filter(Boolean).slice(0, 3) : [];
-  if (keys.length === 0) return { error: "Pass one to three audio or video upload keys." };
-  if (!(await getCharacterView(ctx.userId, text(row.characterId)))) return { error: "That character was not found." };
+  if (keys.length === 0) return { error: "Pass one to three audio upload keys." };
   const files: { bytes: Uint8Array; type: string; name: string }[] = [];
   for (const key of keys) {
     if (!isOwnedUploadKey(ctx.userId, key)) return { error: "Use recordings from your own uploads." };
     if (isVideoKey(key)) {
-      try {
-        files.push(await withUploadFile(ctx.userId, key, extractVoiceSample));
-      } catch (error) {
-        return { error: error instanceof Error ? error.message : "Couldn't extract that video's audio." };
-      }
-      continue;
+      return { error: "That's a video. Upload it with Upload a recording on the Characters page, which takes the sound out in the browser." };
     }
     if (!isAudioKey(key)) return { error: "Use an MP3, M4A, or WAV recording." };
     const { bytes, contentType } = await getUpload(key);
-    if (bytes.byteLength > MAX_SAMPLE_BYTES) return { error: "That recording is over 8 MB. Use a shorter one, one to two minutes is plenty." };
+    if (bytes.byteLength > MAX_RECORDING_BYTES) return { error: "That recording is over 8 MB. Use a shorter one, one to two minutes is plenty." };
     files.push({ bytes, type: contentType, name: key.split("/").pop() ?? "voice.mp3" });
   }
   return run(() => voiceFromClipAudio(ctx.userId, text(row.characterId), files));
