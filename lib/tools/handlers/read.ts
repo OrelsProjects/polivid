@@ -17,7 +17,7 @@ import { getVideoJobForUser, listActiveVideoJobs } from "@/lib/video/jobs";
 import { stepLabel } from "@/lib/video/job-stages";
 import { listPresetsFor, summarizePreset } from "@/lib/video/presets";
 import { suggestPreset } from "@/lib/video/suggest-preset";
-import { getVideoForUser, listMyVideos } from "@/lib/videos";
+import { getVideoForUser, listVideosForUser } from "@/lib/videos";
 import { priceToolCall } from "@/lib/tools/lookup-credits";
 import { TOOL_DEFS, toolByName } from "@/lib/tools/registry";
 import { creditsForToolCall } from "@/lib/tools/tool-credits";
@@ -63,7 +63,7 @@ export const suggestPresetHandler: ToolHandler = async (input) => {
 };
 
 export const listMyVideosHandler: ToolHandler = async (_input, ctx) => {
-  const [videos, jobs] = await Promise.all([listMyVideos(), listActiveVideoJobs(ctx.userId)]);
+  const [videos, jobs] = await Promise.all([listVideosForUser(ctx.userId), listActiveVideoJobs(ctx.userId)]);
   return {
     videos: videos.slice(0, 12).map((video) => ({
       id: video.id,

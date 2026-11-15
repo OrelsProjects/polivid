@@ -25,13 +25,18 @@ export async function listMyActiveJobs(): Promise<VideoJobView[]> {
   return listActiveVideoJobs(user.id);
 }
 
-export async function listMyVideos(): Promise<VideoRecord[]> {
-  const user = await getCurrentUser();
+/** The person's videos, newest first. Takes the user id, so it also works without a browser session (MCP, the Coach). */
+export async function listVideosForUser(userId: string): Promise<VideoRecord[]> {
   const rows = await db.video.findMany({
-    where: { userId: user.id, model: { not: EDITOR_EXPORT_MODEL } },
+    where: { userId, model: { not: EDITOR_EXPORT_MODEL } },
     orderBy: { createdAt: "desc" },
   });
   return rows.map(toRecord);
+}
+
+export async function listMyVideos(): Promise<VideoRecord[]> {
+  const user = await getCurrentUser();
+  return listVideosForUser(user.id);
 }
 
 export async function getVideoForUser(userId: string, id: string): Promise<VideoRecord | null> {
