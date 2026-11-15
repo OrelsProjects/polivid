@@ -73,7 +73,16 @@ export const callMcpTool = async (name: string, args: unknown, context: McpReque
   if (needsConfirmation(definition)) {
     if (!confirmToken) return toResult(await quoteToolCall(userId, definition, data));
     const redeemed = await redeemQuote(userId, definition.name, data, confirmToken);
-    if (!redeemed.ok) return errorResult(redeemed.error);
+    if (!redeemed.ok) {
+      // A stale, used, or mismatched token gets a fresh quote in the same reply, so the agent
+      // never loops on an old token. Nothing has run; the person still has to agree.
+      const fresh = await quoteToolCall(userId, definition, data);
+      return toResult({
+        ...fresh,
+        tokenProblem: redeemed.reason,
+        next: `${redeemed.reason} Nothing was started or charged. Use only this new confirmToken, never an earlier one. ${fresh.next}`,
+      });
+    }
   }
 
   const ctx: ToolContext = {

@@ -56,7 +56,8 @@ export const quoteToolCall = async (userId: string, definition: ToolDefinition, 
     next:
       `${what}. ${detail} The person has ${balance.total} credits. Tell them this and ask before going on. ` +
       `If they agree, call ${definition.name} again with exactly the same arguments plus "${CONFIRM_FIELD}": "${token}". ` +
-      `The token works once, for this exact input, for 10 minutes.`,
+      `The token works once, for this exact input, for 10 minutes. Tokens from earlier quotes no longer work. ` +
+      `Once it runs you get a jobId; poll get_video with it.`,
   };
   return result;
 };
@@ -84,5 +85,5 @@ export const redeemQuote = async (userId: string, toolName: string, input: Recor
     else if (row.expiresAt <= new Date()) reason = "That confirm token expired.";
     else reason = "The arguments changed since the quote.";
   }
-  return { ok: false as const, error: `${reason} Call ${toolName} again without ${CONFIRM_FIELD} to get a fresh quote.` };
+  return { ok: false as const, reason, error: `${reason} Call ${toolName} again without ${CONFIRM_FIELD} to get a fresh quote.` };
 };
