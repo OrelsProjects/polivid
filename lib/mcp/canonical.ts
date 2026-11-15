@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 /** The optional field MCP adds to every tool that needs a confirmation. */
 export const CONFIRM_FIELD = "confirmToken";
 
+/** Runs a quoted call from its token alone, so agents don't have to repeat the original call. */
+export const CONFIRM_SPEND_TOOL = "confirm_spend";
+
 /** JSON with sorted keys and no undefined values, so the same input always hashes the same. */
 export const canonicalJson = (value: unknown): string => {
   if (value === null || typeof value !== "object") return JSON.stringify(value ?? null);

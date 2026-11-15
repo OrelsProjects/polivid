@@ -9,10 +9,10 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { signAssetToken } from "@/lib/editor/asset-token";
 import { toolHandlers } from "@/lib/tools/handlers";
-import type { ToolContext } from "@/lib/tools/types";
+import type { ToolContext, ToolDefinition } from "@/lib/tools/types";
 import type { McpPrincipal } from "./auth/principal";
-import { splitConfirmToken } from "./canonical";
-import { quoteToolCall, redeemQuote } from "./confirm";
+import { CONFIRM_FIELD, splitConfirmToken } from "./canonical";
+import { claimQuote, CONFIRM_SPEND_TOOL, quoteToolCall, redeemQuote } from "./confirm";
 import { listMcpTools, MCP_TOOLS, mcpInstructions, needsConfirmation } from "./tool-list";
 import { hasVideoCard, withVideoCard } from "./apps/card-data";
 import { MCP_APP_MIME_TYPE, VIDEO_CARD_URI, videoCardHtml, videoCardResourceMeta } from "./apps/video-card";
@@ -57,6 +57,7 @@ export interface McpRequestContext {
 
 /** Runs one tool call as the principal. Exported for tests and for the route. */
 export const callMcpTool = async (name: string, args: unknown, context: McpRequestContext): Promise<CallToolResult> => {
+  if (name === CONFIRM_SPEND_TOOL) return confirmSpend(args, context);
   const definition = MCP_TOOLS.get(name);
   const handler = definition ? toolHandlers[definition.name as keyof typeof toolHandlers] : undefined;
   if (!definition || !handler) return errorResult(`Unknown tool: ${name}`);
@@ -84,7 +85,13 @@ export const callMcpTool = async (name: string, args: unknown, context: McpReque
       });
     }
   }
+  return runTool(definition, data, context);
+};
 
+/** Runs a validated (and, if needed, confirmed) call, adding the video card data for video tools. */
+const runTool = async (definition: ToolDefinition, data: Record<string, unknown>, context: McpRequestContext) => {
+  const handler = toolHandlers[definition.name as keyof typeof toolHandlers];
+  const userId = context.principal.userId;
   const ctx: ToolContext = {
     userId,
     attachedReferenceKeys: [],
@@ -103,9 +110,38 @@ export const callMcpTool = async (name: string, args: unknown, context: McpReque
       }),
     );
   } catch (error) {
-    console.error(`MCP tool ${name} failed`, error);
+    console.error(`MCP tool ${definition.name} failed`, error);
     return errorResult(`${definition.title} failed on the server. Try again, or report it if it keeps happening.`);
   }
+};
+
+/**
+ * confirm_spend: runs a quoted call from its token alone. The arguments come from the quote, so the
+ * agent never repeats the original call (some clients block repeated calls as duplicates).
+ */
+const confirmSpend = async (args: unknown, context: McpRequestContext): Promise<CallToolResult> => {
+  const token = args && typeof args === "object" ? String((args as Record<string, unknown>)[CONFIRM_FIELD] ?? "").trim() : "";
+  if (!token) return errorResult(`Pass the ${CONFIRM_FIELD} from the quote.`);
+  const userId = context.principal.userId;
+  const claimed = await claimQuote(userId, token);
+  if (!claimed.ok) {
+    const definition = claimed.toolName ? MCP_TOOLS.get(claimed.toolName) : undefined;
+    const input = claimed.input && typeof claimed.input === "object" && !Array.isArray(claimed.input) ? (claimed.input as Record<string, unknown>) : null;
+    if (definition && input) {
+      const fresh = await quoteToolCall(userId, definition, input);
+      return toResult({
+        ...fresh,
+        tokenProblem: claimed.reason,
+        next: `${claimed.reason} Nothing was started or charged. ${fresh.next}`,
+      });
+    }
+    return errorResult(`${claimed.reason} Nothing was started. Call the tool again to get a new quote.`);
+  }
+  const definition = MCP_TOOLS.get(claimed.toolName);
+  if (!definition) return errorResult("That quote is for a tool that no longer exists.");
+  const parsed = definition.inputSchema.safeParse(claimed.input);
+  if (!parsed.success) return errorResult("The quoted arguments are no longer valid. Call the tool again to get a new quote.");
+  return runTool(definition, (parsed.data ?? {}) as Record<string, unknown>, context);
 };
 
 /** A fresh server per request. The transport is stateless, so nothing is shared between calls. */

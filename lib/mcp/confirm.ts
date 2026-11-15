@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { priceToolCall } from "@/lib/tools/lookup-credits";
 import type { ToolDefinition } from "@/lib/tools/types";
 import { hashToken, newToken } from "./auth/tokens";
-import { callHash, CONFIRM_FIELD } from "./canonical";
+import type { Prisma } from "@/generated/prisma/client";
+import { callHash, CONFIRM_FIELD, CONFIRM_SPEND_TOOL } from "./canonical";
+
+export { CONFIRM_SPEND_TOOL };
 
 export const QUOTE_TTL_MS = 10 * 60 * 1000;
 
@@ -36,6 +39,7 @@ export const quoteToolCall = async (userId: string, definition: ToolDefinition, 
       userId,
       toolName: definition.name,
       inputHash: callHash(definition.name, input),
+      input: input as Prisma.InputJsonValue,
       credits: credits ?? -1,
       expiresAt,
     },
@@ -55,8 +59,8 @@ export const quoteToolCall = async (userId: string, definition: ToolDefinition, 
     expiresAt: expiresAt.toISOString(),
     next:
       `${what}. ${detail} The person has ${balance.total} credits. Tell them this and ask before going on. ` +
-      `If they agree, call ${definition.name} again with exactly the same arguments plus "${CONFIRM_FIELD}": "${token}". ` +
-      `The token works once, for this exact input, for 10 minutes. Tokens from earlier quotes no longer work. ` +
+      `If they agree, call ${CONFIRM_SPEND_TOOL} with {"${CONFIRM_FIELD}": "${token}"}. That runs exactly what was priced; don't call ${definition.name} again. ` +
+      `The token works once, for 10 minutes. Tokens from earlier quotes no longer work. ` +
       `Once it runs you get a jobId; poll get_video with it.`,
   };
   return result;
@@ -86,4 +90,30 @@ export const redeemQuote = async (userId: string, toolName: string, input: Recor
     else reason = "The arguments changed since the quote.";
   }
   return { ok: false as const, reason, error: `${reason} Call ${toolName} again without ${CONFIRM_FIELD} to get a fresh quote.` };
+};
+
+/**
+ * Claims a quote by its token for confirm_spend: marks it used and returns the tool and the exact
+ * arguments that were priced. Fails for another user's token, a used or expired one, or an old
+ * quote saved before arguments were stored.
+ */
+export const claimQuote = async (userId: string, token: string) => {
+  const tokenHash = hashToken(token);
+  const { count } = await db.spendQuote.updateMany({
+    where: { tokenHash, userId, usedAt: null, expiresAt: { gt: new Date() } },
+    data: { usedAt: new Date() },
+  });
+  const row = await db.spendQuote.findUnique({ where: { tokenHash }, select: { userId: true, toolName: true, input: true, usedAt: true, expiresAt: true } });
+  if (count === 0 || !row || row.userId !== userId) {
+    const reason = !row || row.userId !== userId
+      ? "That confirm token is unknown."
+      : row.expiresAt <= new Date()
+        ? "That confirm token expired."
+        : "That confirm token was already used.";
+    return { ok: false as const, reason, toolName: row && row.userId === userId ? row.toolName : null, input: row && row.userId === userId ? row.input : null };
+  }
+  if (!row.input || typeof row.input !== "object" || Array.isArray(row.input)) {
+    return { ok: false as const, reason: "That quote is from before confirm_spend existed.", toolName: row.toolName, input: null };
+  }
+  return { ok: true as const, toolName: row.toolName, input: row.input as Record<string, unknown> };
 };

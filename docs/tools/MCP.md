@@ -63,7 +63,11 @@ Tools with `approval: "user"` spend credits or can't be undone, and they run in 
    ```
 
    Nothing runs.
-2. **Second call: the same arguments plus `confirmToken`.** The token is bound to the user, the tool, and a hash of the canonical input (`lib/mcp/canonical.ts`). It must be unused and less than 10 minutes old. Any change to the arguments is refused, and the agent has to get a fresh quote.
+2. **Second call: `confirm_spend` with only the `confirmToken`.** The quote stores the exact arguments that were priced, so the agent doesn't repeat the original call. This matters because some clients block a repeated tool call as a duplicate. The token is bound to the user, must be unused, and must be less than 10 minutes old. `confirm_spend` shows the video card like the make tools do.
+
+   The older form still works: the same tool again, with the same arguments plus `confirmToken`. There the token is also bound to the tool and to a hash of the canonical input (`lib/mcp/canonical.ts`).
+
+   With either form, a used, expired, unknown or mismatched token doesn't return a dead-end error. The reply carries a fresh quote and token, says nothing was started or charged, and tells the agent to ask the person again.
 
 Destructive tools that cost nothing (cancel, restore) go through the same flow and quote `credits: 0`.
 

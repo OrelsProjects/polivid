@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MCP_TOOL_DEFS } from "@/lib/tools/registry";
-import { CONFIRM_FIELD } from "./canonical";
+import { CONFIRM_FIELD, CONFIRM_SPEND_TOOL } from "./canonical";
 import { listMcpTools, mcpInstructions, needsConfirmation } from "./tool-list";
 
 test("every MCP tool lists an object schema", () => {
   const tools = listMcpTools();
-  assert.equal(tools.length, MCP_TOOL_DEFS.length);
+  // Every registry tool, plus confirm_spend.
+  assert.equal(tools.length, MCP_TOOL_DEFS.length + 1);
   for (const tool of tools) {
     assert.equal(tool.inputSchema.type, "object", tool.name);
     assert.ok(tool.description && tool.description.length > 0, tool.name);
@@ -34,4 +35,13 @@ test("no tool already uses the confirm field name", () => {
 test("instructions name every MCP tool", () => {
   const text = mcpInstructions();
   for (const definition of MCP_TOOL_DEFS) assert.ok(text.includes(`- ${definition.name}:`), definition.name);
+});
+
+test("confirm_spend is listed once, takes only the token, and shows the video card", () => {
+  const confirm = listMcpTools().filter((tool) => tool.name === CONFIRM_SPEND_TOOL);
+  assert.equal(confirm.length, 1);
+  assert.deepEqual(confirm[0].inputSchema.required, [CONFIRM_FIELD]);
+  assert.deepEqual(Object.keys(confirm[0].inputSchema.properties ?? {}), [CONFIRM_FIELD]);
+  assert.ok((confirm[0]._meta as { ui?: { resourceUri?: string } }).ui?.resourceUri);
+  assert.ok(mcpInstructions().includes(CONFIRM_SPEND_TOOL));
 });

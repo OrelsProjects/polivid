@@ -4,19 +4,36 @@ import { MCP_TOOL_DEFS } from "@/lib/tools/registry";
 import { mcpAnnotations, toolInputJsonSchema } from "@/lib/tools/to-json-schema";
 import { TOOL_CATEGORIES, TOOL_CATEGORY_LABELS, type ToolDefinition } from "@/lib/tools/types";
 import { cardToolMeta } from "./apps/card-data";
-import { CONFIRM_FIELD } from "./canonical";
+import { videoCardToolMeta } from "./apps/video-card";
+import { CONFIRM_FIELD, CONFIRM_SPEND_TOOL } from "./canonical";
 
 /** Over MCP every approval tool runs only after a quote is sent back. */
 export const needsConfirmation = (definition: ToolDefinition) => definition.approval === "user";
 
 const CONFIRM_DESCRIPTION =
-  "Leave this out on the first call: you get back the price and a token, and nothing runs. " +
-  "After the person agrees, call again with the same arguments plus this token.";
+  `Leave this out: the first call returns the price and a token, and nothing runs. After the person agrees, call ${CONFIRM_SPEND_TOOL} with that token instead of repeating this call.`;
 
 const confirmNote = (definition: ToolDefinition) =>
   needsConfirmation(definition)
-    ? `\n\nOver MCP this tool runs in two calls. The first call returns a quote (credits, balance, ${CONFIRM_FIELD}) and does nothing. Show the person the cost, then repeat the call with ${CONFIRM_FIELD}.`
+    ? `\n\nOver MCP this tool runs in two steps. This call returns a quote (credits, balance, ${CONFIRM_FIELD}) and does nothing. Show the person the cost; if they agree, call ${CONFIRM_SPEND_TOOL} with the ${CONFIRM_FIELD}.`
     : "";
+
+/** The second step of every quoted tool. It isn't in the registry because only MCP clients need it. */
+const confirmSpendTool = (): Tool => ({
+  name: CONFIRM_SPEND_TOOL,
+  title: "Confirm and run",
+  description:
+    `Run a call that was quoted earlier, after the person agreed to the price. Pass only the ${CONFIRM_FIELD} from that quote: ` +
+    "the exact priced arguments are stored with it. The token works once, for 10 minutes. A video returns a jobId; poll get_video with it. " +
+    "If the token is used or expired you get a fresh quote back; ask the person again before confirming that one. Never call this without the person's agreement.",
+  inputSchema: {
+    type: "object",
+    properties: { [CONFIRM_FIELD]: { type: "string", description: "The confirmToken from the quote the person agreed to." } },
+    required: [CONFIRM_FIELD],
+  },
+  annotations: { title: "Confirm and run", readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+  _meta: videoCardToolMeta(),
+});
 
 const jsonSchemaFor = (definition: ToolDefinition): Tool["inputSchema"] => {
   const schema = { ...(toolInputJsonSchema(definition.inputSchema) as Record<string, unknown>) };
@@ -29,7 +46,8 @@ const jsonSchemaFor = (definition: ToolDefinition): Tool["inputSchema"] => {
 /** Built once per process: the registry does not change at runtime. */
 let toolList: Tool[] | null = null;
 export const listMcpTools = () => {
-  toolList ??= MCP_TOOL_DEFS.map((definition) => ({
+  toolList ??= [
+    ...MCP_TOOL_DEFS.map((definition) => ({
     name: definition.name,
     title: definition.title,
     description: renderDescription(definition) + confirmNote(definition),
@@ -37,7 +55,9 @@ export const listMcpTools = () => {
     annotations: { title: definition.title, ...mcpAnnotations(definition.effects) },
     // Hosts that support MCP Apps show the PoliVid card for video tools.
     ...(cardToolMeta(definition) ? { _meta: cardToolMeta(definition) } : {}),
-  }));
+    })),
+    confirmSpendTool(),
+  ];
   return toolList;
 };
 
@@ -50,7 +70,7 @@ export const mcpInstructions = () => {
     "Workflow:",
     "1. Discover first: list_modes, list_models, list_templates, list_voices, list_characters, list_presets, list_uploads, list_songs. Don't guess ids.",
     "2. Plan when it helps: make_storyboard or plan_shots, then pass the scene seconds on as cuts. estimate_credits prices any idea for free.",
-    `3. Tools that spend credits or can't be undone run in two calls. The first returns a quote and ${CONFIRM_FIELD}. Show the person the cost, and only after they agree, repeat the exact call with ${CONFIRM_FIELD}.`,
+    `3. Tools that spend credits or can't be undone run in two calls. The first returns a quote and ${CONFIRM_FIELD}. Show the person the cost, and only after they agree, call ${CONFIRM_SPEND_TOOL} with that ${CONFIRM_FIELD}.`,
     "4. Videos and productions run in the background. Poll get_video or get_production until the status is ready, failed, or waiting for input.",
     "5. When a video is ready, open_in_editor gives a projectId. Every edit_* tool changes that timeline for free, and edit_read_timeline shows it.",
     "6. To attach your own picture, audio or video, import it with import_media_from_url (when listed) and pass the key it returns.",

@@ -593,6 +593,8 @@ model SpendQuote {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   toolName  String
   inputHash String
+  /// The exact arguments that were priced, so confirm_spend can run them without the agent repeating the call.
+  input     Json?
   credits   Int
   expiresAt DateTime
   usedAt    DateTime?
