@@ -598,6 +598,8 @@ model SpendQuote {
   credits   Int
   expiresAt DateTime
   usedAt    DateTime?
+  /// What happened once it was used: { kind: "approved", jobId?, via } or { kind: "declined", via }.
+  outcome   Json?
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])

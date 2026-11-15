@@ -69,6 +69,10 @@ Tools with `approval: "user"` spend credits or can't be undone, and they run in 
 
    With either form, a used, expired, unknown or mismatched token doesn't return a dead-end error. The reply carries a fresh quote and token, says nothing was started or charged, and tells the agent to ask the person again.
 
+**Approve and Decline without the agent.** In hosts with MCP Apps, the quote shows on the PoliVid card with **Approve** and **Decline** buttons. They call `confirm_spend` or `decline_spend` straight through the host (`tools/call` with `via: "card"`), so nothing goes through the model. If the host can't make tool calls, the buttons open `/approve/<quoteId>` instead. That page requires the person's PoliVid session and has the same two buttons. `quoteId` is the token's hash, not the token.
+
+Each quote records its outcome (`approved` with the `jobId`, or `declined`). If the agent confirms a quote the person already settled, it gets that outcome back, plus the live `get_video` status for an approved video. It never gets a second run or a new quote. `decline_spend` is also listed for agents to use when the person says no in the chat.
+
 Destructive tools that cost nothing (cancel, restore) go through the same flow and quote `credits: 0`.
 
 ## Files

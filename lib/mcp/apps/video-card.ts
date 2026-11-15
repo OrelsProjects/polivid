@@ -51,6 +51,8 @@ video { display: block; max-width: 100%; max-height: 520px; background: #000; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 button { font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border-radius: 999px; padding: 8px 14px; border: 1px solid rgba(255,255,255,0.14); background: transparent; color: #f4f4f5; }
 button.primary { background: #fff; color: #0b0b0d; border-color: #fff; }
+button.approve { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+button:disabled { opacity: 0.55; cursor: default; }
 button:focus-visible { outline: 2px solid #c084fc; outline-offset: 2px; }
 .note { font-size: 13px; color: #d4d4d8; line-height: 1.5; }
 .err { font-size: 13px; color: #fca5a5; line-height: 1.5; }
@@ -64,7 +66,7 @@ const SCRIPT = String.raw`
   var nextId = 1;
   var pending = {};
   var host = { serverTools: false, openLinks: false };
-  var state = { videoId: "", pollTimer: 0, polls: 0, last: null };
+  var state = { videoId: "", pollTimer: 0, polls: 0, last: null, quote: null, busy: false };
   var MAX_POLLS = 360;
 
   function send(message) { window.parent.postMessage(message, "*"); }
@@ -94,9 +96,8 @@ const SCRIPT = String.raw`
   function pageUrl(id) { return ORIGIN + "/videos/" + encodeURIComponent(id); }
 
   function openApp() {
-    var url = state.videoId ? pageUrl(state.videoId) : ORIGIN + "/videos";
-    if (host.openLinks) request("ui/open-link", { url: url }).catch(function () { window.open(url, "_blank"); });
-    else window.open(url, "_blank");
+    var waiting = state.last && state.last.needsConfirmation && state.quote && state.quote.id;
+    openUrl(state.videoId ? pageUrl(state.videoId) : waiting ? approvePage() : ORIGIN + "/videos");
   }
 
   function dataOf(result) {
@@ -112,6 +113,7 @@ const SCRIPT = String.raw`
     state.last = data;
     var card = data.card || {};
     show("progress", false); show("stage", false); show("error", false); show("note", false);
+    showDecision(false);
 
     if (data.error) {
       chip("Couldn't do that", "bad");
@@ -126,8 +128,19 @@ const SCRIPT = String.raw`
       $("title").textContent = data.detail || "Ready to make your video";
       var cost = typeof data.credits === "number" ? (data.credits === 0 ? "No credits" : data.credits + " credits") : "Priced when it runs";
       $("meta").textContent = cost + " · " + (typeof data.balance === "number" ? data.balance + " credits left" : "");
-      $("note").textContent = "Nothing has started. Tell Claude to go ahead and it will start the video here.";
+      $("note").textContent = "Nothing has started. Approve it here, or tell Claude to go ahead.";
       show("note", true);
+      state.quote = { token: data.confirmToken || "", id: data.quoteId || "" };
+      showDecision(Boolean(state.quote.token || state.quote.id));
+      reportSize();
+      return;
+    }
+
+    if (data.declined === true || data.settled === "declined") {
+      chip("Declined");
+      $("note").textContent = "Declined. Nothing was started or charged.";
+      show("note", true);
+      stopPolling();
       reportSize();
       return;
     }
@@ -179,6 +192,58 @@ const SCRIPT = String.raw`
     reportSize();
   }
 
+  function showDecision(on) {
+    show("approve", on); show("decline", on);
+    $("approve").disabled = state.busy; $("decline").disabled = state.busy;
+  }
+  function approvePage() {
+    if (!state.quote || !state.quote.id) return ORIGIN + "/videos";
+    return ORIGIN + "/approve/" + encodeURIComponent(state.quote.id);
+  }
+  function openUrl(url) {
+    if (host.openLinks) request("ui/open-link", { url: url }).catch(function () { window.open(url, "_blank"); });
+    else window.open(url, "_blank");
+  }
+  /** Tells the model what the person chose, where the host supports it. Best effort. */
+  function tellModel(text) {
+    request("ui/update-model-context", { content: [{ type: "text", text: text }] }).catch(function () {});
+  }
+  function fallbackToPage(text) {
+    state.busy = false;
+    showDecision(true);
+    $("note").textContent = text;
+    show("note", true);
+    openUrl(approvePage());
+    reportSize();
+  }
+  function decide(approve) {
+    if (state.busy || !state.quote) return;
+    if (!host.serverTools || !state.quote.token) {
+      fallbackToPage("Finish in the PoliVid tab that just opened.");
+      return;
+    }
+    state.busy = true;
+    showDecision(true);
+    chip(approve ? "Starting" : "Declining", "wait");
+    var name = approve ? "confirm_spend" : "decline_spend";
+    request("tools/call", { name: name, arguments: { confirmToken: state.quote.token, via: "card" } })
+      .then(function (result) {
+        state.busy = false;
+        var data = dataOf(result);
+        if (!data) throw new Error("empty");
+        render(data);
+        var job = data.jobId || (data.card && data.card.videoId) || "";
+        if (approve && !data.error && !data.needsConfirmation) {
+          tellModel("The person approved the quote on the PoliVid card. The video has started" + (job ? " (jobId " + job + "). Poll get_video with it." : ".") + " Don't call confirm_spend for it again.");
+        } else if (!approve && data.declined) {
+          tellModel("The person declined the quote on the PoliVid card. Nothing was started or charged.");
+        }
+      })
+      .catch(function () {
+        fallbackToPage("The chat couldn't reach PoliVid, so it opened in a new tab. Approve or decline there.");
+      });
+  }
+
   function poll() {
     if (!state.videoId || !host.serverTools) return;
     state.polls += 1;
@@ -220,6 +285,8 @@ const SCRIPT = String.raw`
   });
 
   $("open").addEventListener("click", openApp);
+  $("approve").addEventListener("click", function () { decide(true); });
+  $("decline").addEventListener("click", function () { decide(false); });
   if (window.ResizeObserver) new ResizeObserver(reportSize).observe($("card"));
 
   request("ui/initialize", {
@@ -267,6 +334,8 @@ export const videoCardHtml = (origin: string) => `<!doctype html>
   <div class="note hidden" id="note"></div>
   <div class="err hidden" id="error"></div>
   <div class="actions">
+    <button class="approve hidden" id="approve" type="button">Approve</button>
+    <button class="hidden" id="decline" type="button">Decline</button>
     <button class="primary" id="open" type="button">Open in PoliVid</button>
   </div>
 </div>

@@ -6,6 +6,9 @@ export const CONFIRM_FIELD = "confirmToken";
 /** Runs a quoted call from its token alone, so agents don't have to repeat the original call. */
 export const CONFIRM_SPEND_TOOL = "confirm_spend";
 
+/** Cancels a quote the person said no to, so it can't be confirmed later. */
+export const DECLINE_SPEND_TOOL = "decline_spend";
+
 /** JSON with sorted keys and no undefined values, so the same input always hashes the same. */
 export const canonicalJson = (value: unknown): string => {
   if (value === null || typeof value !== "object") return JSON.stringify(value ?? null);
