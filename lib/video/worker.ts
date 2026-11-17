@@ -25,7 +25,7 @@ import { NO_ON_SCREEN_TEXT } from "./on-screen-text";
 import { clipDuration, clipResolution, generationModelBySlug, isVideoProvider, type VideoProvider } from "./models";
 import { CLIP_ATTEMPTS, clipFailureAction, MODEL_CHOICE_CODE, ModelChoiceNeeded } from "./model-choice";
 import { lyricsClipDurations, singerModelsFor } from "./singer-models";
-import { modeNeedsUpload, SWAP_DEFAULT_PROMPT, videoModeById } from "./modes";
+import { modeNeedsUpload, videoModeById } from "./modes";
 import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
 import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 import { shouldHoldAfterClip } from "./job-stages";
@@ -39,8 +39,17 @@ import { composeCaptions } from "./compose/captions";
 import { composeEdit } from "./compose/edit";
 import { composeLoop } from "./compose/loop";
 import { composeStills } from "./compose/stills";
-import { finishKlingVideo, hasKlingKey, submitKlingSwap } from "./kling-footage";
-import { DEFAULT_SWAP_ORIENTATION, isSwapOrientation, swapResolutionFor } from "./swap";
+import { finishKlingVideo, hasKlingKey, submitKlingSwap, submitKlingSwapEdit } from "./kling-footage";
+import {
+  DEFAULT_SWAP_ORIENTATION,
+  isSwapOrientation,
+  swapEditDuration,
+  swapEditPrompt,
+  swapMethodForModel,
+  swapMovesPrompt,
+  swapResolutionFor,
+} from "./swap";
+import { swapEditVideoUrl } from "./compose/swap-source";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
@@ -301,8 +310,9 @@ const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
 const SWAP_LINK_SECONDS = 2 * 60 * 60;
 
 /**
- * Character swap: one Kling Motion Control task. A task this job already started is
- * polled again instead of sent twice, so a restart does not pay for a second swap.
+ * Character swap: one Kling task. Replacing edits the video with Kling 3.0 Omni. Copying the
+ * moves uses Motion Control. A task this job already started is polled again instead of sent
+ * twice, so a restart does not pay for a second swap.
  */
 const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   const videoKey = input.mediaKey;
@@ -317,23 +327,45 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   });
   let taskId = open?.providerJobId;
   if (!taskId) {
-    const [imageUrl, videoUrl] = await Promise.all([
+    const replace = swapMethodForModel(input.model) === "replace";
+    const [imageUrl, videoUrl, name] = await Promise.all([
       signedGetUrl(pictureKey, SWAP_LINK_SECONDS),
-      signedGetUrl(videoKey, SWAP_LINK_SECONDS),
+      replace
+        ? swapEditVideoUrl(userId, jobId, videoKey, SWAP_LINK_SECONDS)
+        : signedGetUrl(videoKey, SWAP_LINK_SECONDS),
+      characterName(userId, input.characterId),
     ]);
-    taskId = await submitKlingSwap({
-      imageUrl,
-      videoUrl,
-      prompt: input.prompt === SWAP_DEFAULT_PROMPT ? "" : input.prompt,
-      orientation: isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION,
-      resolution: input.resolution || swapResolutionFor(input.tier),
-      keepSound: input.keepSound !== false,
-    });
+    const resolution = input.resolution || swapResolutionFor(input.tier);
+    const keepSound = input.keepSound !== false;
+    taskId = replace
+      ? await submitKlingSwapEdit({
+          imageUrl,
+          videoUrl,
+          prompt: swapEditPrompt(input.prompt, name),
+          resolution,
+          duration: swapEditDuration(input.length),
+          keepSound,
+        })
+      : await submitKlingSwap({
+          imageUrl,
+          videoUrl,
+          prompt: swapMovesPrompt(input.prompt, name),
+          orientation: isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION,
+          resolution,
+          keepSound,
+        });
     await rememberProviderJob(jobId, taskId, "kling", 0, input.model);
   }
   const bytes = await finishKlingVideo(taskId, () => isStillRunning(userId, jobId));
   await finishProviderClip(taskId, "completed", input.model);
   await storeClip(userId, jobId, input, input.length, bytes, "");
+};
+
+/** The saved character's name, so the prompt's mention of it can point at the picture Kling sees. */
+const characterName = async (userId: string, characterId: string | undefined) => {
+  if (!characterId) return null;
+  const character = await db.character.findFirst({ where: { id: characterId, userId }, select: { name: true } });
+  return character?.name ?? null;
 };
 
 const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string, provider: string) => {

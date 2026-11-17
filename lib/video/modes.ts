@@ -25,7 +25,9 @@ import {
   type GenerationModelId,
 } from "./models";
 import type { VisualMedia } from "./stills";
-import { MAX_SWAP_SECONDS, SWAP_LABEL, SWAP_USD_PER_SECOND } from "./swap";
+import { MAX_SWAP_SECONDS, SWAP_DEFAULT_PROMPT, SWAP_USD_PER_SECOND } from "./swap";
+
+export { SWAP_DEFAULT_PROMPT } from "./swap";
 
 export const VIDEO_TIERS = ["low", "pro", "ultra"] as const;
 export type VideoTier = (typeof VIDEO_TIERS)[number];
@@ -81,8 +83,6 @@ export interface VideoMode {
   media?: readonly VisualMedia[];
   /** The main box holds words to be spoken, so they can be read exactly as written. */
   spokenScript?: boolean;
-  /** Made through the Coach and MCP tools only. The Create page does not list it yet. */
-  agentOnly?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -120,7 +120,7 @@ const REFERENCE_TIERS: Record<VideoTier, ModeTier> = {
 const swapTier = (resolution: "720p" | "1080p", strength: string): ModeTier => ({
   resolution,
   strength,
-  fixed: { name: SWAP_LABEL, usdPerSecond: SWAP_USD_PER_SECOND[resolution], maxLength: MAX_SWAP_SECONDS.video },
+  fixed: { name: "Kling 3.0", usdPerSecond: SWAP_USD_PER_SECOND[resolution], maxLength: MAX_SWAP_SECONDS.video },
 });
 
 const SWAP_TIERS: Record<VideoTier, ModeTier> = {
@@ -308,17 +308,16 @@ export const VIDEO_MODES: readonly VideoMode[] = [
   {
     id: "swap",
     title: "Character Swap",
-    description: "Put your character into a video you upload. They copy every move and the video keeps its sound.",
+    description: "Replace someone in a video you upload with your character, or have your character copy its moves.",
     icon: PersonStanding,
     tint: "from-orange-300 to-sky-200",
     status: "live",
     phase: 5,
     engine: "swap",
     upload: "video",
-    placeholder: "Optional: wardrobe, setting, or style notes. The video sets the moves.",
+    placeholder: "Say who to replace, and type / to pick your character. For example: Replace the monkey with /Greg",
     promptOptional: true,
     referenceImages: true,
-    agentOnly: true,
     tiers: SWAP_TIERS,
   },
 ];
@@ -329,8 +328,6 @@ export const VIDEO_MODES: readonly VideoMode[] = [
  */
 export const isDirectMode = (mode?: string | null) => mode === "direct";
 
-/** Stored when the person wrote nothing. It is a title only and is never sent to Kling. */
-export const SWAP_DEFAULT_PROMPT = "Character swap";
 
 export const isVideoModeId = (value: string): value is VideoModeId =>
   (VIDEO_MODE_IDS as readonly string[]).includes(value);

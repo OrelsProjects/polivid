@@ -31,7 +31,15 @@ import {
 import { VIDEO_MODE_IDS, VIDEO_TIERS } from "@/lib/video/modes";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
-import { MAX_SWAP_SECONDS, MIN_SWAP_SECONDS, SWAP_ORIENTATIONS, SWAP_PROMPT_LIMIT, swapResolutionFor } from "@/lib/video/swap";
+import {
+  MAX_SWAP_EDIT_SECONDS,
+  MAX_SWAP_SECONDS,
+  MIN_SWAP_SECONDS,
+  SWAP_METHODS,
+  SWAP_ORIENTATIONS,
+  SWAP_PROMPT_LIMIT,
+  swapResolutionFor,
+} from "@/lib/video/swap";
 
 const filmed = () => ({
   format: formatField(),
@@ -369,12 +377,11 @@ export const makeTools = [
     modeId: "swap",
     name: "make_character_swap",
     whenToUse: [
-      "They uploaded a video of someone moving, dancing, or talking, and want their character to perform it instead.",
-      "mediaKey is that performance video. If you omit it, the attached video is used. Pass it when you know it, so the price is shown before approval.",
-      "Pass characterId for a saved character with a picture, and characterLookId for one of its looks. Or pass one picture key in referenceKeys for someone who is not saved. A saved character wins over a picture.",
-      `The video must be ${MIN_SWAP_SECONDS} to ${MAX_SWAP_SECONDS.video} seconds, one continuous take with one person in frame. The result runs as long as the video, and the price follows its length.`,
-      "orientation video follows the video's framing (the default). orientation image keeps the picture's framing and facing, for videos up to 10 seconds.",
-      "The video keeps its own sound unless keepSound is false. No voice is added.",
+      "They want their character in a video they uploaded. mediaKey is that video; omit it to use the attached one, but pass it when known so the price shows before approval.",
+      "method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.",
+      "method moves makes a new clip of the character doing the video's moves. The scene is not kept.",
+      "Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.",
+      `Lengths: replace ${MIN_SWAP_SECONDS}-${Math.floor(MAX_SWAP_EDIT_SECONDS)}s, moves ${MIN_SWAP_SECONDS}-${MAX_SWAP_SECONDS.video}s. The price follows the video's length. Its sound is kept unless keepSound is false.`,
     ],
     avoidWhen: [
       "They want a new clip made from a description. Use make_prompt_video.",
@@ -390,29 +397,40 @@ export const makeTools = [
         .max(1)
         .optional()
         .describe("One picture key of who should appear, when they are not a saved character."),
+      method: z
+        .enum(SWAP_METHODS)
+        .optional()
+        .describe("replace edits their video and swaps in the character (up to 15s). moves makes a new clip of the character doing the video's moves (up to 30s). Defaults to replace."),
       prompt: z
         .string()
         .trim()
         .max(SWAP_PROMPT_LIMIT)
         .optional()
-        .describe("Optional wardrobe, setting, or style notes. The video sets the moves. Leave empty to send none."),
+        .describe("For replace: what to replace, naming the character, e.g. 'Replace the monkey with Greg'. Empty replaces the main person. For moves: optional wardrobe or style notes."),
       orientation: z
         .enum(SWAP_ORIENTATIONS)
         .optional()
-        .describe("video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video."),
+        .describe("moves only. video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video."),
       keepSound: z.boolean().optional().describe("Keep the video's own sound. Defaults to true."),
       tier: tierField(),
     }),
     approvalDetail: (input) => {
-      const parts = ["Character swap", swapResolutionFor(typeof input.tier === "string" ? input.tier : undefined)];
-      if (input.orientation === "image") parts.push("picture framing");
+      const parts = [
+        input.method === "moves" ? "Character swap, copying the moves" : "Character swap, replacing in the video",
+        swapResolutionFor(typeof input.tier === "string" ? input.tier : undefined),
+      ];
+      if (input.method === "moves" && input.orientation === "image") parts.push("picture framing");
       if (input.keepSound === false) parts.push("no sound");
       return parts.join(" · ");
     },
     examples: [
       {
+        request: "Replace the monkey in this video with Greg.",
+        input: { mediaKey: "uploads/u1/street.mp4", characterId: "c-1", prompt: "Replace the monkey with Greg", tier: "pro" },
+      },
+      {
         request: "Have my character do the dance in this video.",
-        input: { mediaKey: "uploads/u1/dance.mp4", characterId: "c-1", tier: "pro" },
+        input: { mediaKey: "uploads/u1/dance.mp4", characterId: "c-1", method: "moves", tier: "pro" },
       },
     ],
   }),

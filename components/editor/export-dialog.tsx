@@ -169,7 +169,7 @@ export function ExportDialog() {
             aria-modal="true"
             aria-labelledby="export-dialog-title"
             tabIndex={-1}
-            className="w-full max-w-md rounded-2xl border border-border bg-white p-5 shadow-lg outline-none"
+            className="w-full max-w-md rounded-2xl border border-border bg-popover p-5 text-popover-foreground shadow-lg outline-none"
           >
             <h2 id="export-dialog-title" className="text-lg font-semibold">
               Export MP4

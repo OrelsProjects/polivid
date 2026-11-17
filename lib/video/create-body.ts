@@ -14,6 +14,7 @@ import {
 import type { VideoFormat } from "./schema";
 import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
 import type { VisualMedia } from "./stills";
+import type { SwapMethod } from "./swap";
 import type { z } from "zod";
 
 export type CreateVideoBody = z.input<typeof CreateVideoSchema>;
@@ -47,6 +48,8 @@ export interface CreateFormValues {
   /** The quick edit to make, and its setting. */
   op?: EditOp;
   opValue?: string;
+  /** Character swap: replace someone in the video, or copy its moves. */
+  swapMethod?: SwapMethod;
 }
 
 export interface ApprovedPlan {
@@ -104,6 +107,22 @@ export const buildCreateBody = (input: {
       ...(values.mediaKey ? { mediaKey: values.mediaKey } : {}),
       op,
       opValue: editValueFor(op, values.opValue),
+    };
+  }
+
+  if (mode.engine === "swap") {
+    return {
+      prompt,
+      format: values.format,
+      // The server reads the real length from the upload. This only satisfies the shared field.
+      length: Math.max(2, Math.min(values.length, 180)),
+      mode: mode.id,
+      ...(input.tool && input.tool !== mode.id ? { tool: input.tool } : {}),
+      tier: values.tier,
+      ...(values.mediaKey ? { mediaKey: values.mediaKey } : {}),
+      characterId: values.characterId,
+      ...(values.characterLookId ? { characterLookId: values.characterLookId } : {}),
+      ...(values.swapMethod ? { swapMethod: values.swapMethod } : {}),
     };
   }
 

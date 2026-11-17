@@ -194,3 +194,47 @@ export const klingSwapCall = (request: KlingSwapRequest): KlingCall => {
     },
   };
 };
+
+export interface KlingSwapEditRequest {
+  /** The character picture, cited in the prompt as @image_1. */
+  imageUrl: string;
+  /** The video to edit, cited in the prompt as @video_1. */
+  videoUrl: string;
+  /** The full instruction, already naming @image_1. */
+  prompt: string;
+  resolution: string;
+  /** Seconds to make. Kling takes 3 to 15. */
+  duration: number;
+  /** Keep the video's sound. */
+  keepSound: boolean;
+}
+
+/** Kling 3.0 Omni edits the video itself: what the prompt names is replaced, the rest is kept. */
+export const klingSwapEditCall = (request: KlingSwapEditRequest): KlingCall => ({
+  url: `${KLING_API}/omni-video/kling-3.0-omni`,
+  body: {
+    contents: [
+      { type: "prompt", text: request.prompt.slice(0, SWAP_PROMPT_LIMIT) },
+      { type: "base_video", url: request.videoUrl, id: "video_1" },
+      { type: "refer_image", url: request.imageUrl, id: "image_1" },
+    ],
+    settings: {
+      resolution: request.resolution,
+      duration: Math.min(15, Math.max(3, Math.round(request.duration))),
+      // An edited video can't make new sound. It keeps the original or has none.
+      audio: request.keepSound ? "original" : "off",
+      multi_shot: false,
+    },
+    options: OPTIONS,
+  },
+});
+
+/**
+ * Kling answers an empty or expired account with a "try again" status, the same as when it is busy.
+ * Waiting never fixes this one, so it is told apart by its message.
+ */
+export const isKlingOutOfCredit = (message: string) =>
+  /balance|insufficient|quota|arrear|resource pack|package (?:has )?expired/i.test(message);
+
+/** What the person sees. The account's state is for the owner's log, not the video card. */
+export const KLING_UNAVAILABLE = "Kling can't take new videos right now. Your credits were returned. Try again later.";

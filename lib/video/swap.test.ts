@@ -6,12 +6,23 @@ import { creditsForToolInput } from "@/lib/tools/tool-credits";
 import { stagesForJob } from "./job-stages";
 import { generationModelLabel } from "./models";
 import { describeModeTier, defaultPromptForMode, resolveModeTier, videoModeById } from "./modes";
+import { buildCreateBody } from "./create-body";
+import { formSpecFor } from "./form-spec";
 import { CREATE_TOOLS } from "./tool-catalog";
 import {
   MAX_SWAP_SECONDS,
+  SWAP_EDIT_LABEL,
+  SWAP_EDIT_MODEL,
   SWAP_LABEL,
   SWAP_MODEL,
   isSwapOrientation,
+  swapEditConversion,
+  swapEditDuration,
+  swapEditPrompt,
+  swapEditShapeProblem,
+  swapMethodForModel,
+  swapModelFor,
+  swapMovesPrompt,
   swapCredits,
   swapLengthProblem,
   swapResolutionFor,
@@ -39,13 +50,13 @@ test("ultra swaps at 1080p and the other tiers at 720p", () => {
   }
 });
 
-test("the performance video must run 3 seconds, and at most 30 or 10 by framing", () => {
-  assert.match(swapLengthProblem(2.4, "video") ?? "", /at least 3 seconds/);
-  assert.equal(swapLengthProblem(3, "video"), null);
-  assert.equal(swapLengthProblem(30.4, "video"), null);
-  assert.match(swapLengthProblem(31, "video") ?? "", /30 seconds or less/);
-  assert.equal(swapLengthProblem(10, "image"), null);
-  assert.match(swapLengthProblem(12, "image") ?? "", /up to 10 seconds/);
+test("copying the moves takes 3 seconds, and at most 30 or 10 by framing", () => {
+  assert.match(swapLengthProblem(2.4, "moves", "video") ?? "", /at least 3 seconds/);
+  assert.equal(swapLengthProblem(3, "moves", "video"), null);
+  assert.equal(swapLengthProblem(30.4, "moves", "video"), null);
+  assert.match(swapLengthProblem(31, "moves", "video") ?? "", /30 seconds or less/);
+  assert.equal(swapLengthProblem(10, "moves", "image"), null);
+  assert.match(swapLengthProblem(12, "moves", "image") ?? "", /up to 10 seconds/);
   assert.equal(MAX_SWAP_SECONDS.video, 30);
   assert.equal(isSwapOrientation("image"), true);
   assert.equal(isSwapOrientation("sideways"), false);
@@ -61,14 +72,92 @@ test("the tool price waits for the server, which reads the upload's length", () 
   assert.equal(creditsForToolInput("create_video", { mode: "swap", length: 5 }), null);
 });
 
-test("a swap is listed for agents, not on the Create page", () => {
+test("a swap is a Create tool that takes a video and a character", () => {
   const mode = videoModeById("swap");
   assert.ok(mode);
   assert.equal(mode.upload, "video");
-  assert.equal(mode.agentOnly, true);
-  assert.equal(CREATE_TOOLS.some((tool) => tool.mode === "swap"), false);
+  assert.equal(CREATE_TOOLS.some((tool) => tool.slug === "swap"), true);
+  const spec = formSpecFor(mode);
+  assert.equal(spec.uploadKind, "video");
+  assert.equal(spec.showPrompt, true);
+  assert.deepEqual([...spec.sections].sort(), ["character", "tier"]);
   assert.equal(defaultPromptForMode(mode).length >= 3, true);
-  assert.equal(describeModeTier(mode.tiers!.pro).name, SWAP_LABEL);
+  assert.equal(describeModeTier(mode.tiers!.pro).name, "Kling 3.0");
   assert.equal(generationModelLabel(SWAP_MODEL), SWAP_LABEL);
+  assert.equal(generationModelLabel(SWAP_EDIT_MODEL), SWAP_EDIT_LABEL);
   assert.deepEqual(stagesForJob({ mode: "swap", tier: "pro", model: SWAP_MODEL, length: 8 }), ["videos", "finalize"]);
+});
+
+test("the Create form sends a swap with its video and character, and no footage model", () => {
+  const body = buildCreateBody({
+    mode: "swap",
+    usesVideoModel: true,
+    values: {
+      prompt: "  red jacket ",
+      format: "9:16",
+      length: 10,
+      tier: "ultra",
+      model: "wan",
+      mediaKey: "uploads/u/dance.mp4",
+      referenceKeys: ["uploads/u/extra.png"],
+      showText: true,
+      presetId: "default",
+      visualDirection: "",
+      characterId: "c-1",
+      characterLookId: "look-1",
+      direction: "",
+      scene: "",
+      directionKeys: [],
+      sceneKeys: [],
+    },
+  });
+  assert.deepEqual(body, {
+    prompt: "red jacket",
+    format: "9:16",
+    length: 10,
+    mode: "swap",
+    tier: "ultra",
+    mediaKey: "uploads/u/dance.mp4",
+    characterId: "c-1",
+    characterLookId: "look-1",
+  });
+});
+
+test("replacing in a video takes 3 to 15.5 seconds, and the model records the method", () => {
+  assert.equal(swapLengthProblem(7, "replace"), null);
+  assert.equal(swapLengthProblem(15.5, "replace"), null);
+  assert.match(swapLengthProblem(16, "replace") ?? "", /up to 15 seconds/);
+  assert.match(swapLengthProblem(2, "replace") ?? "", /at least 3 seconds/);
+  assert.equal(swapModelFor("replace"), SWAP_EDIT_MODEL);
+  assert.equal(swapModelFor("moves"), SWAP_MODEL);
+  assert.equal(swapMethodForModel(SWAP_EDIT_MODEL), "replace");
+  assert.equal(swapMethodForModel(SWAP_MODEL), "moves");
+  assert.equal(swapEditDuration(6.6), 7);
+  assert.equal(swapEditDuration(2.2), 3);
+  assert.equal(swapEditDuration(15.4), 15);
+});
+
+test("the edit prompt points the character's name at the picture and keeps the rest of the video", () => {
+  const prompt = swapEditPrompt("Replace the monkey with Greg", "Greg");
+  assert.match(prompt, /^Replace the monkey with @image_1\. Keep everything else in the video unchanged/);
+  // No name in the text still tells Kling who the picture is.
+  assert.match(swapEditPrompt("Replace the monkey", "Greg"), /^Replace the monkey\. The new character is the person in @image_1\./);
+  // Nothing written replaces the main person.
+  assert.match(swapEditPrompt("Character swap", "Greg"), /^Replace the main person in the video with the person in @image_1\./);
+  assert.match(swapEditPrompt("", null), /@image_1/);
+});
+
+test("copying the moves sends notes only when written, with the name as the person in the picture", () => {
+  assert.equal(swapMovesPrompt("Character swap", "Greg"), "");
+  assert.equal(swapMovesPrompt("Greg in a red jacket", "Greg"), "the person in the picture in a red jacket");
+});
+
+test("a small or slow video is scaled up before Kling edits it, and an odd shape is refused", () => {
+  // A 480x854 phone clip becomes 720 wide, kept even.
+  assert.deepEqual(swapEditConversion({ width: 480, height: 854, fps: 30 }), { width: 720, height: 1282, fps: null });
+  assert.deepEqual(swapEditConversion({ width: 1080, height: 1920, fps: 15 }), { width: 1080, height: 1920, fps: 24 });
+  assert.equal(swapEditConversion({ width: 1080, height: 1920, fps: 30 }), null);
+  assert.equal(swapEditConversion({ width: null, height: null, fps: null }), null);
+  assert.equal(swapEditShapeProblem(1080, 1920), null);
+  assert.match(swapEditShapeProblem(400, 1200) ?? "", /2:5 tall/);
 });

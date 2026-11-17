@@ -20,6 +20,8 @@ import { PresetPicker } from "@/components/preset-picker";
 import { PreviewSample, StylePoster } from "@/components/style-frame";
 import { VisualDirectionField } from "@/components/visual-direction-field";
 import { CharacterPicker } from "@/components/characters/character-picker";
+import { CharacterSlashTextarea } from "@/components/characters/character-slash-textarea";
+import { useVideoDuration } from "@/components/use-video-duration";
 import { BackgroundPicker } from "@/components/create/background-picker";
 import { ShotPlanCard } from "@/components/create/shot-plan-card";
 import { LENGTH_CHOICES, useCreateForm } from "@/components/create/use-create-form";
@@ -69,7 +71,8 @@ import { formatClipSplit, isStitchedMode, planSegments } from "@/lib/video/segme
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
 import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
-import { isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
+import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
+import { DEFAULT_SWAP_METHOD, SWAP_METHOD_LABELS, SWAP_METHODS, swapLengthProblem, type SwapMethod } from "@/lib/video/swap";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
   { value: "9:16", label: "Vertical", hint: "Shorts, TikTok, Reels", icon: RectangleVertical },
@@ -214,6 +217,11 @@ export function Generator({
   const composed = stills || loop;
   const maxLength = maxLengthForMedia(composed ? media : "video");
   const editMode = videoMode?.id === "edit";
+  /** Character swap: the uploaded video sets the moves and the length, and a saved character takes the person's place. */
+  const swap = videoMode?.engine === "swap";
+  const [swapMethod, setSwapMethod] = useState<SwapMethod>(DEFAULT_SWAP_METHOD);
+  const swapDuration = useVideoDuration(swap ? mediaKey : null);
+  const swapProblem = swap && swapDuration !== null ? swapLengthProblem(swapDuration, swapMethod) : null;
   /** The mode works on an upload as it is: nothing to write, and the file sets the length. */
   const uploadOnly = !spec.showPrompt;
   const showLook = !loop && spec.sections.has("look");
@@ -235,11 +243,13 @@ export function Generator({
   const uploadKind = spec.uploadKind;
   const needsUpload = uploadKind !== null;
   const promptReady = Boolean(videoMode?.promptOptional) || prompt.trim().length >= 3;
-  const acceptsReferences = !videoMode || modeAcceptsReferenceImages(videoMode);
+  // A swap's picture is the character's, picked with / or the picker, not an extra reference.
+  const acceptsReferences = !swap && (!videoMode || modeAcceptsReferenceImages(videoMode));
   const hasReferences = acceptsReferences && referenceKeys.length > 0;
   const canHideText = spec.sections.has("showText");
   const resolvedTier = videoMode ? resolveModeTier(videoMode.id, tier) : null;
-  const usesVideoModel = !resolvedTier?.chatModel && !composed && videoMode?.engine !== "compose";
+  // A swap always runs on Kling Motion Control, so there is no footage model to pick.
+  const usesVideoModel = !resolvedTier?.chatModel && !composed && videoMode?.engine !== "compose" && videoMode?.engine !== "swap";
   const videoModelChoices = models.filter((id) => {
     const entry = generationModelById(id);
     if (!entry) return false;
@@ -262,7 +272,7 @@ export function Generator({
       : pickedLength;
   // A quick edit keeps the length of the upload, so there is no length to check.
   const lengthValid =
-    uploadOnly || (Number.isInteger(activeLength) && activeLength >= MIN_VIDEO_LENGTH && activeLength <= maxLength);
+    uploadOnly || swap || (Number.isInteger(activeLength) && activeLength >= MIN_VIDEO_LENGTH && activeLength <= maxLength);
   const songFirst = spec.planFirst === "song";
   const planFirst = spec.planFirst !== null;
   const shorts = videoMode?.id === "shorts";
@@ -270,6 +280,7 @@ export function Generator({
   const sayToCamera = shorts || videoMode?.id === "avatar";
   const needsPresenter = shorts && !isPresenterCharacter(characterId);
   const needsVoice = composed && characterId === OFF_VOICE_ID;
+  const needsSwapCharacter = swap && !isPresenterCharacter(characterId);
   const clipSplit = useMemo(() => {
     if (planFirst || composed || !lengthValid || !isStitchedMode(videoMode?.id) || !filmingModel) return "";
     return formatClipSplit(planSegments(activeLength, filmingModel.durations));
@@ -337,7 +348,12 @@ export function Generator({
   );
   const listedCredits = useMemo(
     () =>
-      videoJobCredits({
+      swap
+        ? // Priced by the video's length. Nothing is shown until the browser has read it.
+          swapDuration
+          ? videoJobCredits({ demo, mode: "swap", length: swapDuration, resolution: resolvedTier?.resolution })
+          : 0
+        : videoJobCredits({
         demo,
         mode: videoMode?.id,
         media: composed ? media : undefined,
@@ -363,6 +379,8 @@ export function Generator({
       activeLength,
       referenceKeys.length,
       approvedTake,
+      swap,
+      swapDuration,
     ],
   );
   const estimatedCredits = activePlan?.credits ?? listedCredits;
@@ -431,7 +449,7 @@ export function Generator({
     if (busy || !lengthValid || !promptReady) return;
     if (!videoMode?.promptOptional && !value) return;
     if (needsUpload && !mediaKey) return;
-    if (needsPresenter || needsVoice) return;
+    if (needsPresenter || needsVoice || needsSwapCharacter || swapProblem) return;
     if (songFirst && !approvedTake) return;
 
     if (planFirst && !activePlan) {
@@ -494,6 +512,7 @@ export function Generator({
             backgroundKey,
             op,
             opValue,
+            swapMethod: swap ? swapMethod : undefined,
           },
           usesVideoModel,
           songId: approvedTake?.id,
@@ -609,6 +628,29 @@ export function Generator({
               <MediaUpload kind={uploadKind} mediaKey={mediaKey} onChange={setMediaKey} disabled={busy} />
             </div>
           )}
+          {swap ? (
+            <div role="radiogroup" aria-label="How to swap" className="mt-3 grid gap-2 sm:grid-cols-2">
+              {SWAP_METHODS.map((choice) => (
+                <button
+                  key={choice}
+                  type="button"
+                  role="radio"
+                  aria-checked={swapMethod === choice}
+                  disabled={busy}
+                  onClick={() => setSwapMethod(choice)}
+                  className={cn(
+                    "flex cursor-pointer flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-50",
+                    swapMethod === choice
+                      ? "border-primary bg-primary/5 text-foreground"
+                      : "border-border text-muted-foreground hover:border-primary/30 hover:text-foreground",
+                  )}
+                >
+                  <span className="text-sm font-medium">{SWAP_METHOD_LABELS[choice].title}</span>
+                  <span className="text-xs text-muted-foreground">{SWAP_METHOD_LABELS[choice].detail}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
           {songFirst ? (
             <div className="mt-3 flex flex-col gap-3">
               <LyricsBriefCard
@@ -732,26 +774,60 @@ export function Generator({
               </Button>
             )
           ) : null}
-          <Textarea
-            value={prompt}
-            onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                event.preventDefault();
-                void generate();
+          {spec.sections.has("character") ? (
+            <CharacterSlashTextarea
+              value={prompt}
+              onChange={setPrompt}
+              characterId={characterId}
+              onCharacter={(character) => {
+                setCharacterId(character.id);
+                setLookId("");
+                setUseClip(false);
+              }}
+              onClearCharacter={() => {
+                setCharacterId(defaultVoiceForMode(videoMode?.id));
+                setLookId("");
+                setUseClip(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  void generate();
+                }
+              }}
+              rows={4}
+              maxLength={MAX_PROMPT_LENGTH}
+              disabled={busy}
+              placeholder={
+                readAsWritten && stills
+                  ? MARKED_SCRIPT_PLACEHOLDER
+                  : (createTool?.placeholder ?? videoMode?.placeholder ?? PROMPT_PLACEHOLDER)
               }
-            }}
-            rows={4}
-            maxLength={MAX_PROMPT_LENGTH}
-            disabled={busy}
-            placeholder={
-              readAsWritten && stills
-                ? MARKED_SCRIPT_PLACEHOLDER
-                : (createTool?.placeholder ?? videoMode?.placeholder ?? PROMPT_PLACEHOLDER)
-            }
-            aria-label="Your video prompt"
-            className="mt-3 min-h-28 resize-none rounded-xl bg-background text-base md:text-sm"
-          />
+              aria-label="Your video prompt"
+              className="mt-3 min-h-28 resize-none rounded-xl bg-background text-base md:text-sm"
+            />
+          ) : (
+            <Textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  void generate();
+                }
+              }}
+              rows={4}
+              maxLength={MAX_PROMPT_LENGTH}
+              disabled={busy}
+              placeholder={
+                readAsWritten && stills
+                  ? MARKED_SCRIPT_PLACEHOLDER
+                  : (createTool?.placeholder ?? videoMode?.placeholder ?? PROMPT_PLACEHOLDER)
+              }
+              aria-label="Your video prompt"
+              className="mt-3 min-h-28 resize-none rounded-xl bg-background text-base md:text-sm"
+            />
+          )}
           {acceptsReferences && (
             <div className="mt-3">
               <MediaUpload
@@ -803,7 +879,11 @@ export function Generator({
               </Button>
             )}
             <p className="text-xs text-muted-foreground">
-              {videoMode?.id === "prompt"
+              {swap
+                ? swapMethod === "replace"
+                  ? "Say what to replace and type / to pick who takes its place. Everything else in your video stays."
+                  : "Type / to pick who appears. Notes are optional: wardrobe or style. The video sets the moves."
+                : videoMode?.id === "prompt"
                 ? "One prompt is enough. Attach pictures if you have them, then plan the shots."
                 : direct
                   ? "Sent to the video model exactly as typed. No look, no extra lines, no shot plan, and no voice are added."
@@ -1150,9 +1230,23 @@ export function Generator({
                   setUseClip(false);
                 }}
                 disabled={busy}
-                usesImage={acceptsReferences && Boolean(filmingModel?.referenceImages)}
+                usesImage={swap || (acceptsReferences && Boolean(filmingModel?.referenceImages))}
+                {...(swap
+                  ? {
+                      allowOff: false,
+                      allowStudio: false,
+                      offLabel: "Pick a character",
+                      offDetail: "Type / in the box above, or pick one here",
+                    }
+                  : {})}
                 detail={
-                  videoMode?.id === "lyrics"  
+                  swap
+                    ? needsSwapCharacter
+                      ? "Pick who appears in your video."
+                      : swapMethod === "replace"
+                        ? "This character replaces what you name in your video. The rest of the video and its sound stay."
+                        : "This character performs the moves from your video in a new clip, with your video's sound."
+                    : videoMode?.id === "lyrics"  
                     ? characterId === OFF_VOICE_ID
                       ? "No added voice keeps the sung track."
                       : "This character performs the lyrics."
@@ -1175,7 +1269,7 @@ export function Generator({
                 onLookId={setLookId}
                 useClip={useClip}
                 onUseClip={setUseClip}
-                modelTakesVideo={Boolean(filmingModel?.inputs.includes("video"))}
+                modelTakesVideo={!swap && Boolean(filmingModel?.inputs.includes("video"))}
                 disabled={busy}
               />
               </>
@@ -1260,7 +1354,11 @@ export function Generator({
                 ? `Uses ${estimatedCredits.toLocaleString()} credits · `
                 : ""}
             {needsUpgrade ? "You need more credits. " : ""}
-            {needsVoice
+            {swapProblem
+              ? swapProblem
+              : needsSwapCharacter
+              ? "Pick who appears: type / in the box, or use the character picker."
+              : needsVoice
               ? `Pick a voice in step ${qualityStep}. It reads the script.`
               : needsPresenter
               ? `Pick a character in step ${qualityStep}. They present the video.`
@@ -1284,6 +1382,8 @@ export function Generator({
               (needsUpload && !mediaKey) ||
               needsPresenter ||
               needsVoice ||
+              needsSwapCharacter ||
+              Boolean(swapProblem) ||
               needsUpgrade ||
               (songFirst && !approvedTake)
             }
@@ -1320,6 +1420,10 @@ export function Generator({
           <dd className="text-right font-medium">
             {editMode
               ? "Your video, edited"
+              : swap
+                ? swapMethod === "replace"
+                  ? "Your video, with your character in it"
+                  : "Your character, doing your video's moves"
               : uploadOnly
                 ? "Your video, with captions"
               : loop
@@ -1330,13 +1434,13 @@ export function Generator({
           </dd>
           <dt className="text-muted-foreground">Length</dt>
           <dd className="text-right font-medium">
-            {uploadOnly ? "Set by your video" : composed ? "Follows the voice" : "Snaps to the model max"}
+            {uploadOnly || swap ? "Set by your video" : composed ? "Follows the voice" : "Snaps to the model max"}
           </dd>
           <dt className="text-muted-foreground">Sound</dt>
           <dd className="text-right font-medium">
             {editMode
               ? "Kept, unless you mute it"
-              : uploadOnly
+              : uploadOnly || swap
                 ? "Kept as it is"
                 : composed
                   ? "Voice and captions"
@@ -1348,6 +1452,10 @@ export function Generator({
         <p className="text-xs text-muted-foreground">
           {editMode
             ? "The frame above is a sample. Your own video is changed and saved as a new one."
+            : swap
+            ? swapMethod === "replace"
+              ? "The frame above is a sample. Your video is kept, and what you name is replaced with your character."
+              : "The frame above is a sample. Your character performs every move from your video, which keeps its sound."
             : uploadOnly
             ? "The frame above is a sample. The captions follow the words in your own video."
             : loop

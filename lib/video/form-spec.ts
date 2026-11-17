@@ -31,6 +31,10 @@ export const formSpecFor = (mode: VideoMode | null, tool?: CreateTool | null): F
   if (mode?.id === "edit") {
     // A quick edit changes one thing about an upload. There is nothing to write, style, or voice.
     sections.add("op");
+  } else if (mode?.engine === "swap") {
+    // The video sets the moves, shape, and length. Only who appears and the quality are asked.
+    sections.add("character");
+    sections.add("tier");
   } else if (isDirectMode(mode?.id)) {
     // The prompt is sent as typed. Only what the model itself needs is asked: shape, length, and which model.
     sections.add("format");

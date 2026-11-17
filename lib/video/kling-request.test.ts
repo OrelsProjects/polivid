@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { klingCall, klingSwapCall, type KlingVideoRequest } from "./kling-request";
+import { isKlingOutOfCredit, klingCall, klingSwapCall, klingSwapEditCall, type KlingVideoRequest } from "./kling-request";
 import { clipDuration, generationModelById } from "./models";
 
 const base: KlingVideoRequest = {
@@ -129,4 +129,32 @@ test("a character swap with no prompt sends no prompt, and can mute the video", 
     ["image", "video"],
   );
   assert.deepEqual(call.body.settings, { character_orientation: "image", resolution: "1080p", audio: "off" });
+});
+
+test("an empty Kling account is a refusal, not a busy server to wait out", () => {
+  assert.equal(isKlingOutOfCredit("Account balance not enough"), true);
+  assert.equal(isKlingOutOfCredit("Insufficient resource package"), true);
+  assert.equal(isKlingOutOfCredit("Too many requests, please slow down"), false);
+  assert.equal(isKlingOutOfCredit("Service busy"), false);
+});
+
+test("replacing in a video sends the video to edit as base_video and the character as @image_1", () => {
+  const call = klingSwapEditCall({
+    imageUrl: "https://x.test/greg.png",
+    videoUrl: "https://x.test/street.mp4",
+    prompt: "Replace the monkey with @image_1.",
+    resolution: "720p",
+    duration: 6.6,
+    keepSound: true,
+  });
+  assert.equal(call.url, "https://api-singapore.klingai.com/omni-video/kling-3.0-omni");
+  assert.deepEqual(call.body, {
+    contents: [
+      { type: "prompt", text: "Replace the monkey with @image_1." },
+      { type: "base_video", url: "https://x.test/street.mp4", id: "video_1" },
+      { type: "refer_image", url: "https://x.test/greg.png", id: "image_1" },
+    ],
+    settings: { resolution: "720p", duration: 7, audio: "original", multi_shot: false },
+    options: { watermark_info: { enabled: false } },
+  });
 });

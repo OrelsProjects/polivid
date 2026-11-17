@@ -61,6 +61,7 @@ export function CharacterPicker({
   onChange,
   disabled = false,
   allowOff = true,
+  allowStudio = true,
   offLabel = "No added voice",
   offDetail = "No narration or reference picture",
   studioLabel = "Studio narrator",
@@ -74,6 +75,8 @@ export function CharacterPicker({
   onChange: (value: string) => void;
   disabled?: boolean;
   allowOff?: boolean;
+  /** Offer the studio narrator. Off when the video needs a face, such as a character swap. */
+  allowStudio?: boolean;
   offLabel?: string;
   offDetail?: string;
   studioLabel?: string;
@@ -179,17 +182,19 @@ export function CharacterPicker({
                 <OptionText title={offLabel} detail={offDetail} />
               </DropdownMenuRadioItem>
             ) : null}
-            <DropdownMenuRadioItem
-              closeOnClick
-              value={STUDIO_VOICE_ID}
-              aria-label={`${studioLabel}. ${studioDetail}`}
-              className="min-h-11 gap-2.5 py-1.5"
-            >
-              <IconTile>
-                <Mic className="size-4" aria-hidden />
-              </IconTile>
-              <OptionText title={studioLabel} detail={studioDetail} />
-            </DropdownMenuRadioItem>
+            {allowStudio ? (
+              <DropdownMenuRadioItem
+                closeOnClick
+                value={STUDIO_VOICE_ID}
+                aria-label={`${studioLabel}. ${studioDetail}`}
+                className="min-h-11 gap-2.5 py-1.5"
+              >
+                <IconTile>
+                  <Mic className="size-4" aria-hidden />
+                </IconTile>
+                <OptionText title={studioLabel} detail={studioDetail} />
+              </DropdownMenuRadioItem>
+            ) : null}
           </DropdownMenuGroup>
           {characters.length > 0 ? (
             <>

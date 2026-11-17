@@ -8,9 +8,20 @@ import {
   sleep,
   stopIfCanceled,
 } from "./provider-http";
-import { KLING_API, klingCall, klingSwapCall, type KlingCall, type KlingSwapRequest, type KlingVideoRequest } from "./kling-request";
+import {
+  isKlingOutOfCredit,
+  KLING_API,
+  KLING_UNAVAILABLE,
+  klingCall,
+  klingSwapCall,
+  klingSwapEditCall,
+  type KlingCall,
+  type KlingSwapEditRequest,
+  type KlingSwapRequest,
+  type KlingVideoRequest,
+} from "./kling-request";
 
-export type { KlingSwapRequest, KlingVideoRequest };
+export type { KlingSwapEditRequest, KlingSwapRequest, KlingVideoRequest };
 
 export const hasKlingKey = () => Boolean(process.env.KLING_API_KEY?.trim());
 
@@ -37,6 +48,10 @@ const UNFINISHED = new Set(["submitted", "processing"]);
 
 const declined = async (response: Response) => {
   const message = await errorMessage(response);
+  if (isKlingOutOfCredit(message)) {
+    console.error("The Kling account can't pay for new videos. Top it up in the Kling developer console.", message);
+    return new ModelDeclined(KLING_UNAVAILABLE);
+  }
   if (!isRetryableStatus(response.status)) return new ModelDeclined(message);
   return new Error(message);
 };
@@ -45,7 +60,12 @@ const readEnvelope = async (response: Response) => {
   if (!response.ok) throw await declined(response);
   const body = (await response.json()) as KlingEnvelope;
   if (typeof body.code === "number" && body.code !== 0) {
-    throw new ModelDeclined(body.message?.trim() || "Kling declined that clip.");
+    const message = body.message?.trim() || "Kling declined that clip.";
+    if (isKlingOutOfCredit(message)) {
+      console.error("The Kling account can't pay for new videos. Top it up in the Kling developer console.", message);
+      throw new ModelDeclined(KLING_UNAVAILABLE);
+    }
+    throw new ModelDeclined(message);
   }
   return body;
 };
@@ -61,6 +81,9 @@ export const submitKlingVideo = (request: KlingVideoRequest) => submitKlingCall(
 
 /** Starts a Motion Control character swap and returns the task id. */
 export const submitKlingSwap = (request: KlingSwapRequest) => submitKlingCall(klingSwapCall(request));
+
+/** Starts a Kling 3.0 Omni edit that replaces a subject in the video, and returns the task id. */
+export const submitKlingSwapEdit = (request: KlingSwapEditRequest) => submitKlingCall(klingSwapEditCall(request));
 
 const submitKlingCall = async (call: KlingCall) => {
   let misses = 0;

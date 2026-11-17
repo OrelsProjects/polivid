@@ -1,6 +1,6 @@
 import { isEditOp } from "@/lib/video/edit-ops";
 import { isVisualMedia } from "@/lib/video/stills";
-import { isSwapOrientation } from "@/lib/video/swap";
+import { isSwapMethod, isSwapOrientation } from "@/lib/video/swap";
 import "server-only";
 import { modelIdForQueue } from "@/lib/coach/model-notes";
 import { linkThreadVideo } from "@/lib/coach/store";
@@ -106,6 +106,7 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       backgroundId: text(input.backgroundId) || undefined,
       op: isEditOp(input.op) ? input.op : undefined,
       opValue: text(input.opValue) || undefined,
+      swapMethod: isSwapMethod(input.method) ? input.method : undefined,
       orientation: isSwapOrientation(input.orientation) ? input.orientation : undefined,
       keepSound: typeof input.keepSound === "boolean" ? input.keepSound : undefined,
     });

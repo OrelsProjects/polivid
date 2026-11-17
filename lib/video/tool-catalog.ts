@@ -588,7 +588,7 @@ const EDIT_VARIANTS: readonly CreateTool[] = [
 ];
 
 export const CREATE_TOOLS: readonly CreateTool[] = [
-  ...VIDEO_MODES.filter((mode) => !mode.agentOnly).map(modeAsTool),
+  ...VIDEO_MODES.map(modeAsTool),
   ...VARIANTS,
   ...STILLS_VARIANTS,
   ...LINK_VARIANTS,

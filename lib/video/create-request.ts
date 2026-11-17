@@ -39,15 +39,19 @@ import {
 } from "@/lib/video/edit-ops";
 import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
 import {
+  DEFAULT_SWAP_METHOD,
   DEFAULT_SWAP_ORIENTATION,
-  SWAP_MODEL,
+  swapEditShapeProblem,
+  swapModelFor,
   swapLengthProblem,
   swapResolutionFor,
   swapSeconds,
+  type SwapMethod,
   type SwapOrientation,
 } from "@/lib/video/swap";
 import { LOOP_MODEL, maxLengthForMedia, STILLS_MODEL } from "@/lib/video/stills";
 import { getPickableCharacter } from "@/lib/characters/store";
+import { mentionsName } from "@/lib/characters/slash";
 import {
   characterNote,
   MAX_CHARACTER_REFERENCES,
@@ -120,6 +124,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       key: mediaKey ?? "",
       prompt,
       tier: resolved.tier,
+      method: parsed.data.swapMethod ?? DEFAULT_SWAP_METHOD,
       orientation: parsed.data.orientation ?? DEFAULT_SWAP_ORIENTATION,
       keepSound: parsed.data.keepSound !== false,
       characterId: parsed.data.characterId,
@@ -221,6 +226,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   let characterNoteText = "";
   let referenceClipKey: string | undefined;
   let characterLookId: string | undefined;
+  let characterName = "";
   if (characterId !== OFF_VOICE_ID && characterId !== STUDIO_VOICE_ID) {
     const character = await getPickableCharacter(userId, characterId);
     if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
@@ -236,6 +242,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       max: MAX_CHARACTER_REFERENCES,
     });
     characterNoteText = characterNote(character, look ?? null);
+    characterName = character.name;
     if (parsed.data.useCharacterClip) {
       const clip = pickReferenceClip(media, look?.id);
       if (!clip) throw new CreateVideoError("This character has no clips. Add one, or leave the clip off.", 400);
@@ -251,6 +258,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     0,
     MAX_REFERENCE_IMAGES,
   );
+  // The prompt names the character, often picked with / in the box. Say who that is when nothing else does.
+  if (!characterNoteText && characterKeys.length > 0 && characterName && mentionsName(prompt, characterName)) {
+    characterNoteText = `Character — ${characterName} is the person in the character reference pictures.`;
+  }
   if (referenceKeys.length > 0) {
     const invalid = referenceKeys.some((key) => !isOwnedUploadKey(userId, key) || !isImageKey(key));
     if (invalid) throw new CreateVideoError("Upload a reference picture.", 400);
@@ -554,6 +565,7 @@ const queueSwap = async (
     key: string;
     prompt: string;
     tier: string;
+    method: SwapMethod;
     orientation: SwapOrientation;
     keepSound: boolean;
     characterId: string;
@@ -568,11 +580,13 @@ const queueSwap = async (
   try {
     const probe = await probeUpload(userId, input.key);
     if (!probe.hasVideo || !(probe.durationSec > 0)) throw new Error("no picture");
-    // An unreadable size is left for Kling to judge.
+    // An unreadable size is left for Kling to judge. A small video to edit is scaled up before it is sent.
     const sides = probe.width && probe.height ? [probe.width, probe.height] : null;
-    if (sides && (Math.min(...sides) < MIN_SWAP_SIDE || Math.max(...sides) > MAX_SWAP_SIDE)) {
+    if (input.method === "moves" && sides && (Math.min(...sides) < MIN_SWAP_SIDE || Math.max(...sides) > MAX_SWAP_SIDE)) {
       throw new CreateVideoError(`Use a video between ${MIN_SWAP_SIDE} and ${MAX_SWAP_SIDE} pixels on each side.`, 400);
     }
+    const shape = input.method === "replace" ? swapEditShapeProblem(probe.width, probe.height) : null;
+    if (shape) throw new CreateVideoError(shape, 400);
     seconds = probe.durationSec;
     format = closestFormat(probe.width, probe.height);
   } catch (error) {
@@ -580,7 +594,7 @@ const queueSwap = async (
     console.error("Could not read the upload for a character swap", error);
     throw new CreateVideoError("We couldn't read that video. Upload an MP4 or MOV and try again.", 400);
   }
-  const problem = swapLengthProblem(seconds, input.orientation);
+  const problem = swapLengthProblem(seconds, input.method, input.orientation);
   if (problem) throw new CreateVideoError(problem, 400);
   const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(seconds));
   const resolution = swapResolutionFor(input.tier);
@@ -590,7 +604,8 @@ const queueSwap = async (
       prompt: input.prompt,
       format,
       length,
-      model: SWAP_MODEL,
+      // The model says which way the swap is made.
+      model: swapModelFor(input.method),
       mode: "swap",
       tool: input.tool,
       tier: input.tier,
@@ -599,7 +614,7 @@ const queueSwap = async (
       referenceKeys: [picture.key],
       characterId: picture.characterId,
       characterLookId: picture.characterLookId,
-      orientation: input.orientation,
+      orientation: input.method === "moves" ? input.orientation : undefined,
       keepSound: input.keepSound,
       showText: false,
       creditsHeld: credits,

@@ -52,10 +52,6 @@ test("slugs are unique and safe to put in a URL", () => {
 
 test("every mode is a tool under its own id, with the mode's copy", () => {
   for (const mode of VIDEO_MODES) {
-    if (mode.agentOnly) {
-      assert.equal(toolBySlug(mode.id), null, `${mode.id} is made through agents only`);
-      continue;
-    }
     const tool = toolBySlug(mode.id);
     assert.ok(tool, mode.id);
     assert.equal(tool.mode, mode.id);
