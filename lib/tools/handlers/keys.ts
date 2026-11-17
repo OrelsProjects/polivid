@@ -10,6 +10,7 @@ export const HANDLER_KEYS = [
   "make_av_cut",
   "make_lyrics_video",
   "make_direct_video",
+  "make_character_swap",
   "add_captions",
   "quick_edit_video",
   "create_video",

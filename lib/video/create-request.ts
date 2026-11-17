@@ -38,6 +38,14 @@ import {
   type EditOp,
 } from "@/lib/video/edit-ops";
 import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
+import {
+  DEFAULT_SWAP_ORIENTATION,
+  SWAP_MODEL,
+  swapLengthProblem,
+  swapResolutionFor,
+  swapSeconds,
+  type SwapOrientation,
+} from "@/lib/video/swap";
 import { LOOP_MODEL, maxLengthForMedia, STILLS_MODEL } from "@/lib/video/stills";
 import { getPickableCharacter } from "@/lib/characters/store";
 import {
@@ -105,6 +113,20 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
 
   if (resolved?.mode.id === "captions") {
     return queueCaptions(userId, { key: mediaKey ?? "", tool: tool?.slug });
+  }
+
+  if (resolved?.mode.id === "swap") {
+    return queueSwap(userId, {
+      key: mediaKey ?? "",
+      prompt,
+      tier: resolved.tier,
+      orientation: parsed.data.orientation ?? DEFAULT_SWAP_ORIENTATION,
+      keepSound: parsed.data.keepSound !== false,
+      characterId: parsed.data.characterId,
+      characterLookId: parsed.data.characterLookId,
+      pictureKey: parsed.data.referenceKeys?.[0] ?? parsed.data.referenceKey,
+      tool: tool?.slug,
+    });
   }
 
   const media = parsed.data.media ?? "video";
@@ -494,6 +516,104 @@ const queueCaptions = async (userId: string, input: { key: string; tool: string 
     if (error instanceof InsufficientCreditsError) throw error;
     console.error("Could not start the captions", error);
     throw new CreateVideoError("Couldn't start the captions. Try again.", 500);
+  }
+};
+
+/** Kling reads videos with sides in this range. */
+const MIN_SWAP_SIDE = 340;
+const MAX_SWAP_SIDE = 3850;
+
+/** The saved character's picture, in the chosen look, or the picture they attached instead. */
+const swapPicture = async (
+  userId: string,
+  input: { characterId: string; characterLookId: string | undefined; pictureKey: string | undefined },
+) => {
+  const saved = input.characterId && input.characterId !== OFF_VOICE_ID && input.characterId !== STUDIO_VOICE_ID;
+  if (saved) {
+    const character = await getPickableCharacter(userId, input.characterId);
+    if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
+    const look = input.characterLookId ? character.looks.find((item) => item.id === input.characterLookId) : null;
+    if (input.characterLookId && !look) throw new CreateVideoError("That look isn't on this character.", 400);
+    const [key] = pickReferenceKeys({ mainKey: character.imageKey, media: character.media.map(mediaView), lookId: look?.id, max: 1 });
+    if (!key) throw new CreateVideoError("Pick a character that has a picture.", 400);
+    return { key, characterId: character.id, characterLookId: look?.id };
+  }
+  const key = input.pictureKey;
+  if (!key) throw new CreateVideoError("Pick a character, or attach a picture of who should appear.", 400);
+  if (!isOwnedUploadKey(userId, key) || !isImageKey(key)) throw new CreateVideoError("Upload a picture of who should appear.", 400);
+  return { key, characterId: undefined, characterLookId: undefined };
+};
+
+/**
+ * Queues a character swap. The performance video sets the length and the shape, so neither is asked.
+ * The upload was already checked to be this person's video.
+ */
+const queueSwap = async (
+  userId: string,
+  input: {
+    key: string;
+    prompt: string;
+    tier: string;
+    orientation: SwapOrientation;
+    keepSound: boolean;
+    characterId: string;
+    characterLookId: string | undefined;
+    pictureKey: string | undefined;
+    tool: string | undefined;
+  },
+) => {
+  const picture = await swapPicture(userId, input);
+  let seconds: number;
+  let format: VideoFormat;
+  try {
+    const probe = await probeUpload(userId, input.key);
+    if (!probe.hasVideo || !(probe.durationSec > 0)) throw new Error("no picture");
+    // An unreadable size is left for Kling to judge.
+    const sides = probe.width && probe.height ? [probe.width, probe.height] : null;
+    if (sides && (Math.min(...sides) < MIN_SWAP_SIDE || Math.max(...sides) > MAX_SWAP_SIDE)) {
+      throw new CreateVideoError(`Use a video between ${MIN_SWAP_SIDE} and ${MAX_SWAP_SIDE} pixels on each side.`, 400);
+    }
+    seconds = probe.durationSec;
+    format = closestFormat(probe.width, probe.height);
+  } catch (error) {
+    if (error instanceof CreateVideoError) throw error;
+    console.error("Could not read the upload for a character swap", error);
+    throw new CreateVideoError("We couldn't read that video. Upload an MP4 or MOV and try again.", 400);
+  }
+  const problem = swapLengthProblem(seconds, input.orientation);
+  if (problem) throw new CreateVideoError(problem, 400);
+  const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(seconds));
+  const resolution = swapResolutionFor(input.tier);
+  try {
+    const credits = videoJobCredits({ demo: !hasOpenRouterKey(), mode: "swap", length, resolution });
+    const job = await createQueuedVideoJob(userId, {
+      prompt: input.prompt,
+      format,
+      length,
+      model: SWAP_MODEL,
+      mode: "swap",
+      tool: input.tool,
+      tier: input.tier,
+      resolution,
+      mediaKey: input.key,
+      referenceKeys: [picture.key],
+      characterId: picture.characterId,
+      characterLookId: picture.characterLookId,
+      orientation: input.orientation,
+      keepSound: input.keepSound,
+      showText: false,
+      creditsHeld: credits,
+    });
+    void import("@/lib/video/worker")
+      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
+      .catch((error) => {
+        console.error("Character swap stopped", error);
+      });
+    return { jobId: job.id, credits };
+  } catch (error) {
+    if (error instanceof InsufficientCreditsError) throw error;
+    console.error("Could not start the character swap", error);
+    throw new CreateVideoError("Couldn't start the character swap. Try again.", 500);
   }
 };
 

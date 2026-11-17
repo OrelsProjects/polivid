@@ -1,5 +1,6 @@
 import { isEditOp } from "@/lib/video/edit-ops";
 import { isVisualMedia } from "@/lib/video/stills";
+import { isSwapOrientation } from "@/lib/video/swap";
 import "server-only";
 import { modelIdForQueue } from "@/lib/coach/model-notes";
 import { linkThreadVideo } from "@/lib/coach/store";
@@ -66,13 +67,14 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
         ctx.attachedReferenceKeys,
       )
     : [];
+  // A quick edit and a character swap take their shape and length from the upload, so the Coach does not pass them.
+  const fromUpload = modeId === "edit" || modeId === "swap";
   try {
-    const model = modelIdForQueue(ctx.generationModelId, input.model);
+    const model = modeId === "swap" ? undefined : modelIdForQueue(ctx.generationModelId, input.model);
     const queued = await queueVideoFromInput(ctx.userId, {
       prompt: typeof input.prompt === "string" ? input.prompt : "",
-      // A quick edit takes its shape and length from the upload, so the Coach does not pass them.
-      format: input.format ?? (modeId === "edit" ? "9:16" : undefined),
-      length: input.length ?? (modeId === "edit" ? 5 : undefined),
+      format: input.format ?? (fromUpload ? "9:16" : undefined),
+      length: input.length ?? (fromUpload ? 5 : undefined),
       mode: modeId,
       tier: typeof input.tier === "string" ? input.tier : "pro",
       ...(model ? { model } : {}),
@@ -89,7 +91,8 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       showText: typeof input.showText === "boolean" ? input.showText : undefined,
       presetId: text(input.presetId) || undefined,
       visualDirection: typeof input.visualDirection === "string" ? input.visualDirection : undefined,
-      characterId: attachedOrRequested(ctx.attachedCharacterId, input.characterId, modeCanNarrate(modeId)),
+      // A swap puts the character on screen without a voice, so it takes one too.
+      characterId: attachedOrRequested(ctx.attachedCharacterId, input.characterId, modeCanNarrate(modeId) || modeId === "swap"),
       characterLookId: text(input.characterLookId) || undefined,
       useCharacterClip: input.useCharacterClip === true ? true : undefined,
       vo: typeof input.vo === "string" ? input.vo : undefined,
@@ -103,6 +106,8 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       backgroundId: text(input.backgroundId) || undefined,
       op: isEditOp(input.op) ? input.op : undefined,
       opValue: text(input.opValue) || undefined,
+      orientation: isSwapOrientation(input.orientation) ? input.orientation : undefined,
+      keepSound: typeof input.keepSound === "boolean" ? input.keepSound : undefined,
     });
     if (ctx.threadId && queued && typeof queued === "object" && "jobId" in queued && typeof queued.jobId === "string") {
       await linkThreadVideo(ctx.userId, ctx.threadId, queued.jobId);

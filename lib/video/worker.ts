@@ -25,7 +25,7 @@ import { NO_ON_SCREEN_TEXT } from "./on-screen-text";
 import { clipDuration, clipResolution, generationModelBySlug, isVideoProvider, type VideoProvider } from "./models";
 import { CLIP_ATTEMPTS, clipFailureAction, MODEL_CHOICE_CODE, ModelChoiceNeeded } from "./model-choice";
 import { lyricsClipDurations, singerModelsFor } from "./singer-models";
-import { modeNeedsUpload, videoModeById } from "./modes";
+import { modeNeedsUpload, SWAP_DEFAULT_PROMPT, videoModeById } from "./modes";
 import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
 import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 import { shouldHoldAfterClip } from "./job-stages";
@@ -39,6 +39,8 @@ import { composeCaptions } from "./compose/captions";
 import { composeEdit } from "./compose/edit";
 import { composeLoop } from "./compose/loop";
 import { composeStills } from "./compose/stills";
+import { finishKlingVideo, hasKlingKey, submitKlingSwap } from "./kling-footage";
+import { DEFAULT_SWAP_ORIENTATION, isSwapOrientation, swapResolutionFor } from "./swap";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
@@ -85,6 +87,11 @@ export const resumeOpenVideos = async (userId: string) => {
   });
   for (const job of jobs) {
     if (runs.has(job.id)) continue;
+    // A swap is not a footage model. Its own runner resumes the Kling task it already started.
+    if (readJobInput(job.input).mode === "swap") {
+      track(job.id, job.status === "running" ? filmRunningJob(userId, job.id) : filmQueuedJob(userId, job.id));
+      continue;
+    }
     const provider = job.providerJobs.find((row) => row.status === "in_progress" || row.status === "pending");
     if (job.status === "running" && provider) {
       if (resumesAsSegments(job)) {
@@ -111,6 +118,7 @@ const runJob = async (userId: string, jobId: string, input: JobInput) => {
   if (input.media === "stills") return composeStills(userId, jobId, input);
   if (input.media === "loop") return composeLoop(userId, jobId, input);
   if (input.mode === "motion-graphics") return filmMotion(userId, jobId, input);
+  if (input.mode === "swap") return filmSwap(userId, jobId, input);
   return filmWithModel(userId, jobId, input);
 };
 
@@ -287,6 +295,45 @@ const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
   await transitionVideoJob(jobId, "succeeded", { outputUrl: null, error: null });
+};
+
+/** How long Kling may take to fetch the picture and the video after the task is sent. */
+const SWAP_LINK_SECONDS = 2 * 60 * 60;
+
+/**
+ * Character swap: one Kling Motion Control task. A task this job already started is
+ * polled again instead of sent twice, so a restart does not pay for a second swap.
+ */
+const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
+  const videoKey = input.mediaKey;
+  const pictureKey = input.referenceKeys?.find((key) => isImageKey(key));
+  if (!videoKey || !pictureKey) throw new Error("This character swap is missing its video or its picture.");
+  if (!hasKlingKey()) throw new Error("Character swap isn't set up on this server.");
+  if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
+  const open = await db.providerJob.findFirst({
+    where: { jobId, sceneIdx: 0, status: { in: ["pending", "in_progress"] } },
+    orderBy: { startedAt: "desc" },
+    select: { providerJobId: true },
+  });
+  let taskId = open?.providerJobId;
+  if (!taskId) {
+    const [imageUrl, videoUrl] = await Promise.all([
+      signedGetUrl(pictureKey, SWAP_LINK_SECONDS),
+      signedGetUrl(videoKey, SWAP_LINK_SECONDS),
+    ]);
+    taskId = await submitKlingSwap({
+      imageUrl,
+      videoUrl,
+      prompt: input.prompt === SWAP_DEFAULT_PROMPT ? "" : input.prompt,
+      orientation: isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION,
+      resolution: input.resolution || swapResolutionFor(input.tier),
+      keepSound: input.keepSound !== false,
+    });
+    await rememberProviderJob(jobId, taskId, "kling", 0, input.model);
+  }
+  const bytes = await finishKlingVideo(taskId, () => isStillRunning(userId, jobId));
+  await finishProviderClip(taskId, "completed", input.model);
+  await storeClip(userId, jobId, input, input.length, bytes, "");
 };
 
 const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string, provider: string) => {
@@ -1073,6 +1120,8 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   verbatim: input.verbatim || undefined,
   op: input.op || undefined,
   opValue: input.opValue || undefined,
+  orientation: input.orientation || undefined,
+  keepSound: input.keepSound,
   backgroundId: input.backgroundId || undefined,
   backgroundKey: input.backgroundKey || undefined,
   tier: input.tier || undefined,

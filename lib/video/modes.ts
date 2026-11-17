@@ -4,6 +4,7 @@ import {
   Image,
   Mic,
   Music,
+  PersonStanding,
   Scissors,
   Smartphone,
   Sparkles,
@@ -24,6 +25,7 @@ import {
   type GenerationModelId,
 } from "./models";
 import type { VisualMedia } from "./stills";
+import { MAX_SWAP_SECONDS, SWAP_LABEL, SWAP_USD_PER_SECOND } from "./swap";
 
 export const VIDEO_TIERS = ["low", "pro", "ultra"] as const;
 export type VideoTier = (typeof VIDEO_TIERS)[number];
@@ -41,15 +43,21 @@ export const VIDEO_MODE_IDS = [
   "shorts",
   "edit",
   "direct",
+  "swap",
 ] as const;
 export type VideoModeId = (typeof VIDEO_MODE_IDS)[number];
 
-/** `compose` modes film nothing: they cut, caption, or assemble what the person already has. */
-export type ModeEngine = "video" | "motion" | "compose";
+/**
+ * `compose` modes film nothing: they cut, caption, or assemble what the person already has.
+ * `swap` puts a character into an uploaded video with one Motion Control call.
+ */
+export type ModeEngine = "video" | "motion" | "compose" | "swap";
 export type ModeUpload = "none" | "image" | "audio" | "video" | "media";
 
 export interface ModeTier {
   model?: GenerationModelId;
+  /** A model outside the footage list, priced by the second. Used by character swap. */
+  fixed?: { name: string; usdPerSecond: number; maxLength: number };
   chatModel?: string;
   resolution: string;
   strength: string;
@@ -73,6 +81,8 @@ export interface VideoMode {
   media?: readonly VisualMedia[];
   /** The main box holds words to be spoken, so they can be read exactly as written. */
   spokenScript?: boolean;
+  /** Made through the Coach and MCP tools only. The Create page does not list it yet. */
+  agentOnly?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -105,6 +115,18 @@ const REFERENCE_TIERS: Record<VideoTier, ModeTier> = {
   low: { model: "seedance", resolution: "480p", strength: "Reference-driven drafts." },
   pro: { model: "seedance", resolution: "720p", strength: "Reference-driven shots." },
   ultra: { model: "seedance", resolution: "720p", strength: "Longer reference-driven clips." },
+};
+
+const swapTier = (resolution: "720p" | "1080p", strength: string): ModeTier => ({
+  resolution,
+  strength,
+  fixed: { name: SWAP_LABEL, usdPerSecond: SWAP_USD_PER_SECOND[resolution], maxLength: MAX_SWAP_SECONDS.video },
+});
+
+const SWAP_TIERS: Record<VideoTier, ModeTier> = {
+  low: swapTier("720p", "720p, the cheapest swap."),
+  pro: swapTier("720p", "720p, keeps the video's sound."),
+  ultra: swapTier("1080p", "Sharper 1080p swap."),
 };
 
 const MOTION_TIERS: Record<VideoTier, ModeTier> = {
@@ -283,6 +305,22 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     placeholder: "Write the whole prompt for the video model. It is sent exactly as typed.",
     tiers: T2V_TIERS,
   },
+  {
+    id: "swap",
+    title: "Character Swap",
+    description: "Put your character into a video you upload. They copy every move and the video keeps its sound.",
+    icon: PersonStanding,
+    tint: "from-orange-300 to-sky-200",
+    status: "live",
+    phase: 5,
+    engine: "swap",
+    upload: "video",
+    placeholder: "Optional: wardrobe, setting, or style notes. The video sets the moves.",
+    promptOptional: true,
+    referenceImages: true,
+    agentOnly: true,
+    tiers: SWAP_TIERS,
+  },
 ];
 
 /**
@@ -290,6 +328,9 @@ export const VIDEO_MODES: readonly VideoMode[] = [
  * no shot plan, no voice, and one clip.
  */
 export const isDirectMode = (mode?: string | null) => mode === "direct";
+
+/** Stored when the person wrote nothing. It is a title only and is never sent to Kling. */
+export const SWAP_DEFAULT_PROMPT = "Character swap";
 
 export const isVideoModeId = (value: string): value is VideoModeId =>
   (VIDEO_MODE_IDS as readonly string[]).includes(value);
@@ -315,6 +356,7 @@ export const defaultPromptForMode = (mode: VideoMode) => {
   if (mode.id === "music") return "A music video that follows this track.";
   if (mode.id === "av-to-video") return "Edit this source into a short, watchable clip.";
   if (mode.id === "edit") return "Quick edit";
+  if (mode.id === "swap") return SWAP_DEFAULT_PROMPT;
   return "";
 };
 
@@ -338,6 +380,8 @@ export const resolveModeTier = (modeId: string, tier: string): ResolvedModeTier 
   }
   if (!mode.tiers) return null;
   const mapping = mode.tiers[tier];
+  // Motion Control is not a footage model, so the tier only sets the resolution.
+  if (mode.engine === "swap") return { mode, tier, mapping, model: null, resolution: mapping.resolution };
   const model = mapping.model ? generationModelById(mapping.model) : null;
   if (!model && !mapping.chatModel) return null;
   const resolution =
@@ -386,6 +430,14 @@ export const resolveFilming = (input: {
 };
 
 export const describeModeTier = (mapping: ModeTier) => {
+  if (mapping.fixed) {
+    return {
+      name: mapping.fixed.name,
+      price: formatPricePerSecond(mapping.fixed.usdPerSecond),
+      maxLength: mapping.fixed.maxLength,
+      resolution: mapping.resolution,
+    };
+  }
   if (mapping.chatModel) {
     return {
       name: generationModelLabel(mapping.chatModel),

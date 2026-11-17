@@ -418,6 +418,46 @@ Examples:
 {"prompt":"macro shot of rain on a leaf, 4k","format":"9:16","length":5,"model":"kling-4"}
 ```
 
+### make_character_swap
+
+**Character Swap.** Put your character into a video you upload. They copy every move and the video keeps its sound.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They uploaded a video of someone moving, dancing, or talking, and want their character to perform it instead.
+- mediaKey is that performance video. If you omit it, the attached video is used. Pass it when you know it, so the price is shown before approval.
+- Pass characterId for a saved character with a picture, and characterLookId for one of its looks. Or pass one picture key in referenceKeys for someone who is not saved. A saved character wins over a picture.
+- The video must be 3 to 30 seconds, one continuous take with one person in frame. The result runs as long as the video, and the price follows its length.
+- orientation video follows the video's framing (the default). orientation image keeps the picture's framing and facing, for videos up to 10 seconds.
+- The video keeps its own sound unless keepSound is false. No voice is added.
+
+Don't use when:
+- They want a new clip made from a description. Use make_prompt_video.
+- They want a still animated. Use make_image_video.
+- They want the character to say a script to camera. Use make_shorts_video or make_avatar_video.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| mediaKey | no | Upload key of the performance video. Omit to use the attached video. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| referenceKeys | no | One picture key of who should appear, when they are not a saved character. |
+| prompt | no | Optional wardrobe, setting, or style notes. The video sets the moves. Leave empty to send none. |
+| orientation | no | video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video. |
+| keepSound | no | Keep the video's own sound. Defaults to true. |
+| tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+
+Examples:
+
+> Have my character do the dance in this video.
+
+```json
+{"mediaKey":"uploads/u1/dance.mp4","characterId":"c-1","tier":"pro"}
+```
+
 ### start_production
 
 **Start this production.** Start a staged production for a multi-scene film. Starting the plan costs 1 credit. Filming spends credits when the preview is approved.

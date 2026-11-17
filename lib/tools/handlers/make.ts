@@ -17,6 +17,7 @@ export const makeImageVideoHandler = modeHandler("image");
 export const makeAvCutHandler = modeHandler("av-to-video");
 export const makeLyricsVideoHandler = modeHandler("lyrics");
 export const makeDirectVideoHandler = modeHandler("direct");
+export const makeCharacterSwapHandler = modeHandler("swap");
 export const addCaptionsHandler = modeHandler("captions");
 export const quickEditVideoHandler = modeHandler("edit");
 

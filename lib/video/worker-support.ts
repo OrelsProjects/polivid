@@ -17,6 +17,10 @@ export interface JobInput {
   /** The quick edit an edit job makes, and its setting. */
   op?: string;
   opValue?: string;
+  /** Character swap: `video` or `image` framing. */
+  orientation?: string;
+  /** Character swap: keep the uploaded video's sound. */
+  keepSound?: boolean;
   /** Built-in clip behind a `loop` video. */
   backgroundId?: string;
   /** The person's own uploaded clip behind a `loop` video. */

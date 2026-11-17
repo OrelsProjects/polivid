@@ -5,6 +5,7 @@ import { GENERATION_MODEL_IDS } from "@/lib/video/models";
 import { VIDEO_MODE_IDS, VIDEO_TIERS } from "@/lib/video/modes";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LOOP_LENGTH, VISUAL_MEDIA } from "@/lib/video/stills";
+import { SWAP_ORIENTATIONS } from "@/lib/video/swap";
 import { ATTACHMENT_ROLES, MAX_BRIEF_LINE, MAX_DIRECTOR_LINE } from "@/lib/video/shot-plan";
 import {
   MAX_LYRICS_NOTE,
@@ -48,6 +49,10 @@ export const CreateVideoSchema = z.object({
   op: z.enum(EDIT_OPS).optional(),
   /** That edit's setting, such as `90` for a rotation. */
   opValue: z.string().trim().max(20).optional(),
+  /** Character swap: follow the video's framing, or keep the picture's. */
+  orientation: z.enum(SWAP_ORIENTATIONS).optional(),
+  /** Character swap: keep the uploaded video's sound. Defaults to true. */
+  keepSound: z.boolean().optional(),
   /** Built-in clip behind a `loop` video. */
   backgroundId: z.string().trim().max(40).optional(),
   /** The person's own uploaded clip behind a `loop` video. */

@@ -3,6 +3,8 @@
  * so the shape each model is sent can be tested.
  */
 
+import { SWAP_PROMPT_LIMIT, type SwapOrientation } from "./swap";
+
 export const KLING_API = "https://api-singapore.klingai.com";
 
 /** Kling 3.0 and older read this much of a prompt. */
@@ -154,6 +156,40 @@ export const klingCall = (request: KlingVideoRequest): KlingCall => {
     body: {
       ...(contents ? { contents } : { prompt: request.prompt.slice(0, PROMPT_LIMIT) }),
       settings: settingsFor(route, request),
+      options: OPTIONS,
+    },
+  };
+};
+
+export interface KlingSwapRequest {
+  /** The character picture, as a URL Kling can fetch or a data URL. */
+  imageUrl: string;
+  /** The performance video, as a URL Kling can fetch. */
+  videoUrl: string;
+  /** Optional notes on wardrobe, setting, or style. Empty sends none. */
+  prompt?: string;
+  orientation: SwapOrientation;
+  resolution: string;
+  /** Keep the performance video's sound. */
+  keepSound: boolean;
+}
+
+/** Motion Control: the character in the picture performs the moves in the video. */
+export const klingSwapCall = (request: KlingSwapRequest): KlingCall => {
+  const prompt = request.prompt?.trim().slice(0, SWAP_PROMPT_LIMIT) ?? "";
+  return {
+    url: `${KLING_API}/motion-control/kling-3.0`,
+    body: {
+      contents: [
+        ...(prompt ? [{ type: "prompt", text: prompt }] : []),
+        { type: "image", url: request.imageUrl },
+        { type: "video", url: request.videoUrl },
+      ],
+      settings: {
+        character_orientation: request.orientation,
+        resolution: request.resolution,
+        audio: request.keepSound ? "original" : "off",
+      },
       options: OPTIONS,
     },
   };

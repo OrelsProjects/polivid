@@ -56,6 +56,10 @@ export interface VideoJobInput {
   /** The quick edit an edit job makes, and its setting. */
   op?: string;
   opValue?: string;
+  /** Character swap: `video` or `image` framing. */
+  orientation?: string;
+  /** Character swap: keep the uploaded video's sound. */
+  keepSound?: boolean;
   /** Built-in clip behind a loop video. */
   backgroundId?: string;
   /** The person's own clip behind a loop video. */
@@ -124,6 +128,8 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           sourceUrl: input.sourceUrl ?? "",
           op: input.op ?? "",
           opValue: input.opValue ?? "",
+          orientation: input.orientation ?? "",
+          keepSound: input.keepSound !== false,
           backgroundId: input.backgroundId ?? "",
           backgroundKey: input.backgroundKey ?? "",
           tier: input.tier ?? "",

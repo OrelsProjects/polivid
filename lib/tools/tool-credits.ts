@@ -16,7 +16,14 @@ const ONE_CREDIT = 1;
  * These spends depend on a saved job or production, so the price is looked up
  * on the server. Anything else that spends credits is priced from the tool input.
  */
-export const LOOKUP_CREDIT_TOOLS = ["retry_video", "approve_production", "regenerate_production", "production_refilm_shot"] as const;
+export const LOOKUP_CREDIT_TOOLS = [
+  "retry_video",
+  "approve_production",
+  "regenerate_production",
+  "production_refilm_shot",
+  // Priced by the uploaded video's length.
+  "make_character_swap",
+] as const;
 
 const ONE_CREDIT_TOOLS = new Set([
   "generate_image",
@@ -52,6 +59,8 @@ const cutsFrom = (value: unknown) => {
 const videoCredits = (mode: string, input: Record<string, unknown>, options: ToolCreditOptions) => {
   // A quick edit has one price and takes its length from the upload.
   if (mode === "edit") return videoJobCredits({ demo: options.demo, mode, length: 0 });
+  // A swap is priced by the uploaded video's length, which only the server can read.
+  if (mode === "swap") return options.demo ? 0 : null;
   if (typeof input.length !== "number" || !Number.isInteger(input.length)) return null;
   const tier = typeof input.tier === "string" && input.tier.trim() ? input.tier.trim() : "pro";
   if (mode !== "motion-graphics" && !resolveModeTier(mode, tier)) return null;

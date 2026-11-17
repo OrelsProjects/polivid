@@ -118,6 +118,10 @@ export interface JobInputFields {
   /** The quick edit an edit job makes, and its setting. */
   op: string;
   opValue: string;
+  /** Character swap: `video` or `image` framing. Empty for every other mode. */
+  orientation: string;
+  /** Character swap: keep the uploaded video's sound. */
+  keepSound: boolean;
   /** Built-in clip behind a loop video. */
   backgroundId: string;
   /** The person's own clip behind a loop video. */
@@ -172,6 +176,8 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   media: "",
   op: "",
   opValue: "",
+  orientation: "",
+  keepSound: true,
   backgroundId: "",
   backgroundKey: "",
   verbatim: false,
@@ -220,6 +226,8 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const media = record.media === "stills" || record.media === "loop" ? record.media : "";
   const op = typeof record.op === "string" ? record.op : "";
   const opValue = typeof record.opValue === "string" ? record.opValue.slice(0, 20) : "";
+  const orientation = record.orientation === "video" || record.orientation === "image" ? record.orientation : "";
+  const keepSound = record.keepSound !== false;
   const backgroundId = typeof record.backgroundId === "string" ? record.backgroundId : "";
   const backgroundKey = typeof record.backgroundKey === "string" ? record.backgroundKey : "";
   const verbatim = record.verbatim === true;
@@ -284,6 +292,8 @@ export const readJobInput = (input: unknown): JobInputFields => {
     media,
     op,
     opValue,
+    orientation,
+    keepSound,
     backgroundId,
     backgroundKey,
     verbatim,

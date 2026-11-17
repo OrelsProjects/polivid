@@ -22,6 +22,7 @@ export const stagesForJob = (job: { mode: string; tier: string; model: string; l
   if (job.model === EDITOR_MODEL || job.model === EDIT_MODEL) return ["render", "finalize"];
   if (job.model === STILLS_MODEL) return ["script", "images", "render", "finalize"];
   if (job.model === LOOP_MODEL || job.mode === "captions") return ["script", "render", "finalize"];
+  if (job.mode === "swap") return ["videos", "finalize"];
   if (job.mode === "motion-graphics") {
     return job.tier === "ultra" ? ["script", "images", "finalize"] : ["script", "finalize"];
   }

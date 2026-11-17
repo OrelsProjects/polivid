@@ -7,7 +7,7 @@ test("every catalog mode is live and resolves a Pro tier", () => {
     assert.equal(mode.status, "live", mode.id);
     const resolved = resolveModeTier(mode.id, "pro");
     assert.ok(resolved, mode.id);
-    assert.ok(resolved?.model || resolved?.chatModel || mode.engine === "compose", mode.id);
+    assert.ok(resolved?.model || resolved?.chatModel || resolved?.mapping.fixed || mode.engine === "compose", mode.id);
   }
 });
 
@@ -30,7 +30,8 @@ test("motion graphics uses chat models", () => {
 test("modes that take reference pictures only use models that accept them", () => {
   const prompt = videoModeById("prompt");
   assert.ok(prompt && modeAcceptsReferenceImages(prompt));
-  for (const mode of VIDEO_MODES.filter(modeAcceptsReferenceImages)) {
+  // A swap's one picture is the character Motion Control puts on screen, not a footage reference.
+  for (const mode of VIDEO_MODES.filter((item) => modeAcceptsReferenceImages(item) && item.engine !== "swap")) {
     for (const tier of VIDEO_TIERS) {
       assert.equal(resolveModeTier(mode.id, tier)?.model?.referenceImages, true, `${mode.id} ${tier}`);
     }

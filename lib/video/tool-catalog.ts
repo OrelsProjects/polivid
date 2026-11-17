@@ -125,6 +125,7 @@ const MODE_CATEGORY: Record<VideoModeId, ToolCategoryId> = {
   captions: "editing",
   edit: "editing",
   direct: "creation",
+  swap: "creation",
 };
 
 const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
@@ -140,6 +141,7 @@ const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
   captions: ["subtitles", "transcribe", "words on screen"],
   edit: ["rotate", "flip", "resize", "crop", "loop", "volume", "mute", "mirror"],
   direct: ["raw", "exact", "as typed", "no planning", "untouched", "model prompt", "one clip"],
+  swap: ["swap", "replace person", "motion control", "copy moves", "dance", "performance", "video to video"],
 };
 
 const FEATURED_MODES: readonly VideoModeId[] = ["prompt", "voiceover", "shorts"];
@@ -586,7 +588,7 @@ const EDIT_VARIANTS: readonly CreateTool[] = [
 ];
 
 export const CREATE_TOOLS: readonly CreateTool[] = [
-  ...VIDEO_MODES.map(modeAsTool),
+  ...VIDEO_MODES.filter((mode) => !mode.agentOnly).map(modeAsTool),
   ...VARIANTS,
   ...STILLS_VARIANTS,
   ...LINK_VARIANTS,

@@ -31,6 +31,7 @@ import {
 import { VIDEO_MODE_IDS, VIDEO_TIERS } from "@/lib/video/modes";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
+import { MAX_SWAP_SECONDS, MIN_SWAP_SECONDS, SWAP_ORIENTATIONS, SWAP_PROMPT_LIMIT, swapResolutionFor } from "@/lib/video/swap";
 
 const filmed = () => ({
   format: formatField(),
@@ -361,6 +362,57 @@ export const makeTools = [
       {
         request: "Send this exact prompt to Kling 4: 'macro shot of rain on a leaf, 4k'",
         input: { prompt: "macro shot of rain on a leaf, 4k", format: "9:16", length: 5, model: "kling-4" },
+      },
+    ],
+  }),
+  defineModeTool({
+    modeId: "swap",
+    name: "make_character_swap",
+    whenToUse: [
+      "They uploaded a video of someone moving, dancing, or talking, and want their character to perform it instead.",
+      "mediaKey is that performance video. If you omit it, the attached video is used. Pass it when you know it, so the price is shown before approval.",
+      "Pass characterId for a saved character with a picture, and characterLookId for one of its looks. Or pass one picture key in referenceKeys for someone who is not saved. A saved character wins over a picture.",
+      `The video must be ${MIN_SWAP_SECONDS} to ${MAX_SWAP_SECONDS.video} seconds, one continuous take with one person in frame. The result runs as long as the video, and the price follows its length.`,
+      "orientation video follows the video's framing (the default). orientation image keeps the picture's framing and facing, for videos up to 10 seconds.",
+      "The video keeps its own sound unless keepSound is false. No voice is added.",
+    ],
+    avoidWhen: [
+      "They want a new clip made from a description. Use make_prompt_video.",
+      "They want a still animated. Use make_image_video.",
+      "They want the character to say a script to camera. Use make_shorts_video or make_avatar_video.",
+    ],
+    inputSchema: z.object({
+      mediaKey: mediaKeyField("Upload key of the performance video. Omit to use the attached video."),
+      characterId: characterField(),
+      characterLookId: characterLookField(),
+      referenceKeys: z
+        .array(z.string().trim().min(1).max(200))
+        .max(1)
+        .optional()
+        .describe("One picture key of who should appear, when they are not a saved character."),
+      prompt: z
+        .string()
+        .trim()
+        .max(SWAP_PROMPT_LIMIT)
+        .optional()
+        .describe("Optional wardrobe, setting, or style notes. The video sets the moves. Leave empty to send none."),
+      orientation: z
+        .enum(SWAP_ORIENTATIONS)
+        .optional()
+        .describe("video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video."),
+      keepSound: z.boolean().optional().describe("Keep the video's own sound. Defaults to true."),
+      tier: tierField(),
+    }),
+    approvalDetail: (input) => {
+      const parts = ["Character swap", swapResolutionFor(typeof input.tier === "string" ? input.tier : undefined)];
+      if (input.orientation === "image") parts.push("picture framing");
+      if (input.keepSound === false) parts.push("no sound");
+      return parts.join(" · ");
+    },
+    examples: [
+      {
+        request: "Have my character do the dance in this video.",
+        input: { mediaKey: "uploads/u1/dance.mp4", characterId: "c-1", tier: "pro" },
       },
     ],
   }),

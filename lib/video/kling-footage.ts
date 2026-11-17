@@ -8,9 +8,9 @@ import {
   sleep,
   stopIfCanceled,
 } from "./provider-http";
-import { KLING_API, klingCall, type KlingVideoRequest } from "./kling-request";
+import { KLING_API, klingCall, klingSwapCall, type KlingCall, type KlingSwapRequest, type KlingVideoRequest } from "./kling-request";
 
-export type { KlingVideoRequest };
+export type { KlingSwapRequest, KlingVideoRequest };
 
 export const hasKlingKey = () => Boolean(process.env.KLING_API_KEY?.trim());
 
@@ -57,8 +57,12 @@ const tasksFrom = (body: KlingEnvelope) => {
 };
 
 /** Starts a Kling clip and returns the task id. Retries until Kling answers. */
-export const submitKlingVideo = async (request: KlingVideoRequest) => {
-  const call = klingCall(request);
+export const submitKlingVideo = (request: KlingVideoRequest) => submitKlingCall(klingCall(request));
+
+/** Starts a Motion Control character swap and returns the task id. */
+export const submitKlingSwap = (request: KlingSwapRequest) => submitKlingCall(klingSwapCall(request));
+
+const submitKlingCall = async (call: KlingCall) => {
   let misses = 0;
   while (true) {
     try {

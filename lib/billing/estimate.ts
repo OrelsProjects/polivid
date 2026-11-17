@@ -1,5 +1,6 @@
 import { lyricsCreditBreakdown } from "@/lib/music/song-plan";
 import { EDIT_CREDITS } from "@/lib/video/edit-ops";
+import { swapCredits } from "@/lib/video/swap";
 import { filmedSecondsForCuts } from "@/lib/video/shot-plan";
 import {
   clipDuration,
@@ -84,6 +85,8 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
   }
   if (input.mode === "captions") return CAPTIONS_CREDITS;
   if (input.mode === "edit") return EDIT_CREDITS;
+  // Billed per second of the performance video, which the queue reads from the upload.
+  if (input.mode === "swap") return swapCredits(input.length, input.resolution);
   if (input.media === "stills" || input.modelSlug === STILLS_MODEL) {
     return stillsCredits(input.length, stillsUseDraft(input.tier), input.pictures);
   }

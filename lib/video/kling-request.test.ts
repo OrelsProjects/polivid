@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { klingCall, type KlingVideoRequest } from "./kling-request";
+import { klingCall, klingSwapCall, type KlingVideoRequest } from "./kling-request";
 import { clipDuration, generationModelById } from "./models";
 
 const base: KlingVideoRequest = {
@@ -92,4 +92,41 @@ test("every listed Kling model has a route, and 4.0 runs 3 to 30 seconds", () =>
   assert.equal(clipDuration(45, four.durations), 30);
   assert.equal(clipDuration(45, flash.durations), 20);
   assert.deepEqual(flash.resolutions, ["720p"]);
+});
+
+test("a character swap goes to Motion Control with the picture, the video, and the sound kept", () => {
+  const call = klingSwapCall({
+    imageUrl: "https://x.test/me.png",
+    videoUrl: "https://x.test/dance.mp4",
+    prompt: "  Wearing a red jacket  ",
+    orientation: "video",
+    resolution: "720p",
+    keepSound: true,
+  });
+  assert.equal(call.url, "https://api-singapore.klingai.com/motion-control/kling-3.0");
+  assert.deepEqual(call.body, {
+    contents: [
+      { type: "prompt", text: "Wearing a red jacket" },
+      { type: "image", url: "https://x.test/me.png" },
+      { type: "video", url: "https://x.test/dance.mp4" },
+    ],
+    settings: { character_orientation: "video", resolution: "720p", audio: "original" },
+    options: { watermark_info: { enabled: false } },
+  });
+});
+
+test("a character swap with no prompt sends no prompt, and can mute the video", () => {
+  const call = klingSwapCall({
+    imageUrl: "https://x.test/me.png",
+    videoUrl: "https://x.test/dance.mp4",
+    prompt: "   ",
+    orientation: "image",
+    resolution: "1080p",
+    keepSound: false,
+  });
+  assert.deepEqual(
+    (call.body.contents as { type: string }[]).map((item) => item.type),
+    ["image", "video"],
+  );
+  assert.deepEqual(call.body.settings, { character_orientation: "image", resolution: "1080p", audio: "off" });
 });
