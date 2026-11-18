@@ -238,3 +238,13 @@ export const isKlingOutOfCredit = (message: string) =>
 
 /** What the person sees. The account's state is for the owner's log, not the video card. */
 export const KLING_UNAVAILABLE = "Kling can't take new videos right now. Your credits were returned. Try again later.";
+
+/**
+ * What a Kling task that failed after it was accepted says to the person. Kling can take a task and then
+ * fail it for the account's balance, so that case gets the same wording as a refused submission.
+ */
+export const klingTaskFailure = (message: string | undefined, status: string) => {
+  const text = message?.trim() || `Kling ${status}.`;
+  const outOfCredit = isKlingOutOfCredit(text);
+  return { message: outOfCredit ? KLING_UNAVAILABLE : text, outOfCredit, detail: text };
+};

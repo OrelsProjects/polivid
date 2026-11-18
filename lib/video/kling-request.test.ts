@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isKlingOutOfCredit, klingCall, klingSwapCall, klingSwapEditCall, type KlingVideoRequest } from "./kling-request";
+import { isKlingOutOfCredit, KLING_UNAVAILABLE, klingCall, klingSwapCall, klingSwapEditCall, klingTaskFailure, type KlingVideoRequest } from "./kling-request";
 import { clipDuration, generationModelById } from "./models";
 
 const base: KlingVideoRequest = {
@@ -157,4 +157,14 @@ test("replacing in a video sends the video to edit as base_video and the charact
     settings: { resolution: "720p", duration: 7, audio: "original", multi_shot: false },
     options: { watermark_info: { enabled: false } },
   });
+});
+
+test("a task Kling accepts and then fails for the account's balance says credits were returned", () => {
+  assert.deepEqual(klingTaskFailure("Account balance not enough", "failed"), {
+    message: KLING_UNAVAILABLE,
+    outOfCredit: true,
+    detail: "Account balance not enough",
+  });
+  assert.equal(klingTaskFailure("Image pixel is invalid", "failed").message, "Image pixel is invalid");
+  assert.equal(klingTaskFailure(undefined, "failed").message, "Kling failed.");
 });

@@ -12,6 +12,7 @@ import {
   isKlingOutOfCredit,
   KLING_API,
   KLING_UNAVAILABLE,
+  klingTaskFailure,
   klingCall,
   klingSwapCall,
   klingSwapEditCall,
@@ -124,7 +125,11 @@ export const finishKlingVideo = async (taskId: string, shouldContinue: () => Pro
       const status = task?.status ?? "";
       if (status === "succeeded") return downloadVideo(task);
       if (status && !UNFINISHED.has(status)) {
-        throw new ModelDeclined(task?.message?.trim() || `Kling ${status}.`);
+        const failure = klingTaskFailure(task?.message, status);
+        if (failure.outOfCredit) {
+          console.error("The Kling account can't pay for new videos. Top it up in the Kling developer console.", failure.detail);
+        }
+        throw new ModelDeclined(failure.message);
       }
       misses = 0;
     } catch (error) {
