@@ -21,6 +21,8 @@ export interface JobInput {
   orientation?: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound?: boolean;
+  /** Character swap: re-voice the speech in the character's voice. */
+  characterVoice?: boolean;
   /** Built-in clip behind a `loop` video. */
   backgroundId?: string;
   /** The person's own uploaded clip behind a `loop` video. */

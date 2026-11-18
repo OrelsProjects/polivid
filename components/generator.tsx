@@ -73,6 +73,7 @@ import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MI
 import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
 import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 import { DEFAULT_SWAP_METHOD, SWAP_METHOD_LABELS, SWAP_METHODS, swapLengthProblem, type SwapMethod } from "@/lib/video/swap";
+import { useGetCharactersQuery } from "@/lib/store/endpoints/characters";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
   { value: "9:16", label: "Vertical", hint: "Shorts, TikTok, Reels", icon: RectangleVertical },
@@ -222,6 +223,10 @@ export function Generator({
   const [swapMethod, setSwapMethod] = useState<SwapMethod>(DEFAULT_SWAP_METHOD);
   const swapDuration = useVideoDuration(swap ? mediaKey : null);
   const swapProblem = swap && swapDuration !== null ? swapLengthProblem(swapDuration, swapMethod) : null;
+  /** Character swap: re-voice the speech in the character's own voice. Kling only changes the picture. */
+  const [swapVoice, setSwapVoice] = useState(true);
+  const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap });
+  const swapCharacter = swap ? savedCharacters?.find((item) => item.id === characterId) : undefined;
   /** The mode works on an upload as it is: nothing to write, and the file sets the length. */
   const uploadOnly = !spec.showPrompt;
   const showLook = !loop && spec.sections.has("look");
@@ -513,6 +518,7 @@ export function Generator({
             op,
             opValue,
             swapMethod: swap ? swapMethod : undefined,
+            characterVoice: swap && swapCharacter?.hasVoice ? swapVoice : undefined,
           },
           usesVideoModel,
           songId: approvedTake?.id,
@@ -1272,6 +1278,34 @@ export function Generator({
                 modelTakesVideo={!swap && Boolean(filmingModel?.inputs.includes("video"))}
                 disabled={busy}
               />
+              {swapCharacter ? (
+                swapCharacter.hasVoice ? (
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-3 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={swapVoice}
+                      disabled={busy}
+                      onChange={(event) => setSwapVoice(event.target.checked)}
+                      className="mt-0.5 size-4 shrink-0 accent-primary"
+                    />
+                    <span>
+                      <span className="block font-medium">Use {swapCharacter.name}&apos;s voice</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {swapVoice
+                          ? `The speech in your video is re-voiced as ${swapCharacter.name}, keeping the words and timing. The background sound stays.`
+                          : "The video keeps its own voice."}
+                      </span>
+                    </span>
+                  </label>
+                ) : (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {swapCharacter.name} has no voice yet, so the video keeps its own.{" "}
+                    <Link href={`/characters/${swapCharacter.id}`} className="font-medium text-primary underline-offset-4 hover:underline">
+                      Add a voice
+                    </Link>
+                  </p>
+                )
+              ) : null}
               </>
             )}
             {songFirst && acceptsReferences ? (

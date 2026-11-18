@@ -448,6 +448,7 @@ Inputs:
 | prompt | no | For replace: what to replace, naming the character, e.g. 'Replace the monkey with Greg'. Empty replaces the main person. For moves: optional wardrobe or style notes. |
 | orientation | no | moves only. video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video. |
 | keepSound | no | Keep the video's own sound. Defaults to true. |
+| characterVoice | no | Re-voice the speech in the video in the character's own voice, keeping the words and timing. Defaults to true. Needs the character to have a voice and keepSound to be true. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 
 Examples:

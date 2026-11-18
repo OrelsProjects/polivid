@@ -109,6 +109,7 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       swapMethod: isSwapMethod(input.method) ? input.method : undefined,
       orientation: isSwapOrientation(input.orientation) ? input.orientation : undefined,
       keepSound: typeof input.keepSound === "boolean" ? input.keepSound : undefined,
+      characterVoice: typeof input.characterVoice === "boolean" ? input.characterVoice : undefined,
     });
     if (ctx.threadId && queued && typeof queued === "object" && "jobId" in queued && typeof queued.jobId === "string") {
       await linkThreadVideo(ctx.userId, ctx.threadId, queued.jobId);

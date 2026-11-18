@@ -63,7 +63,7 @@ export const changeVoice = async (vocal: Uint8Array, voiceId: string) => {
 };
 
 /** Mean loudness in dB, from ffmpeg's volumedetect. */
-const meanVolumeDb = async (audio: Uint8Array) => {
+export const meanVolumeDb = async (audio: Uint8Array) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-level-"));
   try {
     const file = path.join(dir, "audio.mp3");

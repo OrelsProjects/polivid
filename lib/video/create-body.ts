@@ -50,6 +50,8 @@ export interface CreateFormValues {
   opValue?: string;
   /** Character swap: replace someone in the video, or copy its moves. */
   swapMethod?: SwapMethod;
+  /** Character swap: re-voice the speech in the character's voice. Left out means yes. */
+  characterVoice?: boolean;
 }
 
 export interface ApprovedPlan {
@@ -123,6 +125,7 @@ export const buildCreateBody = (input: {
       characterId: values.characterId,
       ...(values.characterLookId ? { characterLookId: values.characterLookId } : {}),
       ...(values.swapMethod ? { swapMethod: values.swapMethod } : {}),
+      ...(values.characterVoice === false ? { characterVoice: false } : {}),
     };
   }
 

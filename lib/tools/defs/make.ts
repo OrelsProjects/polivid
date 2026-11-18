@@ -412,6 +412,10 @@ export const makeTools = [
         .optional()
         .describe("moves only. video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video."),
       keepSound: z.boolean().optional().describe("Keep the video's own sound. Defaults to true."),
+      characterVoice: z
+        .boolean()
+        .optional()
+        .describe("Re-voice the speech in the video in the character's own voice, keeping the words and timing. Defaults to true. Needs the character to have a voice and keepSound to be true."),
       tier: tierField(),
     }),
     approvalDetail: (input) => {
@@ -421,6 +425,7 @@ export const makeTools = [
       ];
       if (input.method === "moves" && input.orientation === "image") parts.push("picture framing");
       if (input.keepSound === false) parts.push("no sound");
+      else if (input.characterVoice === false) parts.push("original voice");
       return parts.join(" · ");
     },
     examples: [

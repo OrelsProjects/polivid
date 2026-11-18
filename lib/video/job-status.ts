@@ -128,6 +128,8 @@ export interface JobInputFields {
   orientation: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound: boolean;
+  /** Character swap: re-voice the speech in the character's voice. */
+  characterVoice: boolean;
   /** Built-in clip behind a loop video. */
   backgroundId: string;
   /** The person's own clip behind a loop video. */
@@ -184,6 +186,7 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   opValue: "",
   orientation: "",
   keepSound: true,
+  characterVoice: true,
   backgroundId: "",
   backgroundKey: "",
   verbatim: false,
@@ -234,6 +237,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const opValue = typeof record.opValue === "string" ? record.opValue.slice(0, 20) : "";
   const orientation = record.orientation === "video" || record.orientation === "image" ? record.orientation : "";
   const keepSound = record.keepSound !== false;
+  const characterVoice = record.characterVoice !== false;
   const backgroundId = typeof record.backgroundId === "string" ? record.backgroundId : "";
   const backgroundKey = typeof record.backgroundKey === "string" ? record.backgroundKey : "";
   const verbatim = record.verbatim === true;
@@ -300,6 +304,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
     opValue,
     orientation,
     keepSound,
+    characterVoice,
     backgroundId,
     backgroundKey,
     verbatim,

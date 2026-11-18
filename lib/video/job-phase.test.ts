@@ -67,3 +67,9 @@ test("typical time is the median, and needs three samples", () => {
   assert.equal(typicalSeconds([300, 100, 200]), 200);
   assert.equal(typicalSeconds([100, 200, 300, 400]), 250);
 });
+
+test("a swap being re-voiced says whose voice it is getting", () => {
+  const phase = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri" }, NOW);
+  assert.equal(phase.badge, "RENDERING");
+  assert.equal(phase.headline, "Giving Oshri their voice");
+});

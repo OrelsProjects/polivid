@@ -61,6 +61,8 @@ export interface VideoJobInput {
   orientation?: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound?: boolean;
+  /** Character swap: re-voice the speech in the character's voice. */
+  characterVoice?: boolean;
   /** Built-in clip behind a loop video. */
   backgroundId?: string;
   /** The person's own clip behind a loop video. */
@@ -131,6 +133,7 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           opValue: input.opValue ?? "",
           orientation: input.orientation ?? "",
           keepSound: input.keepSound !== false,
+          characterVoice: input.characterVoice !== false,
           backgroundId: input.backgroundId ?? "",
           backgroundKey: input.backgroundKey ?? "",
           tier: input.tier ?? "",

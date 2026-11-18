@@ -55,6 +55,8 @@ export const CreateVideoSchema = z.object({
   orientation: z.enum(SWAP_ORIENTATIONS).optional(),
   /** Character swap: keep the uploaded video's sound. Defaults to true. */
   keepSound: z.boolean().optional(),
+  /** Character swap: re-voice the speech in the character's voice. Defaults to true; needs the character to have a voice. */
+  characterVoice: z.boolean().optional(),
   /** Built-in clip behind a `loop` video. */
   backgroundId: z.string().trim().max(40).optional(),
   /** The person's own uploaded clip behind a `loop` video. */

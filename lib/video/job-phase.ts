@@ -100,6 +100,14 @@ export const jobPhase = (job: PhaseInput, now: number | null): JobPhase => {
     case "videos":
       return { badge: "GENERATING", tone: "generate", headline: generatingHeadline(job), detail: generatingDetail(job, now) };
     case "render":
+      if (job.mode === "swap") {
+        return {
+          badge: "RENDERING",
+          tone: "render",
+          headline: job.characterName ? `Giving ${job.characterName} their voice` : "Putting in the character's voice",
+          detail: "The picture is done. The speech is being re-voiced, which takes a minute or two.",
+        };
+      }
       return {
         badge: "RENDERING",
         tone: "render",

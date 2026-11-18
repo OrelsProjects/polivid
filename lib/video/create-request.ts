@@ -128,6 +128,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       method: parsed.data.swapMethod ?? DEFAULT_SWAP_METHOD,
       orientation: parsed.data.orientation ?? DEFAULT_SWAP_ORIENTATION,
       keepSound: parsed.data.keepSound !== false,
+      characterVoice: parsed.data.characterVoice !== false,
       characterId: parsed.data.characterId,
       characterLookId: parsed.data.characterLookId,
       pictureKey: parsed.data.referenceKeys?.[0] ?? parsed.data.referenceKey,
@@ -557,6 +558,7 @@ const queueSwap = async (
     method: SwapMethod;
     orientation: SwapOrientation;
     keepSound: boolean;
+    characterVoice: boolean;
     characterId: string;
     characterLookId: string | undefined;
     pictureKey: string | undefined;
@@ -605,6 +607,7 @@ const queueSwap = async (
       characterLookId: picture.characterLookId,
       orientation: input.method === "moves" ? input.orientation : undefined,
       keepSound: input.keepSound,
+      characterVoice: input.characterVoice,
       showText: false,
       creditsHeld: credits,
     });

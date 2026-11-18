@@ -51,11 +51,14 @@ import {
   swapResolutionFor,
 } from "./swap";
 import { swapEditVideoUrl, swapPictureUrl } from "./compose/swap-source";
+import { revoiceVideo } from "./compose/swap-voice";
 import { WORKER_HANDOFF } from "@/lib/jobs/dispatch";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
 const FILMING_PROGRESS = progressFor("images") - 1;
+/** Where a swap sits while its speech is re-voiced, after the model is done. */
+const RENDER_PROGRESS = 90;
 
 /** One promise per video, so several can film at once. Kept here so a finished request does not drop a long render. */
 const runs = new Map<string, Promise<void>>();
@@ -440,7 +443,27 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   }
   const bytes = await finishKlingVideo(taskId, () => isStillRunning(userId, jobId));
   await finishProviderClip(taskId, "completed", input.model);
-  await storeClip(userId, jobId, input, input.length, bytes, "");
+  const finished = input.keepSound !== false && input.characterVoice !== false ? await withCharacterVoice(userId, jobId, input, bytes) : bytes;
+  await storeClip(userId, jobId, input, input.length, finished, "");
+};
+
+/**
+ * The swapped clip with its speech in the character's own voice. Kling only changes the picture, so the
+ * person in the video still sounds like themselves until this runs. A character with no voice, a clip
+ * with no speech, or a failed re-voice all keep the clip's own sound rather than losing the swap.
+ */
+const withCharacterVoice = async (userId: string, jobId: string, input: JobInput, video: Uint8Array) => {
+  const voice = await resolveCharacterVoice(userId, input.characterId).catch(() => null);
+  if (!voice) return video;
+  if (!(await markVideoJobProgress(jobId, "render", RENDER_PROGRESS))) return video;
+  try {
+    const voiced = await revoiceVideo(video, voice.providerVoiceId);
+    if (!voiced) console.info("The swap has no speech to re-voice; keeping its sound", { jobId });
+    return voiced ?? video;
+  } catch (error) {
+    console.error("Could not re-voice the swap; keeping its own sound", { jobId, error });
+    return video;
+  }
 };
 
 /** The saved character's name, so the prompt's mention of it can point at the picture Kling sees. */
@@ -1236,6 +1259,7 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   opValue: input.opValue || undefined,
   orientation: input.orientation || undefined,
   keepSound: input.keepSound,
+  characterVoice: input.characterVoice,
   backgroundId: input.backgroundId || undefined,
   backgroundKey: input.backgroundKey || undefined,
   tier: input.tier || undefined,
