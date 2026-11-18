@@ -9,9 +9,22 @@ import "server-only";
  */
 export const runsJobsHere = () => process.env.VIDEO_WORKER !== "external" || process.env.POLIVID_WORKER_PROCESS === "1";
 
-/** Starts this video in this process, unless a separate worker makes videos. */
+/**
+ * Marks a running video for the worker to pick up now. Retrying, resuming, or switching models sets a
+ * video running with a fresh heartbeat, which would otherwise make the worker wait for it to look stalled.
+ * Stored in the otherwise unused triggerRunId column.
+ */
+export const WORKER_HANDOFF = "worker-handoff";
+
+/** Starts this video in this process, or hands it to the worker when a separate worker makes videos. */
 export const kickVideoJob = (userId: string, jobId: string, label = "Video stopped") => {
-  if (!runsJobsHere()) return;
+  if (!runsJobsHere()) {
+    // A queued video needs nothing: the worker picks those up on its own.
+    void import("@/lib/db")
+      .then(({ db }) => db.videoJob.updateMany({ where: { id: jobId, userId, status: "running" }, data: { triggerRunId: WORKER_HANDOFF } }))
+      .catch((error) => console.error("Could not hand the video to the worker", error));
+    return;
+  }
   // Loaded on demand: the renderer behind the worker can't load on every host, and routes shouldn't need it to start.
   void import("@/lib/video/worker")
     .then(({ startVideoJob }) => startVideoJob(userId, jobId))

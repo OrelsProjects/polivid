@@ -51,6 +51,7 @@ import {
   swapResolutionFor,
 } from "./swap";
 import { swapEditVideoUrl, swapPictureUrl } from "./compose/swap-source";
+import { WORKER_HANDOFF } from "@/lib/jobs/dispatch";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
@@ -157,8 +158,17 @@ export const activeRunCount = () => runs.size;
  */
 export const pickUpOpenVideos = async (staleMs: number, limit = 10) => {
   const jobs = await findOpenVideosToPickUp(staleMs, limit);
-  for (const job of jobs) resumeLoadedJob(job);
-  return jobs.length;
+  let started = 0;
+  for (const job of jobs) {
+    if (job.triggerRunId === WORKER_HANDOFF) {
+      // Claimed by clearing the mark, so two workers never both take a handed-off video.
+      const claimed = await db.videoJob.updateMany({ where: { id: job.id, triggerRunId: WORKER_HANDOFF }, data: { triggerRunId: null } });
+      if (claimed.count !== 1) continue;
+    }
+    resumeLoadedJob(job);
+    started += 1;
+  }
+  return started;
 };
 
 /** What pickUpOpenVideos would start, without starting anything. */
@@ -167,7 +177,11 @@ export const findOpenVideosToPickUp = (staleMs: number, limit = 10) => {
   return db.videoJob.findMany({
     where: {
       id: { notIn: [...runs.keys()] },
-      OR: [{ status: "queued" }, { status: "running", OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: stale } }] }],
+      OR: [
+        { status: "queued" },
+        { status: "running", triggerRunId: WORKER_HANDOFF },
+        { status: "running", OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: stale } }] },
+      ],
     },
     include: { providerJobs: { orderBy: { createdAt: "desc" } } },
     orderBy: { createdAt: "asc" },
