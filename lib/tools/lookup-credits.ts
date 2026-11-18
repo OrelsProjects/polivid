@@ -10,7 +10,7 @@ import { creditsForToolCall, type ToolCreditOptions } from "@/lib/tools/tool-cre
 import { readJobInput } from "@/lib/video/job-status";
 import { stillPictureCount } from "@/lib/video/script-markup";
 import { probeUpload } from "@/lib/video/compose/upload-file";
-import { DEFAULT_SWAP_METHOD, isSwapMethod, swapCredits, swapResolutionFor, swapUsedSeconds } from "@/lib/video/swap";
+import { swapCredits, swapResolutionFor } from "@/lib/video/swap";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -26,8 +26,7 @@ export const lookupCredits = async (userId: string, name: string, input: Record<
     if (!key) return null;
     const probe = await probeUpload(userId, key);
     if (!probe.hasVideo || !(probe.durationSec > 0)) return null;
-    const method = isSwapMethod(input.method) ? input.method : DEFAULT_SWAP_METHOD;
-    return swapCredits(swapUsedSeconds(probe.durationSec, method), swapResolutionFor(text(input.tier) || undefined));
+    return swapCredits(probe.durationSec, swapResolutionFor(text(input.tier) || undefined));
   }
   if (name === "retry_video") {
     const id = text(input.videoId);

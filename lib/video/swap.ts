@@ -20,11 +20,11 @@ export const isSwapMethod = (value: unknown): value is SwapMethod =>
 export const SWAP_METHOD_LABELS: Record<SwapMethod, { title: string; detail: string }> = {
   replace: {
     title: "Replace in video",
-    detail: "Keeps your video and swaps in your character. Up to 15 seconds.",
+    detail: "Keeps your video and swaps in your character. Longer than 15 seconds is done in parts and joined.",
   },
   moves: {
     title: "Copy the moves",
-    detail: "A new clip of your character doing the video's moves. Up to 30 seconds.",
+    detail: "A new clip of your character doing the video's moves. Longer than 30 seconds is done in parts and joined.",
   },
 };
 
@@ -51,19 +51,60 @@ export const isSwapOrientation = (value: unknown): value is SwapOrientation =>
 /** Kling needs at least this much video either way. */
 export const MIN_SWAP_SECONDS = 3;
 export const MAX_SWAP_SECONDS: Record<SwapOrientation, number> = { video: 30, image: 10 };
-/** Kling 3.0 Omni edits videos up to this long. */
-export const MAX_SWAP_EDIT_SECONDS = 15.5;
-/** Replacing in a longer video uses its first this-many seconds. */
-export const SWAP_EDIT_USED_SECONDS = 15;
+/** Kling 3.0 Omni edits videos up to this long in one go. */
+export const MAX_SWAP_EDIT_SECONDS = 15;
+/** A longer video is swapped in parts and joined back, up to this long in all. */
+export const MAX_SWAP_TOTAL_SECONDS = 120;
+/** A split point moves to a scene cut this close to it, so the join hides inside a cut. */
+const SCENE_SNAP_SECONDS = 2.5;
 
-/** The seconds of the video a swap actually uses, and bills: replacing uses the first 15 of a longer one. */
-export const swapUsedSeconds = (sourceSeconds: number, method: SwapMethod) =>
-  method === "replace" && sourceSeconds > MAX_SWAP_EDIT_SECONDS ? SWAP_EDIT_USED_SECONDS : sourceSeconds;
+/** The longest part one Kling task takes for this kind of swap. */
+export const swapPartLimit = (method: SwapMethod, orientation: SwapOrientation = DEFAULT_SWAP_ORIENTATION) =>
+  method === "replace" ? MAX_SWAP_EDIT_SECONDS : MAX_SWAP_SECONDS[orientation];
 
-/** Shown when only the start of the video will be used, or null. */
-export const swapTrimNote = (sourceSeconds: number, method: SwapMethod) => {
-  if (method !== "replace" || !(sourceSeconds > MAX_SWAP_EDIT_SECONDS)) return null;
-  return `Your video is ${Math.round(sourceSeconds * 10) / 10} seconds. Replacing works on up to ${SWAP_EDIT_USED_SECONDS}, so the first ${SWAP_EDIT_USED_SECONDS} seconds are used. To use all of it, copy the moves instead (up to ${MAX_SWAP_SECONDS.video}).`;
+/** How many parts a video of this length is swapped in. */
+export const swapPartCount = (sourceSeconds: number, method: SwapMethod, orientation?: SwapOrientation) =>
+  Math.max(1, Math.ceil(sourceSeconds / swapPartLimit(method, orientation) - 1e-9));
+
+export interface SwapPart {
+  /** Where the part starts in the video, in seconds. */
+  start: number;
+  seconds: number;
+}
+
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
+/**
+ * Splits a video too long for one task into even parts, each between 3 seconds and `limit`.
+ * A split point moves to the nearest scene cut within 2.5 seconds, so the join falls on a cut
+ * the video already has. A video that fits is one part.
+ */
+export const swapParts = (sourceSeconds: number, limit: number, sceneCuts: readonly number[] = []): SwapPart[] => {
+  const count = Math.max(1, Math.ceil(sourceSeconds / limit - 1e-9));
+  if (count === 1) return [{ start: 0, seconds: round3(sourceSeconds) }];
+  const bounds = [0];
+  for (let index = 1; index < count; index += 1) {
+    const previous = bounds[index - 1]!;
+    const left = count - index;
+    // The part before this point, and every part after it, must stay within 3 seconds and the limit.
+    const low = Math.max(previous + MIN_SWAP_SECONDS, sourceSeconds - left * limit);
+    const high = Math.min(previous + limit, sourceSeconds - left * MIN_SWAP_SECONDS);
+    const ideal = previous + (sourceSeconds - previous) / (left + 1);
+    const cut = sceneCuts
+      .filter((time) => time >= low && time <= high && Math.abs(time - ideal) <= SCENE_SNAP_SECONDS)
+      .sort((a, b) => Math.abs(a - ideal) - Math.abs(b - ideal))[0];
+    bounds.push(round3(cut ?? Math.min(high, Math.max(low, ideal))));
+  }
+  bounds.push(sourceSeconds);
+  return bounds.slice(0, -1).map((start, index) => ({ start, seconds: round3(bounds[index + 1]! - start) }));
+};
+
+/** Shown when the video is swapped in parts, or null. */
+export const swapSplitNote = (sourceSeconds: number, method: SwapMethod, orientation?: SwapOrientation) => {
+  const count = swapPartCount(sourceSeconds, method, orientation);
+  if (count < 2 || sourceSeconds > MAX_SWAP_TOTAL_SECONDS) return null;
+  const limit = swapPartLimit(method, orientation);
+  return `Your video is ${Math.round(sourceSeconds * 10) / 10} seconds. The model takes up to ${limit} at a time, so it's swapped in ${count} parts and joined back into one video.`;
 };
 
 /** Kling reads this much of the prompt. */
@@ -81,22 +122,13 @@ export const swapSeconds = (sourceSeconds: number) => Math.ceil(Math.max(0, sour
 export const swapCredits = (sourceSeconds: number, resolution?: string) =>
   jobCreditsFromUsd(swapSeconds(sourceSeconds) * (SWAP_USD_PER_SECOND[resolution ?? ""] ?? SWAP_USD_PER_SECOND["720p"]));
 
-/** Why this video can't be used, or null when it can. */
-export const swapLengthProblem = (
-  sourceSeconds: number,
-  method: SwapMethod,
-  orientation: SwapOrientation = DEFAULT_SWAP_ORIENTATION,
-) => {
+/** Why this video can't be used, or null when it can. A long one is swapped in parts, so only the total is capped. */
+export const swapLengthProblem = (sourceSeconds: number) => {
   if (!(sourceSeconds >= MIN_SWAP_SECONDS)) {
     return `The video needs to be at least ${MIN_SWAP_SECONDS} seconds.`;
   }
-  // A longer video is cut to its first 15 seconds for replacing, so length never blocks it.
-  if (method === "replace") return null;
-  const max = MAX_SWAP_SECONDS[orientation];
-  if (sourceSeconds > max + 0.5) {
-    return orientation === "image"
-      ? `Keeping the picture's framing works on videos up to ${max} seconds. Trim it, or follow the video's framing for up to ${MAX_SWAP_SECONDS.video}.`
-      : `Trim the video to ${max} seconds or less.`;
+  if (sourceSeconds > MAX_SWAP_TOTAL_SECONDS + 0.5) {
+    return `Use a video up to ${MAX_SWAP_TOTAL_SECONDS / 60} minutes long. Trim it and try again.`;
   }
   return null;
 };

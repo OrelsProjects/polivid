@@ -48,10 +48,15 @@ import {
   swapEditPrompt,
   swapMethodForModel,
   swapMovesPrompt,
+  swapPartCount,
+  swapPartLimit,
   swapResolutionFor,
+  type SwapMethod,
+  type SwapOrientation,
 } from "./swap";
 import { swapEditVideoUrl, swapPictureUrl } from "./compose/swap-source";
 import { revoiceVideo } from "./compose/swap-voice";
+import { planSwapParts, swapPartKey, swapPartTaskSeconds, swapPartUrls } from "./compose/swap-parts";
 import { WORKER_HANDOFF } from "@/lib/jobs/dispatch";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
@@ -405,6 +410,11 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   if (!videoKey || !pictureKey) throw new Error("This character swap is missing its video or its picture.");
   if (!hasKlingKey()) throw new Error("Character swap isn't set up on this server.");
   if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
+  const method = swapMethodForModel(input.model);
+  const orientation = isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION;
+  if (swapPartCount(input.length, method, orientation) > 1) {
+    return filmSwapParts(userId, jobId, input, { videoKey, pictureKey, method, orientation });
+  }
   const open = await db.providerJob.findFirst({
     where: { jobId, sceneIdx: 0, status: { in: ["pending", "in_progress"] } },
     orderBy: { startedAt: "desc" },
@@ -445,6 +455,83 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   await finishProviderClip(taskId, "completed", input.model);
   const finished = input.keepSound !== false && input.characterVoice !== false ? await withCharacterVoice(userId, jobId, input, bytes) : bytes;
   await storeClip(userId, jobId, input, input.length, finished, "");
+};
+
+/**
+ * Character swap of a video longer than one Kling task takes: the video is split into parts (joins on
+ * its own scene cuts where one is close), every part is swapped at once with the same picture and prompt,
+ * and the parts are joined back into one video before the voice is added.
+ * Each finished part is saved, and each open task is remembered by part, so a restart neither pays for
+ * a part twice nor loses one already made.
+ */
+const filmSwapParts = async (
+  userId: string,
+  jobId: string,
+  input: JobInput,
+  swap: { videoKey: string; pictureKey: string; method: SwapMethod; orientation: SwapOrientation },
+) => {
+  const parts = await planSwapParts(userId, swap.videoKey, swapPartLimit(swap.method, swap.orientation));
+  const replace = swap.method === "replace";
+  const [stored, open] = await Promise.all([
+    Promise.all(parts.map((_, index) => readVideoMedia(segmentKey(jobId, index)))),
+    db.providerJob.findMany({
+      where: { jobId, status: { in: ["pending", "in_progress"] } },
+      select: { providerJobId: true, sceneIdx: true },
+    }),
+  ]);
+  const tasks = new Map(open.map((row) => [row.sceneIdx, row.providerJobId]));
+  const missing = parts.map((_, index) => index).filter((index) => !stored[index] && !tasks.has(index));
+  if (missing.length > 0) {
+    const [imageUrl, name, videoUrls] = await Promise.all([
+      swapPictureUrl(userId, jobId, swap.pictureKey, SWAP_LINK_SECONDS),
+      characterName(userId, input.characterId),
+      swapPartUrls(userId, jobId, swap.videoKey, parts, missing, swap.method, SWAP_LINK_SECONDS),
+    ]);
+    const resolution = input.resolution || swapResolutionFor(input.tier);
+    const keepSound = input.keepSound !== false;
+    for (const index of missing) {
+      if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
+      const videoUrl = videoUrls.get(index)!;
+      const taskId = replace
+        ? await submitKlingSwapEdit({
+            imageUrl,
+            videoUrl,
+            prompt: swapEditPrompt(input.prompt, name),
+            resolution,
+            duration: swapPartTaskSeconds(parts[index]!),
+            keepSound,
+          })
+        : await submitKlingSwap({
+            imageUrl,
+            videoUrl,
+            prompt: swapMovesPrompt(input.prompt, name),
+            orientation: swap.orientation,
+            resolution,
+            keepSound,
+          });
+      await rememberProviderJob(jobId, taskId, "kling", index, input.model);
+      tasks.set(index, taskId);
+    }
+  }
+  const clips = await Promise.all(
+    parts.map(async (_, index) => {
+      const saved = stored[index];
+      if (saved) return saved;
+      const taskId = tasks.get(index)!;
+      const bytes = await finishKlingVideo(taskId, () => isStillRunning(userId, jobId));
+      await finishProviderClip(taskId, "completed", input.model);
+      await putVideoMedia(segmentKey(jobId, index), bytes, "video/mp4");
+      return bytes;
+    }),
+  );
+  if (!(await markVideoJobProgress(jobId, "render", RENDER_PROGRESS))) return;
+  // Each part is trimmed back to its own length, which drops the frames held to fill Kling's whole seconds.
+  const joined = await stitchClips(clips, parts.map((part) => part.seconds));
+  const finished = input.keepSound !== false && input.characterVoice !== false ? await withCharacterVoice(userId, jobId, input, joined) : joined;
+  await storeClip(userId, jobId, input, input.length, finished, "");
+  await Promise.all(
+    parts.flatMap((_, index) => [deleteVideoMedia(segmentKey(jobId, index)), deleteVideoMedia(swapPartKey(jobId, index))].map((done) => done.catch(() => undefined))),
+  );
 };
 
 /**

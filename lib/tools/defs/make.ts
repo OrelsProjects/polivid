@@ -33,6 +33,7 @@ import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
 import {
   MAX_SWAP_EDIT_SECONDS,
+  MAX_SWAP_TOTAL_SECONDS,
   MAX_SWAP_SECONDS,
   MIN_SWAP_SECONDS,
   SWAP_METHODS,
@@ -381,7 +382,7 @@ export const makeTools = [
       "method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.",
       "method moves makes a new clip of the character doing the video's moves. The scene is not kept.",
       "Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.",
-      `Lengths: replace uses the first ${Math.floor(MAX_SWAP_EDIT_SECONDS)}s of a longer video (at least ${MIN_SWAP_SECONDS}s), moves ${MIN_SWAP_SECONDS}-${MAX_SWAP_SECONDS.video}s. The price follows the seconds used. Its sound is kept unless keepSound is false.`,
+      `Lengths: ${MIN_SWAP_SECONDS}s to ${MAX_SWAP_TOTAL_SECONDS / 60} minutes. A video longer than one Kling task (replace ${MAX_SWAP_EDIT_SECONDS}s, moves ${MAX_SWAP_SECONDS.video}s, or ${MAX_SWAP_SECONDS.image}s with image orientation) is swapped in parts, split on its own scene cuts where it can, and joined back into one video. The price follows the whole length. Its sound is kept unless keepSound is false.`,
     ],
     avoidWhen: [
       "They want a new clip made from a description. Use make_prompt_video.",
@@ -400,7 +401,7 @@ export const makeTools = [
       method: z
         .enum(SWAP_METHODS)
         .optional()
-        .describe("replace edits their video and swaps in the character (up to 15s). moves makes a new clip of the character doing the video's moves (up to 30s). Defaults to replace."),
+        .describe("replace edits their video and swaps in the character (15s per part). moves makes a new clip of the character doing the video's moves (30s per part). Longer videos are done in parts and joined. Defaults to replace."),
       prompt: z
         .string()
         .trim()
@@ -410,7 +411,7 @@ export const makeTools = [
       orientation: z
         .enum(SWAP_ORIENTATIONS)
         .optional()
-        .describe("moves only. video follows the video's framing, up to 30s. image keeps the picture's framing, up to 10s. Defaults to video."),
+        .describe("moves only. video follows the video's framing, 30s per part. image keeps the picture's framing, 10s per part. Defaults to video."),
       keepSound: z.boolean().optional().describe("Keep the video's own sound. Defaults to true."),
       characterVoice: z
         .boolean()

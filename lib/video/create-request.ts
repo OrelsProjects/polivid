@@ -46,7 +46,6 @@ import {
   swapLengthProblem,
   swapResolutionFor,
   swapSeconds,
-  swapUsedSeconds,
   type SwapMethod,
   type SwapOrientation,
 } from "@/lib/video/swap";
@@ -586,10 +585,10 @@ const queueSwap = async (
     console.error("Could not read the upload for a character swap", error);
     throw new CreateVideoError("We couldn't read that video. Upload an MP4 or MOV and try again.", 400);
   }
-  const problem = swapLengthProblem(seconds, input.method, input.orientation);
+  const problem = swapLengthProblem(seconds);
   if (problem) throw new CreateVideoError(problem, 400);
-  // Replacing in a longer video uses (and bills) its first 15 seconds.
-  const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(swapUsedSeconds(seconds, input.method)));
+  // A long video is swapped in parts and joined back, so every second is used and billed.
+  const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(seconds));
   const resolution = swapResolutionFor(input.tier);
   try {
     const credits = videoJobCredits({ demo: !hasOpenRouterKey(), mode: "swap", length, resolution });

@@ -72,7 +72,7 @@ import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
 import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
 import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
-import { DEFAULT_SWAP_METHOD, SWAP_METHOD_LABELS, SWAP_METHODS, swapLengthProblem, swapTrimNote, swapUsedSeconds, type SwapMethod } from "@/lib/video/swap";
+import { DEFAULT_SWAP_METHOD, SWAP_METHOD_LABELS, SWAP_METHODS, swapLengthProblem, swapSplitNote, type SwapMethod } from "@/lib/video/swap";
 import { useGetCharactersQuery } from "@/lib/store/endpoints/characters";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
@@ -222,8 +222,8 @@ export function Generator({
   const swap = videoMode?.engine === "swap";
   const [swapMethod, setSwapMethod] = useState<SwapMethod>(DEFAULT_SWAP_METHOD);
   const swapDuration = useVideoDuration(swap ? mediaKey : null);
-  const swapProblem = swap && swapDuration !== null ? swapLengthProblem(swapDuration, swapMethod) : null;
-  const swapNote = swap && swapDuration !== null ? swapTrimNote(swapDuration, swapMethod) : null;
+  const swapProblem = swap && swapDuration !== null ? swapLengthProblem(swapDuration) : null;
+  const swapNote = swap && swapDuration !== null ? swapSplitNote(swapDuration, swapMethod) : null;
   /** Character swap: re-voice the speech in the character's own voice. Kling only changes the picture. */
   const [swapVoice, setSwapVoice] = useState(true);
   const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap });
@@ -357,7 +357,7 @@ export function Generator({
       swap
         ? // Priced by the video's length. Nothing is shown until the browser has read it.
           swapDuration
-          ? videoJobCredits({ demo, mode: "swap", length: swapUsedSeconds(swapDuration, swapMethod), resolution: resolvedTier?.resolution })
+          ? videoJobCredits({ demo, mode: "swap", length: swapDuration, resolution: resolvedTier?.resolution })
           : 0
         : videoJobCredits({
         demo,
@@ -665,11 +665,6 @@ export function Generator({
               className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
             >
               <span className="min-w-0 flex-1">{swapProblem}</span>
-              {swapMethod === "moves" && swapDuration !== null && swapDuration >= 3 ? (
-                <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setSwapMethod("replace")}>
-                  Replace in video instead
-                </Button>
-              ) : null}
             </div>
           ) : swapNote ? (
             <p className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground" role="status">

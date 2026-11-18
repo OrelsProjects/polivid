@@ -73,3 +73,10 @@ test("a swap being re-voiced says whose voice it is getting", () => {
   assert.equal(phase.badge, "RENDERING");
   assert.equal(phase.headline, "Giving Oshri their voice");
 });
+
+test("a swap made in parts counts them, then says it is joining them", () => {
+  const filming = jobPhase({ ...base, mode: "swap", characterName: "Oshri", clipTotal: 2, clipsDone: 1 }, NOW);
+  assert.equal(filming.headline, "Kling 3.0 is putting Oshri into 2 parts of the video (1 done)");
+  const joining = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri", clipTotal: 2, clipsDone: 2 }, NOW);
+  assert.equal(joining.headline, "Joining the 2 parts and giving Oshri their voice");
+});

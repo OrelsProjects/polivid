@@ -8,7 +8,7 @@ import { probeFile } from "@/lib/production/review/ffmpeg";
 import { signedGetUrl } from "@/lib/storage/s3";
 import { isOwnedUploadKey } from "@/lib/storage/upload-key";
 import { putVideoMedia, signedVideoMediaUrl } from "../media-store";
-import { MAX_SWAP_EDIT_SECONDS, SWAP_EDIT_USED_SECONDS, swapEditConversion, swapPictureConversion } from "../swap";
+import { swapEditConversion, swapPictureConversion } from "../swap";
 import { withUploadFile } from "./upload-file";
 
 const execFileAsync = promisify(execFile);
@@ -18,17 +18,16 @@ export const swapSourceKey = (jobId: string) => `${jobId}.swap-source.mp4`;
 
 /**
  * A link Kling can fetch the video to edit from. Kling 3.0 Omni needs sides of 700 pixels or more
- * and 24 to 60 frames a second, so a small phone clip is scaled up first. It edits up to 15 seconds,
- * so a longer video is cut to its first 15. A video that fits is sent as is.
+ * and 24 to 60 frames a second, so a small phone clip is scaled up first. A video that fits is sent as is.
+ * A video longer than one task takes is split into parts first (swapPartUrl).
  */
 export const swapEditVideoUrl = (userId: string, jobId: string, key: string, expiresIn: number) =>
   withUploadFile(userId, key, async (source, dir) => {
     const probe = await probeFile(source);
     const change = swapEditConversion(probe);
-    const trim = probe.durationSec > MAX_SWAP_EDIT_SECONDS ? SWAP_EDIT_USED_SECONDS : null;
-    if (!change && !trim) return signedGetUrl(key, expiresIn);
+    if (!change) return signedGetUrl(key, expiresIn);
     const output = path.join(dir, "kling-source.mp4");
-    const filters = change ? [`scale=${change.width}:${change.height}:flags=lanczos`, ...(change.fps ? [`fps=${change.fps}`] : [])] : [];
+    const filters = [`scale=${change.width}:${change.height}:flags=lanczos`, ...(change.fps ? [`fps=${change.fps}`] : [])];
     try {
       await execFileAsync(
         "ffmpeg",
@@ -38,8 +37,8 @@ export const swapEditVideoUrl = (userId: string, jobId: string, key: string, exp
           "-y",
           "-i",
           source,
-          ...(trim ? ["-t", String(trim)] : []),
-          ...(filters.length > 0 ? ["-vf", filters.join(",")] : []),
+          "-vf",
+          filters.join(","),
           "-c:v",
           "libx264",
           "-preset",

@@ -26,8 +26,11 @@ import {
   swapMovesPrompt,
   swapCredits,
   swapLengthProblem,
-  swapTrimNote,
-  swapUsedSeconds,
+  swapPartCount,
+  swapPartLimit,
+  swapParts,
+  swapSplitNote,
+  MAX_SWAP_TOTAL_SECONDS,
   swapResolutionFor,
   swapSeconds,
 } from "./swap";
@@ -53,13 +56,15 @@ test("ultra swaps at 1080p and the other tiers at 720p", () => {
   }
 });
 
-test("copying the moves takes 3 seconds, and at most 30 or 10 by framing", () => {
-  assert.match(swapLengthProblem(2.4, "moves", "video") ?? "", /at least 3 seconds/);
-  assert.equal(swapLengthProblem(3, "moves", "video"), null);
-  assert.equal(swapLengthProblem(30.4, "moves", "video"), null);
-  assert.match(swapLengthProblem(31, "moves", "video") ?? "", /30 seconds or less/);
-  assert.equal(swapLengthProblem(10, "moves", "image"), null);
-  assert.match(swapLengthProblem(12, "moves", "image") ?? "", /up to 10 seconds/);
+test("a swap takes 3 seconds to 2 minutes; past one task's limit it is split, not refused", () => {
+  assert.match(swapLengthProblem(2.4) ?? "", /at least 3 seconds/);
+  assert.equal(swapLengthProblem(3), null);
+  assert.equal(swapLengthProblem(31), null);
+  assert.equal(swapLengthProblem(MAX_SWAP_TOTAL_SECONDS), null);
+  assert.match(swapLengthProblem(MAX_SWAP_TOTAL_SECONDS + 5) ?? "", /up to 2 minutes/);
+  assert.equal(swapPartLimit("moves", "video"), 30);
+  assert.equal(swapPartLimit("moves", "image"), 10);
+  assert.equal(swapPartLimit("replace"), 15);
   assert.equal(MAX_SWAP_SECONDS.video, 30);
   assert.equal(isSwapOrientation("image"), true);
   assert.equal(isSwapOrientation("sideways"), false);
@@ -126,13 +131,10 @@ test("the Create form sends a swap with its video and character, and no footage 
   });
 });
 
-test("replacing in a video takes 3 to 15.5 seconds, and the model records the method", () => {
-  assert.equal(swapLengthProblem(7, "replace"), null);
-  assert.equal(swapLengthProblem(15.5, "replace"), null);
-  // Longer videos are cut to their first 15 seconds instead of being turned away.
-  assert.equal(swapLengthProblem(22.8, "replace"), null);
-  assert.match(swapLengthProblem(2, "replace") ?? "", /at least 3 seconds/);
-  assert.match(swapLengthProblem(2, "replace") ?? "", /at least 3 seconds/);
+test("replacing in a video works from 3 seconds, and the model records the method", () => {
+  assert.equal(swapLengthProblem(7), null);
+  assert.equal(swapLengthProblem(22.8), null);
+  assert.match(swapLengthProblem(2) ?? "", /at least 3 seconds/);
   assert.equal(swapModelFor("replace"), SWAP_EDIT_MODEL);
   assert.equal(swapModelFor("moves"), SWAP_MODEL);
   assert.equal(swapMethodForModel(SWAP_EDIT_MODEL), "replace");
@@ -195,11 +197,39 @@ test("every fitted picture is within Kling's limits", () => {
   }
 });
 
-test("replacing uses, and bills, the first 15 seconds of a longer video", () => {
-  assert.equal(swapUsedSeconds(22.8, "replace"), 15);
-  assert.equal(swapUsedSeconds(15.4, "replace"), 15.4);
-  assert.equal(swapUsedSeconds(22.8, "moves"), 22.8);
-  assert.match(swapTrimNote(22.8, "replace") ?? "", /22\.8 seconds.*first 15 seconds are used/);
-  assert.equal(swapTrimNote(12, "replace"), null);
-  assert.equal(swapTrimNote(22.8, "moves"), null);
+test("a video that fits one task is one part; a longer one splits evenly", () => {
+  assert.deepEqual(swapParts(12, 15), [{ start: 0, seconds: 12 }]);
+  assert.deepEqual(swapParts(15, 15), [{ start: 0, seconds: 15 }]);
+  assert.deepEqual(swapParts(22.8, 15), [{ start: 0, seconds: 11.4 }, { start: 11.4, seconds: 11.4 }]);
+  assert.equal(swapPartCount(22.8, "replace"), 2);
+  assert.equal(swapPartCount(15, "replace"), 1);
+  assert.equal(swapPartCount(45, "moves", "video"), 2);
+  assert.equal(swapPartCount(21, "moves", "image"), 3);
+});
+
+test("a split point moves to a nearby scene cut, and parts stay within 3 seconds and the limit", () => {
+  // The even split is at 11.4; a cut at 10.2 is close enough to take.
+  assert.deepEqual(swapParts(22.8, 15, [10.2]), [{ start: 0, seconds: 10.2 }, { start: 10.2, seconds: 12.6 }]);
+  // A cut too far from the even split is ignored.
+  assert.deepEqual(swapParts(22.8, 15, [2]), [{ start: 0, seconds: 11.4 }, { start: 11.4, seconds: 11.4 }]);
+  // A cut that would leave a part over the limit is ignored.
+  assert.deepEqual(swapParts(29, 15, [13.2]), [{ start: 0, seconds: 14.5 }, { start: 14.5, seconds: 14.5 }]);
+  for (const total of [15.2, 16, 22.8, 31, 44.9, 60, 89, 120]) {
+    for (const cuts of [[], [4, 9.5, 17, 33.3, 61]]) {
+      const parts = swapParts(total, 15, cuts);
+      const sum = parts.reduce((all, part) => all + part.seconds, 0);
+      assert.ok(Math.abs(sum - total) < 0.01, `${total}: parts add to ${sum}`);
+      assert.equal(parts.length, Math.ceil(total / 15));
+      for (const [index, part] of parts.entries()) {
+        assert.ok(part.seconds >= 3 && part.seconds <= 15.001, `${total}: part ${index} is ${part.seconds}`);
+        if (index > 0) assert.ok(Math.abs(part.start - (parts[index - 1]!.start + parts[index - 1]!.seconds)) < 0.002);
+      }
+    }
+  }
+});
+
+test("the form says when a video is swapped in parts", () => {
+  assert.match(swapSplitNote(22.8, "replace") ?? "", /22\.8 seconds.*2 parts and joined back/);
+  assert.equal(swapSplitNote(12, "replace"), null);
+  assert.equal(swapSplitNote(22.8, "moves"), null);
 });

@@ -61,7 +61,11 @@ const generatingHeadline = (job: PhaseInput) => {
       ? `Finishing clip ${job.clipIndex ?? job.clipsDone + 1} of ${job.clipTotal}, then pausing`
       : "Finishing this clip, then pausing";
   }
-  if (job.mode === "swap") return job.characterName ? `${model} is putting ${job.characterName} into the video` : `${model} is swapping the character`;
+  if (job.mode === "swap") {
+    const who = job.characterName || "the character";
+    if (job.clipTotal > 1) return `${model} is putting ${who} into ${job.clipTotal} parts of the video (${job.clipsDone} done)`;
+    return job.characterName ? `${model} is putting ${job.characterName} into the video` : `${model} is swapping the character`;
+  }
   if (job.mode === "lyrics" && job.clipTotal > 1) return `${model} is generating ${job.clipTotal} clips (${job.clipsDone} done)`;
   if (job.clipIndex && job.clipTotal > 1) return `${model} is generating clip ${job.clipIndex} of ${job.clipTotal}`;
   return `${model} is generating the video`;
@@ -100,6 +104,14 @@ export const jobPhase = (job: PhaseInput, now: number | null): JobPhase => {
     case "videos":
       return { badge: "GENERATING", tone: "generate", headline: generatingHeadline(job), detail: generatingDetail(job, now) };
     case "render":
+      if (job.mode === "swap" && job.clipTotal > 1) {
+        return {
+          badge: "RENDERING",
+          tone: "render",
+          headline: `Joining the ${job.clipTotal} parts${job.characterName ? ` and giving ${job.characterName} their voice` : ""}`,
+          detail: "Every part is swapped. Joining them back into one video takes a minute or two.",
+        };
+      }
       if (job.mode === "swap") {
         return {
           badge: "RENDERING",

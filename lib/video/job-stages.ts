@@ -4,6 +4,7 @@ import { EDIT_MODEL } from "./edit-ops";
 import { generationModelBySlug } from "./models";
 import { isStitchedMode, planSegments } from "./segments";
 import { LOOP_MODEL, STILLS_MODEL } from "./stills";
+import { isSwapOrientation, swapMethodForModel, swapPartCount } from "./swap";
 
 export const STEP_LABEL: Record<JobStep, string> = {
   script: "Writing the script",
@@ -22,7 +23,8 @@ export const stagesForJob = (job: { mode: string; tier: string; model: string; l
   if (job.model === EDITOR_MODEL || job.model === EDIT_MODEL) return ["render", "finalize"];
   if (job.model === STILLS_MODEL) return ["script", "images", "render", "finalize"];
   if (job.model === LOOP_MODEL || job.mode === "captions") return ["script", "render", "finalize"];
-  if (job.mode === "swap") return ["videos", "finalize"];
+  // A long swap is made in parts and joined, which is a render step.
+  if (job.mode === "swap") return clipCountForJob(job) > 1 ? ["videos", "render", "finalize"] : ["videos", "finalize"];
   if (job.mode === "motion-graphics") {
     return job.tier === "ultra" ? ["script", "images", "finalize"] : ["script", "finalize"];
   }
@@ -39,7 +41,11 @@ export const clipCountForJob = (job: {
   length: number;
   cuts?: readonly { seconds: number }[];
   clips?: number;
+  orientation?: string;
 }) => {
+  if (job.mode === "swap") {
+    return swapPartCount(job.length, swapMethodForModel(job.model), isSwapOrientation(job.orientation) ? job.orientation : undefined);
+  }
   if ((job.mode === "lyrics" || job.mode === "prompt") && job.cuts && job.cuts.length > 0) return job.cuts.length;
   const model = generationModelBySlug(job.model);
   if (!model || !isStitchedMode(job.mode)) return 1;
