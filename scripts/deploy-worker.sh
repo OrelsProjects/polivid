@@ -40,8 +40,9 @@ aws ssm put-parameter --region "$REGION" --name "$ENV_PARAM" --type SecureString
   --overwrite --value "file://$TMP/worker.env" >/dev/null
 
 echo "Releasing on $INSTANCE"
+# SSM runs these with /bin/sh, so no pipefail here. release.sh runs under bash.
 COMMANDS=$(cat <<EOF
-set -euo pipefail
+set -eu
 mkdir -p /opt/polivid/releases/$SHA
 aws s3 cp --region $REGION --only-show-errors s3://$BUCKET/$KEY /tmp/polivid-$SHA.tar.gz
 tar -xzf /tmp/polivid-$SHA.tar.gz -C /opt/polivid/releases/$SHA
