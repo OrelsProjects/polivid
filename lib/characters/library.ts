@@ -14,7 +14,7 @@ import {
   MAX_WARDROBE,
   type MediaLabel,
 } from "./media";
-import { getCharacterView, profileData, type ProfileInput } from "./store";
+import { getCharacterView, profileData, releaseVoice, type ProfileInput } from "./store";
 
 /** Problems the person or the agent can fix. Routes turn these into 400s. */
 export class CharacterLibraryError extends Error {}
@@ -229,7 +229,7 @@ export const voiceFromClipAudio = async (
     throw error;
   }
   if (character.providerVoiceId && character.providerVoiceId !== providerVoiceId) {
-    await deleteInstantVoice(character.providerVoiceId).catch(() => undefined);
+    await releaseVoice(character.providerVoiceId);
   }
   return getCharacterView(userId, characterId);
 };

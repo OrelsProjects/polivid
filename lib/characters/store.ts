@@ -297,7 +297,7 @@ export const updateCharacter = async (
       await db.characterMedia.create({ data: { characterId: row.id, kind: "image", key: imageKey, label: "face", position: -1 } });
     }
     if (!input.keepVoice && existing.providerVoiceId && existing.providerVoiceId !== voice.providerVoiceId) {
-      await deleteInstantVoice(existing.providerVoiceId).catch(() => undefined);
+      await releaseVoice(existing.providerVoiceId);
     }
     return (await getCharacterView(userId, row.id)) ?? toView(row);
   } catch (error) {
@@ -309,11 +309,21 @@ export const updateCharacter = async (
 export const deleteCharacter = async (userId: string, id: string) => {
   const row = await getCharacter(userId, id);
   if (!row) return false;
-  if (row.providerVoiceId) {
-    await deleteInstantVoice(row.providerVoiceId).catch((error) => {
-      console.error("Could not delete the cloned voice", error);
-    });
-  }
   await db.character.delete({ where: { id: row.id } });
+  await releaseVoice(row.providerVoiceId);
   return true;
+};
+
+/**
+ * Deletes a cloned voice from ElevenLabs once no character uses it any more. A character copied to
+ * another account shares its voice, so replacing or deleting one copy must not break the other.
+ * Call it after the character has stopped pointing at the voice.
+ */
+export const releaseVoice = async (voiceId: string | null | undefined) => {
+  if (!voiceId) return;
+  const stillUsed = await db.character.count({ where: { providerVoiceId: voiceId } });
+  if (stillUsed > 0) return;
+  await deleteInstantVoice(voiceId).catch((error) => {
+    console.error("Could not delete the cloned voice", error);
+  });
 };
