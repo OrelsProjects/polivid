@@ -15,8 +15,16 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { apiErrorMessage, apiErrorStatus, loginPath } from "@/lib/store/api-errors";
 import { useCancelVideoMutation, useGetActiveJobsQuery } from "@/lib/store/endpoints/videos";
-import { isJobStep, type VideoJobView } from "@/lib/video/job-status";
-import { STEP_LABEL } from "@/lib/video/job-stages";
+import { jobPhase, type PhaseTone } from "@/lib/video/job-phase";
+import type { VideoJobView } from "@/lib/video/job-status";
+
+const BADGE_TONE: Record<PhaseTone, string> = {
+  idle: "bg-zinc-600",
+  prep: "bg-sky-600",
+  generate: "bg-amber-500",
+  render: "bg-violet-600",
+  attention: "bg-red-600",
+};
 
 const POLL_MS = 3000;
 
@@ -52,7 +60,7 @@ export function ActiveJobCards({ initialJobs }: { initialJobs: VideoJobView[] })
   const [now, setNow] = useState<number | null>(null);
   const idsRef = useRef(jobIdsKey(initialJobs));
   const idsKey = jobIdsKey(jobs);
-  const hasRunning = jobs.some((job) => job.status === "running" && job.startedAt);
+  const hasRunning = jobs.some((job) => job.status === "running");
 
   useEffect(() => {
     if (idsRef.current === idsKey) return;
@@ -117,7 +125,8 @@ const ActiveJobCard = ({
 }) => {
   const title = jobTitle(job.prompt);
   const paused = job.status === "paused";
-  const stepLabel = paused ? "Paused" : isJobStep(job.currentStep) ? STEP_LABEL[job.currentStep] : "Starting";
+  const phase = jobPhase(job, now);
+  const stepLabel = phase.headline;
   const meta = [job.format, job.length > 0 ? `${job.length}s` : null, formatDate(job.createdAt)]
     .filter((part) => part)
     .join(" · ");
@@ -127,8 +136,13 @@ const ActiveJobCard = ({
     <article className="col-span-2 flex flex-col gap-2.5 sm:col-span-1" aria-label={`${stepLabel}: ${title}`}>
       <div className="relative flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 pt-14 pb-4 shadow-sm">
         <JobMoreMenu title={title} rows={job.details ?? []} />
-        <span className="absolute top-3.5 right-3 z-10 rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white">
-          {paused ? "PAUSED" : job.status === "queued" ? "STARTING" : "IN PROGRESS"}
+        <span
+          className={cn(
+            "absolute top-3.5 right-3 z-10 rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white transition-colors",
+            BADGE_TONE[phase.tone],
+          )}
+        >
+          {phase.badge}
         </span>
         <div className="flex flex-col items-center gap-3">
           {paused && job.outputUrl ? (
@@ -141,9 +155,10 @@ const ActiveJobCard = ({
           ) : (
             <LoaderCircle className="size-5 animate-spin text-primary" aria-hidden />
           )}
-          <p className="sr-only" aria-live="polite">
-            {stepLabel}
-          </p>
+          <div className="flex flex-col items-center gap-1 text-center" aria-live="polite">
+            <p className="text-sm font-medium text-balance">{phase.headline}</p>
+            {phase.detail ? <p className="text-xs text-balance text-muted-foreground">{phase.detail}</p> : null}
+          </div>
           {paused ? null : (
             <>
           <JobStageList
@@ -175,25 +190,6 @@ const ActiveJobCard = ({
           ) : null}
             </>
           )}
-          {paused ? (
-            <p className="text-center text-xs text-muted-foreground">
-              Stopped after clip {job.clipsDone} of {job.clipTotal}. Continue films the rest.
-            </p>
-          ) : null}
-          {job.currentStep === "videos" && !paused ? (
-            <p className="text-center text-xs text-muted-foreground">
-              {job.mode === "lyrics" && job.clipTotal > 1
-                ? job.stopping
-                  ? "Finishing the clips in progress, then stopping. "
-                  : `Filming ${job.clipsDone} of ${job.clipTotal} clips. `
-                : job.stopping
-                  ? `Finishing clip ${job.clipIndex ?? job.clipsDone + 1} of ${job.clipTotal}, then stopping. `
-                  : job.clipIndex && job.clipTotal > 1
-                    ? `Filming clip ${job.clipIndex} of ${job.clipTotal}. `
-                    : "Waiting on the video model. "}
-              {job.stopping ? "" : "This often takes 20–30 minutes, and sometimes longer."}
-            </p>
-          ) : null}
           <Link
             href={`/videos/${job.id}`}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }))}

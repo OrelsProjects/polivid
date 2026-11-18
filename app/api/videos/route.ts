@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { InsufficientCreditsError, insufficientCreditsResponse } from "@/lib/billing/errors";
 import { CreateVideoError, queueVideoFromInput } from "@/lib/video/create-request";
 import { listActiveVideoJobs } from "@/lib/video/jobs";
+import { kickOpenVideos } from "@/lib/jobs/dispatch";
 
 /**
  * Queues a video and returns immediately. The workflow engine does the work.
@@ -39,11 +40,7 @@ export async function GET(request: Request) {
 
     const jobs = await listActiveVideoJobs(userId);
     if (jobs.length > 0) {
-      void import("@/lib/video/worker")
-        .then(({ resumeOpenVideos }) => resumeOpenVideos(userId))
-        .catch((error) => {
-          console.error("Could not resume videos", error);
-        });
+      kickOpenVideos(userId);
     }
     return Response.json({ jobs });
   } catch (error) {

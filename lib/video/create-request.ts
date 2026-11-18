@@ -67,6 +67,7 @@ import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
 import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
 import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
+import { kickVideoJob } from "@/lib/jobs/dispatch";
 
 export { CreateVideoSchema, type CreateVideoInput } from "@/lib/video/create-schema";
 
@@ -411,11 +412,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       clips: parsed.data.clips,
       creditsHeld: credits,
     });
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
-      .catch((error) => {
-        console.error("Video stopped", error);
-      });
+    kickVideoJob(userId, job.id);
     return { jobId: job.id, credits };
   } catch (error) {
     if (error instanceof InsufficientCreditsError) throw error;
@@ -472,11 +469,7 @@ const queueEdit = async (
       showText: false,
       creditsHeld: credits,
     });
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
-      .catch((error) => {
-        console.error("Quick edit stopped", error);
-      });
+    kickVideoJob(userId, job.id, "Quick edit stopped");
     return { jobId: job.id, credits };
   } catch (error) {
     if (error instanceof InsufficientCreditsError) throw error;
@@ -517,11 +510,7 @@ const queueCaptions = async (userId: string, input: { key: string; tool: string 
       showText: true,
       creditsHeld: credits,
     });
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
-      .catch((error) => {
-        console.error("Captions stopped", error);
-      });
+    kickVideoJob(userId, job.id, "Captions stopped");
     return { jobId: job.id, credits };
   } catch (error) {
     if (error instanceof InsufficientCreditsError) throw error;
@@ -619,11 +608,7 @@ const queueSwap = async (
       showText: false,
       creditsHeld: credits,
     });
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, job.id))
-      .catch((error) => {
-        console.error("Character swap stopped", error);
-      });
+    kickVideoJob(userId, job.id, "Character swap stopped");
     return { jobId: job.id, credits };
   } catch (error) {
     if (error instanceof InsufficientCreditsError) throw error;

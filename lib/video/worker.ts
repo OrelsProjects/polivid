@@ -1,4 +1,5 @@
 import "server-only";
+import type { Prisma } from "@/generated/prisma/client";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { db } from "@/lib/db";
 import { getProjectForUser, rememberProjectExport } from "@/lib/editor/projects";
@@ -94,29 +95,96 @@ export const resumeOpenVideos = async (userId: string) => {
     where: { userId, status: { in: ["queued", "running"] } },
     include: { providerJobs: { orderBy: { createdAt: "desc" } } },
   });
-  for (const job of jobs) {
-    if (runs.has(job.id)) continue;
-    // A swap is not a footage model. Its own runner resumes the Kling task it already started.
-    if (readJobInput(job.input).mode === "swap") {
-      track(job.id, job.status === "running" ? filmRunningJob(userId, job.id) : filmQueuedJob(userId, job.id));
-      continue;
-    }
-    const provider = job.providerJobs.find((row) => row.status === "in_progress" || row.status === "pending");
-    if (job.status === "running" && provider) {
-      if (resumesAsSegments(job)) {
-        track(job.id, filmRunningJob(userId, job.id));
-        continue;
-      }
-      track(job.id, finishKnownFootage(userId, job.id, provider.providerJobId, provider.provider));
-      continue;
-    }
-    if (job.status === "running") {
-      track(job.id, filmRunningJob(userId, job.id));
-      continue;
-    }
-    track(job.id, filmQueuedJob(userId, job.id));
-  }
+  for (const job of jobs) if (isFreeToTake(job)) resumeLoadedJob(job);
 };
+
+/**
+ * How long a running video can go without a heartbeat before another process may take it over.
+ * A minute past the stall mark the progress page shows, so a live process always heartbeats first.
+ */
+export const RUNNING_TAKEOVER_MS = 3 * 60 * 1000;
+
+/** Queued, or running with no recent heartbeat from any process. */
+const isFreeToTake = (job: { status: string; heartbeatAt: Date | null }) =>
+  job.status === "queued" || !job.heartbeatAt || Date.now() - job.heartbeatAt.getTime() > RUNNING_TAKEOVER_MS;
+
+/**
+ * For a page checking on a video: picks it back up only when no process is working on it,
+ * so the web server and the worker never film the same video at once.
+ */
+export const resumeVideoJobIfFree = async (userId: string, jobId: string) => {
+  if (runs.has(jobId)) return;
+  const job = await db.videoJob.findFirst({
+    where: { id: jobId, userId, status: { in: ["queued", "running"] } },
+    include: { providerJobs: { orderBy: { createdAt: "desc" } } },
+  });
+  if (job && isFreeToTake(job)) resumeLoadedJob(job);
+};
+
+type OpenJob = Prisma.VideoJobGetPayload<{ include: { providerJobs: true } }>;
+
+const resumeLoadedJob = (job: OpenJob) => {
+  const { userId } = job;
+  if (runs.has(job.id)) return;
+  // A swap is not a footage model. Its own runner resumes the Kling task it already started.
+  if (readJobInput(job.input).mode === "swap") {
+    track(job.id, job.status === "running" ? filmRunningJob(userId, job.id) : filmQueuedJob(userId, job.id));
+    return;
+  }
+  const provider = job.providerJobs.find((row) => row.status === "in_progress" || row.status === "pending");
+  if (job.status === "running" && provider) {
+    if (resumesAsSegments(job)) {
+      track(job.id, filmRunningJob(userId, job.id));
+      return;
+    }
+    track(job.id, finishKnownFootage(userId, job.id, provider.providerJobId, provider.provider));
+    return;
+  }
+  if (job.status === "running") {
+    track(job.id, filmRunningJob(userId, job.id));
+    return;
+  }
+  track(job.id, filmQueuedJob(userId, job.id));
+};
+
+/** Videos this process is making right now. */
+export const activeRunCount = () => runs.size;
+
+/**
+ * For the worker process: picks up every queued video, plus running ones no process has touched
+ * for `staleMs`. A running video with a fresh heartbeat belongs to another process and is left alone.
+ * Returns how many it started.
+ */
+export const pickUpOpenVideos = async (staleMs: number, limit = 10) => {
+  const jobs = await findOpenVideosToPickUp(staleMs, limit);
+  for (const job of jobs) resumeLoadedJob(job);
+  return jobs.length;
+};
+
+/** What pickUpOpenVideos would start, without starting anything. */
+export const findOpenVideosToPickUp = (staleMs: number, limit = 10) => {
+  const stale = new Date(Date.now() - staleMs);
+  return db.videoJob.findMany({
+    where: {
+      id: { notIn: [...runs.keys()] },
+      OR: [{ status: "queued" }, { status: "running", OR: [{ heartbeatAt: null }, { heartbeatAt: { lt: stale } }] }],
+    },
+    include: { providerJobs: { orderBy: { createdAt: "desc" } } },
+    orderBy: { createdAt: "asc" },
+    take: limit,
+  });
+};
+
+/** Lets another worker take these videos straight away instead of waiting for them to look stalled. */
+export const releaseRuns = async () => {
+  const ids = [...runs.keys()];
+  if (ids.length === 0) return 0;
+  const released = await db.videoJob.updateMany({ where: { id: { in: ids }, status: "running" }, data: { heartbeatAt: null } });
+  return released.count;
+};
+
+/** Resolves once every video this process is making has stopped or finished. */
+export const settleRuns = () => Promise.allSettled([...runs.values()]);
 
 /** Picks what makes this job. A queued job and a restarted one take the same path. */
 const runJob = async (userId: string, jobId: string, input: JobInput) => {

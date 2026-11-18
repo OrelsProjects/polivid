@@ -153,6 +153,8 @@ export interface VideoRecord {
   error: string | null;
   parentVideoId?: string | null;
   editProjectId?: string | null;
+  /** Seconds from asking for the video to it being ready. Only set on library listings. */
+  generationSec?: number | null;
 }
 
 export const FPS = 30;

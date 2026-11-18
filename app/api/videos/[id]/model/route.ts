@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { continueVideoWithModel } from "@/lib/video/jobs";
 import { GENERATION_MODEL_IDS } from "@/lib/video/models";
+import { kickVideoJob } from "@/lib/jobs/dispatch";
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -31,11 +32,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (outcome.result === "finished") {
       return Response.json({ error: "This video is not waiting for a model." }, { status: 409 });
     }
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, id))
-      .catch((error) => {
-        console.error("Video stopped", error);
-      });
+    kickVideoJob(userId, id);
     return Response.json({ status: "running" });
   } catch (error) {
     console.error("Could not continue with another model", error);

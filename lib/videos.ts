@@ -31,7 +31,14 @@ export async function listVideosForUser(userId: string): Promise<VideoRecord[]> 
     where: { userId, model: { not: EDITOR_EXPORT_MODEL } },
     orderBy: { createdAt: "desc" },
   });
-  return rows.map(toRecord);
+  const jobs = rows.length
+    ? await db.videoJob.findMany({
+        where: { userId, id: { in: rows.map((row) => row.id) }, status: "succeeded", finishedAt: { not: null } },
+        select: { id: true, createdAt: true, finishedAt: true },
+      })
+    : [];
+  const took = new Map(jobs.map((job) => [job.id, (job.finishedAt!.getTime() - job.createdAt.getTime()) / 1000]));
+  return rows.map((row) => ({ ...toRecord(row), generationSec: took.get(row.id) ?? null }));
 }
 
 export async function listMyVideos(): Promise<VideoRecord[]> {

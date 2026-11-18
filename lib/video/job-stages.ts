@@ -8,9 +8,9 @@ import { LOOP_MODEL, STILLS_MODEL } from "./stills";
 export const STEP_LABEL: Record<JobStep, string> = {
   script: "Writing the script",
   images: "Making the frames",
-  videos: "Filming the scenes",
-  render: "Stitching the video",
-  finalize: "Finishing up",
+  videos: "Generating with the model",
+  render: "Rendering the video",
+  finalize: "Saving the video",
 };
 
 export type StageState = "done" | "current" | "upcoming";

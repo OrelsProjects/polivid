@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { resumePausedVideoJob } from "@/lib/video/jobs";
+import { kickVideoJob } from "@/lib/jobs/dispatch";
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -17,11 +18,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     if (outcome.result === "finished") {
       return Response.json({ error: "This video is not paused." }, { status: 409 });
     }
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, id))
-      .catch((error) => {
-        console.error("Video stopped", error);
-      });
+    kickVideoJob(userId, id);
     return Response.json({ status: "running" });
   } catch (error) {
     console.error("Could not resume video job", error);

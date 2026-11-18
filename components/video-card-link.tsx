@@ -1,6 +1,7 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { Timer, TriangleAlert } from "lucide-react";
+import { shortDuration } from "@/lib/video/job-phase";
 import { CardLink } from "@/components/motion/motion";
 import { useSyncExternalStore } from "react";
 import { VideoThumbnail } from "@/components/video/video-player";
@@ -94,6 +95,14 @@ export const VideoCardLink = ({
             className="absolute top-3 left-3 z-10 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-white"
           >
             READY
+          </span>
+        ) : null}
+        {!failed && video.generationSec ? (
+          <span
+            className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 translate-y-1 items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium whitespace-nowrap text-white opacity-0 backdrop-blur-sm transition duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100"
+          >
+            <Timer className="size-3" aria-hidden />
+            Took {shortDuration(video.generationSec)}
           </span>
         ) : null}
         {video.plan ? (

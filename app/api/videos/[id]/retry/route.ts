@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { InsufficientCreditsError, insufficientCreditsResponse } from "@/lib/billing/errors";
 import { resumeFailedVideoJob } from "@/lib/video/jobs";
+import { kickVideoJob } from "@/lib/jobs/dispatch";
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -21,11 +22,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     if (outcome.result === "finished") {
       return Response.json({ error: "This video is not failed." }, { status: 409 });
     }
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, id))
-      .catch((error) => {
-        console.error("Video stopped", error);
-      });
+    kickVideoJob(userId, id);
     return Response.json({ status: "running", clipsReady: outcome.clipsReady, clipTotal: outcome.clipTotal });
   } catch (error) {
     if (error instanceof InsufficientCreditsError) return insufficientCreditsResponse(error);

@@ -19,23 +19,39 @@ const EMPTY_FILTER: Record<Exclude<VideoFilter, "all">, string> = {
 
 export default function VideosPage({ searchParams }: PageProps<"/videos">) {
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-8">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">My videos</h1>
         <p className="mt-1 text-sm text-muted-foreground">In progress and finished. Export is next.</p>
       </div>
-      <Suspense
-        fallback={
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="aspect-[4/5] rounded-xl" />
-            ))}
-          </div>
-        }
-      >
+      <Suspense fallback={<LibrarySkeleton />}>
         <FilteredLibrary searchParams={searchParams} />
       </Suspense>
     </div>
+  );
+}
+
+/** Same shape as the loaded page: the filter pills, then cards with a 3:4 frame and two caption lines. */
+function LibrarySkeleton() {
+  return (
+    <>
+      <div className="flex flex-wrap gap-2">
+        {[48, 64, 96, 64].map((width, i) => (
+          <Skeleton key={i} className="h-9 rounded-xl" style={{ width }} />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <div key={i} className="flex flex-col gap-2.5">
+            <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
+            <div className="flex flex-col gap-1.5 px-0.5">
+              <Skeleton className="h-4 w-3/4 rounded-md" />
+              <Skeleton className="h-3 w-1/2 rounded-md" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

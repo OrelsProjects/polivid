@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { runsJobsHere } from "@/lib/jobs/dispatch";
 import { stageForStepKind, statusForStepKind } from "../progress";
 import { unblockDependents, finishStep, leaseReadySteps, retryStep, updateProduction } from "../store";
 import { executeStep } from "./execute";
@@ -44,6 +45,7 @@ const runLeasedStep = async (step: Awaited<ReturnType<typeof leaseReadySteps>>[n
 };
 
 export const tickProductionJobs = async () => {
+  if (!runsJobsHere()) return;
   if (ticker.productionTicking) return;
   ticker.productionTicking = true;
   try {
@@ -71,6 +73,7 @@ export const tickProductionJobs = async () => {
 ticker.productionTick = tickProductionJobs;
 
 export const startProductionTicker = () => {
+  if (!runsJobsHere()) return;
   if (ticker.productionTicker) clearInterval(ticker.productionTicker);
   ticker.productionTicking = false;
   ticker.productionTicker = setInterval(() => {

@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { deleteVideoForUser, getVideoJobForUser } from "@/lib/video/jobs";
 import { isVideoId } from "@/lib/video/media-store";
+import { kickVideoJobIfFree } from "@/lib/jobs/dispatch";
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -15,11 +16,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   const job = await getVideoJobForUser(userId, id);
   if (!job) return Response.json({ error: "Not found." }, { status: 404 });
   if (job.status === "queued" || job.status === "running") {
-    void import("@/lib/video/worker")
-      .then(({ startVideoJob }) => startVideoJob(userId, id))
-      .catch((error) => {
-        console.error("Could not resume this video", error);
-      });
+    kickVideoJobIfFree(userId, id);
   }
   return Response.json(job);
 }

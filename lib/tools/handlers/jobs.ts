@@ -14,17 +14,13 @@ import {
 import { continueVideoWithModel } from "@/lib/video/jobs";
 import type { ToolHandler } from "@/lib/tools/types";
 import { asRecord, text, toolError } from "./support";
+import { kickVideoJob } from "@/lib/jobs/dispatch";
 
 const videoId = (input: unknown) => text(asRecord(input).videoId);
 const productionId = (input: unknown) => text(asRecord(input).productionId);
 
 const kickVideo = (userId: string, id: string) => {
-  // Loaded on demand so the Coach and MCP routes start even where the renderer can't load.
-  void import("@/lib/video/worker")
-    .then(({ startVideoJob }) => startVideoJob(userId, id))
-    .catch((error) => {
-      console.error("Video stopped", error);
-    });
+  kickVideoJob(userId, id);
 };
 
 export const retryVideoHandler: ToolHandler = async (input, ctx) => {

@@ -22,7 +22,8 @@ import {
   type JobStep,
   type VideoJobView,
 } from "./job-status";
-import { generationModelById } from "./models";
+import { generationModelById, generationModelLabel } from "./models";
+import { typicalSeconds } from "./job-phase";
 import { isModelChoice } from "./model-choice";
 import { presetById } from "./presets";
 import { stillPictureCount } from "./script-markup";
@@ -474,18 +475,70 @@ const viewsFor = async (userId: string, jobs: JobRow[], readyByJob?: Map<string,
   const providerJobs = jobs.length
     ? await db.providerJob.findMany({
         where: { jobId: { in: jobs.map((job) => job.id) } },
-        select: { jobId: true, sceneIdx: true, status: true },
+        select: { jobId: true, sceneIdx: true, status: true, startedAt: true },
       })
     : [];
-  const clipsByJob = new Map<string, { sceneIdx: number; status: string }[]>();
+  const clipsByJob = new Map<string, JobClip[]>();
   for (const clip of providerJobs) {
     const list = clipsByJob.get(clip.jobId) ?? [];
     list.push(clip);
     clipsByJob.set(clip.jobId, list);
   }
-  return jobs.map((job, index) =>
-    toView(job, inputs[index]!, labels, clipsByJob.get(job.id) ?? [], readyByJob?.get(job.id)),
+  const typical = await typicalClipSeconds(
+    inputs.filter((_, index) => jobs[index]!.status === "running" && jobs[index]!.currentStep === "videos").map((input) => input.model),
   );
+  return jobs.map((job, index) =>
+    toView(job, inputs[index]!, labels, clipsByJob.get(job.id) ?? [], typical, readyByJob?.get(job.id)),
+  );
+};
+
+type JobClip = { sceneIdx: number; status: string; startedAt: Date | null };
+
+const TYPICAL_SAMPLE = 25;
+/** The library polls every few seconds; the typical time barely moves, so keep it a while. */
+const TYPICAL_CACHE_MS = 5 * 60 * 1000;
+const typicalCache = new Map<string, { at: number; seconds: number | null }>();
+
+const loadTypicalClipSeconds = async (model: string) => {
+  const rows = await db.providerJob.findMany({
+    where: { model, status: "completed", startedAt: { not: null }, finishedAt: { not: null } },
+    orderBy: { finishedAt: "desc" },
+    take: TYPICAL_SAMPLE,
+    select: { startedAt: true, finishedAt: true },
+  });
+  const seconds = rows.map((row) => (row.finishedAt!.getTime() - row.startedAt!.getTime()) / 1000).filter((value) => value > 0);
+  return typicalSeconds(seconds);
+};
+
+/** Median seconds recent clips took per model, across everyone. Timing only, nothing about the videos. */
+const typicalClipSeconds = async (models: readonly string[]) => {
+  const unique = [...new Set(models.filter(Boolean))];
+  const result = new Map<string, number>();
+  const now = Date.now();
+  await Promise.all(
+    unique.map(async (model) => {
+      const cached = typicalCache.get(model);
+      let seconds = cached && now - cached.at < TYPICAL_CACHE_MS ? cached.seconds : undefined;
+      if (seconds === undefined) {
+        try {
+          seconds = await loadTypicalClipSeconds(model);
+        } catch (error) {
+          console.error("Could not read typical clip time", { model, error });
+          seconds = null;
+        }
+        typicalCache.set(model, { at: now, seconds });
+      }
+      if (seconds) result.set(model, seconds);
+    }),
+  );
+  return result;
+};
+
+/** When the newest open clip was sent to the model. */
+const openClipStartedAt = (clips: readonly JobClip[]) => {
+  const open = clips.filter((clip) => (clip.status === "pending" || clip.status === "in_progress") && clip.startedAt);
+  if (open.length === 0) return null;
+  return new Date(Math.max(...open.map((clip) => clip.startedAt!.getTime()))).toISOString();
 };
 
 /**
@@ -535,7 +588,8 @@ const toView = (
   job: JobRow,
   input: JobInputFields,
   labels: { characters: Map<string, string>; presets: Map<string, string> },
-  clips: { sceneIdx: number; status: string }[],
+  clips: JobClip[],
+  typical: ReadonlyMap<string, number>,
   readyIndexes?: readonly number[],
 ): VideoJobView => {
   if (!isJobStatus(job.status)) throw new Error(`Video job ${job.id} has an unknown status.`);
@@ -571,6 +625,9 @@ const toView = (
     clipIndex: job.status === "running" && currentStep === "videos" ? filmingClipIndex(clips, clipTotal) : null,
     clipTotal,
     clipsDone,
+    modelName: input.model ? generationModelLabel(input.model) : "",
+    clipStartedAt: job.status === "running" && currentStep === "videos" ? openClipStartedAt(clips) : null,
+    typicalClipSec: typical.get(input.model) ?? null,
     stopping: job.stopAfterClip,
     needsModel: job.status === "paused" && isModelChoice(job.errorDetail),
     stalled: isFilmingStalled(job.status, job.heartbeatAt),

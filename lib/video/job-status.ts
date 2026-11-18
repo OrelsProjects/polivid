@@ -90,6 +90,12 @@ export interface VideoJobView {
   clipTotal: number;
   /** Clips already stored. A paused job stopped after this many. */
   clipsDone: number;
+  /** The model's display name, e.g. "Kling 3.0 Omni". */
+  modelName: string;
+  /** When the clip being filmed was sent to the video model. Null when none is open. */
+  clipStartedAt: string | null;
+  /** Median seconds this model took for its recent clips. Null with too little history. */
+  typicalClipSec: number | null;
   /** Finish the open clip, then stop before the next one. */
   stopping: boolean;
   /** The model failed three times. Filming waits until the person picks another. */
