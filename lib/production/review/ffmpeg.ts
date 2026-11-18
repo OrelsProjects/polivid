@@ -38,17 +38,31 @@ const parseProbe = (raw: string): MediaProbe => {
   };
 };
 
+const isMissingBinary = (error: unknown) => (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+
+/**
+ * ffprobe's view of a media file. Where ffprobe isn't installed (Vercel), an MP4 or MOV is read from its
+ * header instead, without the frame rate; other formats still need ffprobe.
+ */
 export const probeFile = async (filePath: string): Promise<MediaProbe> => {
-  const { stdout } = await execFileAsync("ffprobe", [
-    "-v",
-    "error",
-    "-print_format",
-    "json",
-    "-show_format",
-    "-show_streams",
-    filePath,
-  ]);
-  return parseProbe(stdout);
+  try {
+    const { stdout } = await execFileAsync("ffprobe", [
+      "-v",
+      "error",
+      "-print_format",
+      "json",
+      "-show_format",
+      "-show_streams",
+      filePath,
+    ]);
+    return parseProbe(stdout);
+  } catch (error) {
+    if (!isMissingBinary(error)) throw error;
+    const { probeMp4File } = await import("./mp4-probe");
+    const probe = await probeMp4File(filePath);
+    if (probe) return probe;
+    throw error;
+  }
 };
 
 export const checkMediaFile = async (filePath: string, expected?: { durationSec?: number; hasVideo?: boolean }): Promise<MediaCheck> => {
