@@ -91,3 +91,27 @@ test("probeFile still fails without ffprobe for a format it can't read", async (
     process.env.PATH = savedPath;
   }
 });
+
+test("a fragmented MP4 (screen recordings, web exports) gets its length from its fragments", async () => {
+  const layouts: [string, string][] = [
+    ["frag-empty.mp4", "frag_keyframe+empty_moov"],
+    ["frag-base.mp4", "frag_keyframe+empty_moov+default_base_moof"],
+    ["frag-dash.mp4", "dash+frag_keyframe+empty_moov"],
+  ];
+  for (const [name, flags] of layouts) {
+    const file = await make(name, [
+      ...picture("720x1280", 4.5),
+      ...tone(4.5),
+      "-c:v", "libx264", "-g", "30", "-c:a", "aac", "-shortest",
+      "-movflags", flags,
+    ]);
+    await matchesFfprobe(file);
+    const probe = await probeMp4File(file);
+    assert.ok(probe && probe.durationSec > 4, `${name}: ${probe?.durationSec}`);
+  }
+});
+
+test("a fragmented MP4 with no sound reads its video length", async () => {
+  const file = await make("frag-silent.mp4", [...picture("464x832", 3), "-c:v", "libx264", "-g", "24", "-movflags", "frag_keyframe+empty_moov"]);
+  await matchesFfprobe(file);
+});
