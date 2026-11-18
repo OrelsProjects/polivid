@@ -39,6 +39,7 @@ export function SiteFooter() {
         ))}
         <div className="flex flex-col gap-2">
           <span className="text-sm font-semibold">Legal</span>
+          <Link href="/policy" className="text-sm text-muted-foreground hover:text-foreground">Media and voice policy</Link>
           <span className="text-sm text-muted-foreground">You preview every video before you share it.</span>
           <span className="text-sm text-muted-foreground">Nothing posts on its own.</span>
         </div>

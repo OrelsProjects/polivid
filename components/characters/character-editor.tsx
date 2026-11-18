@@ -14,6 +14,7 @@ import { CharacterMediaPanel } from "@/components/characters/character-media-pan
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_DESCRIPTION, MAX_PERSONALITY, MAX_SPEAKING_STYLE } from "@/lib/characters/media";
 import { SAMPLE_PROMPTS } from "@/lib/voice/constants";
+import { VoiceUploadAgreement } from "./voice-upload-agreement";
 import { clearVoiceTakes, loadVoiceTakes, moveVoiceTakes, writeVoiceTakes } from "@/lib/voice/take-draft";
 
 const FIELD_CLASS =
@@ -40,9 +41,9 @@ export function CharacterEditor({
   const [voiceDescription, setVoiceDescription] = useState(character?.voiceDescription ?? "");
   const [generatedVoiceId, setGeneratedVoiceId] = useState("");
   const [takes, setTakes] = useState<(VoiceTake | null)[]>(emptyTakes);
-  const [draftReady, setDraftReady] = useState(false);
+  const [draftScope, setDraftScope] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
-  const [consent, setConsent] = useState(false);
+  const [agreementOpen, setAgreementOpen] = useState(false);
   const [description, setDescription] = useState(character?.description ?? "");
   const [personality, setPersonality] = useState(character?.personality ?? "");
   const [speakingStyle, setSpeakingStyle] = useState(character?.speakingStyle ?? "");
@@ -54,6 +55,7 @@ export function CharacterEditor({
   const takesRef = useRef(takes);
   const draftReadyRef = useRef(false);
   const scope = character?.id ?? "new";
+  const draftReady = draftScope === scope;
 
   const storedTakes = (next: (VoiceTake | null)[]) =>
     SAMPLE_PROMPTS.flatMap((prompt, index) => {
@@ -106,7 +108,6 @@ export function CharacterEditor({
   useEffect(() => {
     let cancelled = false;
     draftReadyRef.current = false;
-    setDraftReady(false);
     void loadVoiceTakes(scope).then(
       (stored) => {
         if (cancelled) return;
@@ -119,12 +120,12 @@ export function CharacterEditor({
         takesRef.current = next;
         setTakes(next);
         draftReadyRef.current = true;
-        setDraftReady(true);
+        setDraftScope(scope);
       },
       () => {
         if (cancelled) return;
         draftReadyRef.current = true;
-        setDraftReady(true);
+        setDraftScope(scope);
         setDraftError("Couldn't open saved recordings. New ones stay in this tab until you save the character.");
       },
     );
@@ -134,20 +135,20 @@ export function CharacterEditor({
   }, [scope]);
 
   const recordedReady = takes.every((take): take is VoiceTake => take !== null);
-  const keepVoice = Boolean(character?.hasVoice) && voiceMode === startingMode(character) && !recordedReady && !generatedVoiceId;
+  const keepVoice = Boolean(live?.hasVoice) && voiceMode === startingMode(live) && !recordedReady && !generatedVoiceId;
   const canSave =
     name.trim().length >= 2 &&
     Boolean(imageKey) &&
     pictureConsent &&
     (voiceMode === "none" ||
       keepVoice ||
-      (voiceMode === "recorded" && recordedReady && consent) ||
+      (voiceMode === "recorded" && recordedReady) ||
       (voiceMode === "designed" && Boolean(generatedVoiceId) && voiceDescription.trim().length >= MIN_VOICE_DESCRIPTION));
 
-  const handleSave = async () => {
+  const handleSave = async (voiceApproved = false) => {
     if (saving || !canSave) return;
-    if (voiceMode === "recorded" && !keepVoice && !consent) {
-      setError("Confirm this is your own voice.");
+    if (voiceMode === "recorded" && !keepVoice && !voiceApproved) {
+      setAgreementOpen(true);
       return;
     }
     setError(null);
@@ -160,7 +161,7 @@ export function CharacterEditor({
       form.set("personality", personality);
       form.set("speakingStyle", speakingStyle);
       if (pictureConsent) form.set("pictureConsent", "yes");
-      form.set("voiceMode", keepVoice ? startingMode(character) : voiceMode);
+      form.set("voiceMode", keepVoice ? startingMode(live) : voiceMode);
       if (keepVoice) form.set("keepVoice", "yes");
       if (voiceMode === "recorded" && !keepVoice) {
         form.set("consent", "yes");
@@ -268,7 +269,7 @@ export function CharacterEditor({
         voiceDescription={voiceDescription}
         generatedVoiceId={generatedVoiceId}
         takes={takes}
-        hasExistingVoice={Boolean(character?.hasVoice)}
+        hasExistingVoice={Boolean(live?.hasVoice)}
         recordingsReady={draftReady}
         disabled={saving}
         onVoiceMode={setVoiceMode}
@@ -277,17 +278,14 @@ export function CharacterEditor({
         onTakesChange={updateTakes}
         onDiscardRecordings={discardRecordings}
       />
-      {voiceMode === "recorded" && !keepVoice ? (
-        <label className="flex cursor-pointer items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={consent}
-            disabled={saving}
-            onChange={(event) => setConsent(event.target.checked)}
-            className="mt-0.5 size-4 accent-primary"
-          />
-          <span>This is my own voice, and I can use it on videos I make here.</span>
-        </label>
+      {agreementOpen ? (
+        <VoiceUploadAgreement
+          onClose={() => setAgreementOpen(false)}
+          onConfirm={() => {
+            setAgreementOpen(false);
+            void handleSave(true);
+          }}
+        />
       ) : null}
       {draftError ? (
         <p className="text-sm text-destructive" role="alert">
@@ -328,7 +326,18 @@ export function CharacterEditor({
         </p>
       ) : null}
       {live ? (
-        <CharacterMediaPanel character={live} />
+        <CharacterMediaPanel
+          character={live}
+          onVoiceSaved={(saved) => {
+            setVoiceMode(startingMode(saved));
+            setVoiceDescription(saved.voiceDescription ?? "");
+            setGeneratedVoiceId("");
+            for (const take of takesRef.current) {
+              if (take) URL.revokeObjectURL(take.url);
+            }
+            updateTakes(emptyTakes());
+          }}
+        />
       ) : (
         <p className="text-xs text-muted-foreground">Save the character to add more pictures, clips, and looks, or to build its voice from an uploaded recording or video.</p>
       )}

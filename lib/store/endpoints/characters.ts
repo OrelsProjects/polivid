@@ -119,10 +119,10 @@ export const charactersApi = api.injectEndpoints({
       transformResponse: characterOf,
       onQueryStarted: patchCharacter(),
     }),
-    voiceFromClip: build.mutation<CharacterSummary, { id: string; samples: Blob[] }>({
-      query: ({ id, samples }) => {
+    voiceFromClip: build.mutation<CharacterSummary, { id: string; samples: Blob[]; consent: true }>({
+      query: ({ id, samples, consent }) => {
         const body = new FormData();
-        body.set("consent", "yes");
+        body.set("consent", consent ? "yes" : "no");
         samples.forEach((sample, index) => body.append("samples", new File([sample], `clip-${index + 1}.wav`, { type: "audio/wav" })));
         return { url: `characters/${id}/voice-from-clip`, method: "POST", body };
       },

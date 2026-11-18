@@ -1,5 +1,6 @@
 import "server-only";
 import { auth } from "@/auth";
+import { VoiceServiceError } from "@/lib/production/adapters/elevenlabs";
 import { CharacterLibraryError } from "./library";
 
 type Params = Promise<Record<string, string>>;
@@ -14,7 +15,9 @@ export const characterRoute =
     try {
       return await run(userId, await context.params, request);
     } catch (error) {
-      if (error instanceof CharacterLibraryError) return Response.json({ error: error.message }, { status: 400 });
+      if (error instanceof CharacterLibraryError || error instanceof VoiceServiceError) {
+        return Response.json({ error: error.message }, { status: 400 });
+      }
       console.error("Character library request failed", error);
       return Response.json({ error: "Couldn't update that character." }, { status: 500 });
     }

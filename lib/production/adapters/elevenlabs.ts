@@ -1,8 +1,10 @@
 import { capabilityById } from "../capabilities";
 import { toneWav } from "../placeholder-media";
-import type { AdapterJob, AdapterRequest, MediaAdapter } from "./types";
+import type { AdapterJob, MediaAdapter } from "./types";
 
 const BASE = "https://api.elevenlabs.io";
+
+export class VoiceServiceError extends Error {}
 
 export const hasElevenLabsKey = () => Boolean(process.env.ELEVENLABS_API_KEY?.trim());
 
@@ -97,13 +99,13 @@ export const addInstantVoice = async (input: {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(voiceAddMessage(response.status, detail));
+    throw new VoiceServiceError(voiceAddMessage(response.status, detail));
   }
   const json = (await response.json()) as { voice_id?: string; requires_verification?: boolean };
   if (!json.voice_id) throw new Error("The voice service didn't return a voice.");
   if (json.requires_verification) {
     await deleteInstantVoice(json.voice_id).catch(() => undefined);
-    throw new Error("This voice needs verification on ElevenLabs before it can be used.");
+    throw new VoiceServiceError("ElevenLabs requires the speaker to verify this voice. Complete verification with ElevenLabs before using it in PoliVid.");
   }
   voices = null;
   return json.voice_id;
@@ -128,7 +130,7 @@ export const designVoicePreviews = async (description: string, sampleText: strin
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(voiceAddMessage(response.status, detail));
+    throw new VoiceServiceError(voiceAddMessage(response.status, detail));
   }
   const json = (await response.json()) as {
     previews?: { generated_voice_id?: string; audio_base_64?: string }[];
@@ -160,7 +162,7 @@ export const saveDesignedVoice = async (input: { name: string; description: stri
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(voiceAddMessage(response.status, detail));
+    throw new VoiceServiceError(voiceAddMessage(response.status, detail));
   }
   const json = (await response.json()) as { voice_id?: string };
   if (!json.voice_id) throw new Error("The voice service didn't return a voice.");
@@ -180,13 +182,22 @@ export const deleteInstantVoice = async (voiceId: string) => {
   voices = null;
 };
 
-const voiceAddMessage = (status: number, detail: string) => {
+export const voiceAddMessage = (status: number, detail: string) => {
   if (status === 401) return "The voice service rejected the API key.";
   if (status === 402 || /paid_plan_required|quota|voice_limit/i.test(detail)) {
     return "The voice service needs a paid plan, or this account is out of voice slots.";
   }
-  if (/audio|sample|duration|too short|empty/i.test(detail)) {
-    return "Those recordings were too short or too quiet. Say each line all the way through.";
+  try {
+    const parsed = JSON.parse(detail) as {
+      detail?: string | { message?: string } | { loc?: (string | number)[]; msg?: string }[];
+    };
+    const reason = parsed.detail;
+    const message = Array.isArray(reason)
+      ? reason.slice(0, 3).map((issue) => [issue.loc?.at(-1), issue.msg].filter(Boolean).join(" — ")).join(". ")
+      : typeof reason === "string" ? reason : reason?.message;
+    if (message?.trim()) return `ElevenLabs couldn't create this voice (${status}). ${message.trim().slice(0, 400)}`;
+  } catch {
+    // Non-JSON failures use the status below rather than showing an HTML error page.
   }
   return `Couldn't create that voice (${status}).`;
 };

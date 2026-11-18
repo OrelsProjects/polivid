@@ -1,6 +1,9 @@
 "use client";
 
 import { candidateTimes, encodeWav, laplacianVariance, loudShare, pickSharpSpaced, toGray } from "./clip-math";
+import { MAX_VOICE_UPLOAD_SECONDS } from "@/lib/voice/constants";
+
+export { MAX_VOICE_UPLOAD_SECONDS } from "@/lib/voice/constants";
 
 const once = (target: EventTarget, event: string, timeoutMs = 15_000) =>
   new Promise<void>((resolve, reject) => {
@@ -95,9 +98,8 @@ export const extractSharpFrames = async (url: string, count = 4) => {
   return frames;
 };
 
-const VOICE_SAMPLE_RATE = 22_050;
-/** At 22.05 kHz mono 16-bit, 150 seconds is about 6.6 MB, under the 8 MB sample limit. */
-export const MAX_VOICE_UPLOAD_SECONDS = 150;
+/** 16 kHz keeps two minutes of speech under the request size limit, and is plenty for cloning a voice. */
+export const VOICE_SAMPLE_RATE = 16_000;
 
 /**
  * The sound of a clip (by URL) or of a file the person picked (audio or video), as a mono WAV

@@ -153,7 +153,7 @@ const createProviderVoice = async (
     const samples = recordedFiles(files);
     const providerVoiceId = await addInstantVoice({
       name: `PoliVid ${name} ${crypto.randomUUID().slice(0, 8)}`,
-      description: "Recorded in PoliVid by the account owner for their own videos.",
+      description: "Recorded in PoliVid with the uploader confirming permission to clone and use the voice.",
       files: samples,
     });
     return { providerVoiceId, voiceSource: "recorded", voiceDescription: null, sampleCount: samples.length };

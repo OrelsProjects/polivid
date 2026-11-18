@@ -5,6 +5,17 @@ export const MAX_SAVED_VOICES = 20;
 export const MIN_SAMPLE_BYTES = 1_500;
 export const MAX_SAMPLE_BYTES = 8_000_000;
 export const MAX_SAMPLE_SECONDS = 30;
+export const MAX_VOICE_UPLOAD_SECONDS = 150;
+/** A voice can be built from this many recordings at once. */
+export const MAX_VOICE_FILES = 5;
+/**
+ * Seconds of sound the browser sends across all recordings. At 16 kHz mono WAV that is about 3.8 MB,
+ * under the 4.5 MB a Vercel function accepts in one request.
+ */
+export const MAX_VOICE_TOTAL_SECONDS = 120;
+export const VOICE_CONSENT_LABEL =
+  "This is my voice, or I have the speaker's permission or other valid authorization to clone and use it.";
+export const VOICE_CONSENT_ERROR = "Confirm you have permission to clone and use this voice.";
 
 /** Songs re-sing the vocal in this voice, so the clone needs real singing, not only speech. */
 export const SAMPLE_PROMPTS = [

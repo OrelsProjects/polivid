@@ -1,3 +1,4 @@
+import { VOICE_CONSENT_ERROR } from "@/lib/voice/constants";
 import { auth } from "@/auth";
 import { readCharacterForm, sampleFiles } from "@/lib/characters/form";
 import { createCharacter, listCharacters } from "@/lib/characters/store";
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
   if (!form) return Response.json({ error: "Send the character as form data." }, { status: 400 });
   const parsed = readCharacterForm(form);
   if (parsed.voiceMode === "recorded" && parsed.consent !== "yes") {
-    return Response.json({ error: "Confirm this is your own voice." }, { status: 400 });
+    return Response.json({ error: VOICE_CONSENT_ERROR }, { status: 400 });
   }
   try {
     const files = parsed.voiceMode === "recorded" ? await sampleFiles(parsed.samples) : [];

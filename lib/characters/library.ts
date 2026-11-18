@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { addInstantVoice, deleteInstantVoice } from "@/lib/production/adapters/elevenlabs";
-import { audioSampleType, extensionForSample, MAX_SAMPLE_BYTES, MIN_SAMPLE_BYTES } from "@/lib/voice/constants";
+import { audioSampleType, extensionForSample, MAX_SAMPLE_BYTES, MAX_VOICE_FILES, MIN_SAMPLE_BYTES } from "@/lib/voice/constants";
 import { isImageKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
 import {
   isMediaLabel,
@@ -190,11 +190,11 @@ export const removeCharacterLook = async (userId: string, characterId: string, l
   return getCharacterView(userId, characterId);
 };
 
-const MAX_CLIP_VOICE_FILES = 3;
+const MAX_CLIP_VOICE_FILES = MAX_VOICE_FILES;
 
 /**
  * Builds the character's voice from audio taken out of their clips (the browser extracts it).
- * Only for the owner's own voice: the route requires that confirmation, as it does for recorded voices.
+ * The caller requires confirmation that the uploader has permission to clone and use the voice.
  */
 export const voiceFromClipAudio = async (
   userId: string,
@@ -215,14 +215,15 @@ export const voiceFromClipAudio = async (
   });
   const providerVoiceId = await addInstantVoice({
     name: `PoliVid ${character.name} ${crypto.randomUUID().slice(0, 8)}`,
-    description: "Taken from the account owner's own video clips in PoliVid, for their own videos.",
+    description: "Created from uploaded recordings with the uploader confirming permission to clone and use the voice.",
     files: samples,
   });
   try {
-    await db.character.update({
-      where: { id: character.id },
+    const { count } = await db.character.updateMany({
+      where: { id: character.id, userId, providerVoiceId: character.providerVoiceId },
       data: { providerVoiceId, voiceSource: "recorded", voiceDescription: null, sampleCount: samples.length },
     });
+    if (count !== 1) throw new CharacterLibraryError("This character changed while the voice was being created. Reload it and try again.");
   } catch (error) {
     await deleteInstantVoice(providerVoiceId).catch(() => undefined);
     throw error;
