@@ -19,12 +19,20 @@ export type StageState = "done" | "current" | "upcoming";
 const EDITOR_MODEL = "editor";
 
 /** Stages this job is expected to pass through, in order. */
-export const stagesForJob = (job: { mode: string; tier: string; model: string; length: number }): JobStep[] => {
+export const stagesForJob = (job: {
+  mode: string;
+  tier: string;
+  model: string;
+  length: number;
+  orientation?: string;
+  /** Whose voice a swap gets after the picture is made, which is a render step. */
+  voiceName?: string | null;
+}): JobStep[] => {
   if (job.model === EDITOR_MODEL || job.model === EDIT_MODEL) return ["render", "finalize"];
   if (job.model === STILLS_MODEL) return ["script", "images", "render", "finalize"];
   if (job.model === LOOP_MODEL || job.mode === "captions") return ["script", "render", "finalize"];
-  // A long swap is made in parts and joined, which is a render step.
-  if (job.mode === "swap") return clipCountForJob(job) > 1 ? ["videos", "render", "finalize"] : ["videos", "finalize"];
+  // Joining a long swap's parts and adding the character's voice both happen in the render step.
+  if (job.mode === "swap") return clipCountForJob(job) > 1 || job.voiceName ? ["videos", "render", "finalize"] : ["videos", "finalize"];
   if (job.mode === "motion-graphics") {
     return job.tier === "ultra" ? ["script", "images", "finalize"] : ["script", "finalize"];
   }
@@ -88,8 +96,13 @@ export const clipProgressLabel = (
   return `${total} clips`;
 };
 
-export const stepLabel = (step: JobStep, mode?: string) => {
+export const stepLabel = (step: JobStep, mode?: string, swap?: { voiceName?: string | null; parts?: number }) => {
   if (step === "script" && mode === "lyrics") return "Writing the song";
+  if (step === "render" && mode === "swap") {
+    const joining = (swap?.parts ?? 1) > 1;
+    if (swap?.voiceName) return joining ? `Joining the parts and giving ${swap.voiceName} their voice` : `Giving ${swap.voiceName} their voice`;
+    if (joining) return "Joining the parts";
+  }
   return STEP_LABEL[step];
 };
 

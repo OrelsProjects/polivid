@@ -1,4 +1,4 @@
-import { Download, ExternalLink, TriangleAlert } from "lucide-react";
+import { Download, ExternalLink, Mic, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,6 +17,7 @@ import { DownloadAsMenu } from "@/components/video/download-as-menu";
 import { hasFootage } from "@/lib/video/footage";
 import { countStoredSegments } from "@/lib/video/jobs";
 import { getMyVideo, getMyVideoJob } from "@/lib/videos";
+import { voiceResultLabel } from "@/lib/video/job-status";
 import { domainOf, fillPlaceholders, formatDate, formatFact, formatValue } from "@/lib/video/format";
 import { generationModelBySlug, generationModelLabel } from "@/lib/video/models";
 import type { SceneType, VideoRecord } from "@/lib/video/schema";
@@ -95,6 +96,12 @@ async function VideoDetail({ id }: { id: string }) {
           <span className="block max-w-full min-w-0 truncate sm:max-w-md" title={video.prompt}>
             “{video.prompt}”
           </span>
+          {job?.voiceResult ? (
+            <Badge variant="outline" className={job.voiceResult.outcome === "added" ? "gap-1 border-primary/40 text-primary" : "gap-1"}>
+              {job.voiceResult.outcome === "added" ? <Mic className="size-3" aria-hidden /> : null}
+              {voiceResultLabel(job.voiceResult)}
+            </Badge>
+          ) : null}
           {video.demo && <Badge variant="outline">Sample data</Badge>}
         </div>
       </div>

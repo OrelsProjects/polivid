@@ -58,6 +58,28 @@ export interface JobDetailRow {
 }
 
 /** What the browser is allowed to see. Provider URLs stay in the database. */
+export const VOICE_OUTCOMES = ["added", "no-speech", "failed"] as const;
+export type VoiceOutcome = (typeof VOICE_OUTCOMES)[number];
+export interface VoiceResult {
+  name: string;
+  outcome: VoiceOutcome;
+}
+
+/** The re-voice outcome the worker stored on the job, or null. */
+export const readVoiceResult = (artifacts: unknown): VoiceResult | null => {
+  const value = (artifacts as { characterVoice?: unknown } | null)?.characterVoice as { name?: unknown; outcome?: unknown } | undefined;
+  if (!value || typeof value.name !== "string" || !(VOICE_OUTCOMES as readonly unknown[]).includes(value.outcome)) return null;
+  return { name: value.name, outcome: value.outcome as VoiceOutcome };
+};
+
+/** "Oz's voice added", or why the video kept its own voice. */
+export const voiceResultLabel = (result: VoiceResult) =>
+  result.outcome === "added"
+    ? `${result.name}'s voice added`
+    : result.outcome === "no-speech"
+      ? "Original sound kept: no speech to re-voice"
+      : `Original voice kept: ${result.name}'s voice couldn't be added`;
+
 export interface VideoJobView {
   id: string;
   status: JobStatus;
@@ -96,6 +118,10 @@ export interface VideoJobView {
   clipStartedAt: string | null;
   /** Median seconds this model took for its recent clips. Null with too little history. */
   typicalClipSec: number | null;
+  /** Whose voice a swap will be re-voiced in, when it will be. Null otherwise. */
+  voiceName: string | null;
+  /** What happened when the swap was re-voiced, once it ran. */
+  voiceResult: VoiceResult | null;
   /** Finish the open clip, then stop before the next one. */
   stopping: boolean;
   /** The model failed three times. Filming waits until the person picks another. */

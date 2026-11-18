@@ -69,14 +69,36 @@ test("typical time is the median, and needs three samples", () => {
 });
 
 test("a swap being re-voiced says whose voice it is getting", () => {
-  const phase = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri" }, NOW);
-  assert.equal(phase.badge, "RENDERING");
+  const phase = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri", voiceName: "Oshri" }, NOW);
+  assert.equal(phase.badge, "VOICING");
   assert.equal(phase.headline, "Giving Oshri their voice");
+  // A character with no voice is never said to be getting one.
+  assert.equal(jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri" }, NOW).headline, "Rendering the video");
 });
 
 test("a swap made in parts counts them, then says it is joining them", () => {
   const filming = jobPhase({ ...base, mode: "swap", characterName: "Oshri", clipTotal: 2, clipsDone: 1 }, NOW);
   assert.equal(filming.headline, "Kling 3.0 is putting Oshri into 2 parts of the video (1 done)");
-  const joining = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri", clipTotal: 2, clipsDone: 2 }, NOW);
+  const joining = jobPhase({ ...base, mode: "swap", currentStep: "render", characterName: "Oshri", voiceName: "Oshri", clipTotal: 2, clipsDone: 2 }, NOW);
   assert.equal(joining.headline, "Joining the 2 parts and giving Oshri their voice");
+});
+
+test("a swap's voice step shows in the stage list before saving, named for the character", async () => {
+  const { stagesForJob, stepLabel } = await import("./job-stages");
+  const swap = { mode: "swap", tier: "pro", model: "kling-3.0-omni-edit", length: 7 };
+  assert.deepEqual(stagesForJob(swap), ["videos", "finalize"]);
+  assert.deepEqual(stagesForJob({ ...swap, voiceName: "Greg" }), ["videos", "render", "finalize"]);
+  assert.equal(stepLabel("render", "swap", { voiceName: "Greg" }), "Giving Greg their voice");
+  assert.equal(stepLabel("render", "swap", { voiceName: "Greg", parts: 2 }), "Joining the parts and giving Greg their voice");
+  assert.equal(stepLabel("render", "swap", { parts: 2 }), "Joining the parts");
+});
+
+test("the finished video says whether the character's voice was added", async () => {
+  const { readVoiceResult, voiceResultLabel } = await import("./job-status");
+  assert.deepEqual(readVoiceResult({ characterVoice: { name: "Greg", outcome: "added" } }), { name: "Greg", outcome: "added" });
+  assert.equal(readVoiceResult({ characterVoice: { name: "Greg", outcome: "maybe" } }), null);
+  assert.equal(readVoiceResult(null), null);
+  assert.equal(voiceResultLabel({ name: "Greg", outcome: "added" }), "Greg's voice added");
+  assert.match(voiceResultLabel({ name: "Greg", outcome: "no-speech" }), /no speech/);
+  assert.match(voiceResultLabel({ name: "Greg", outcome: "failed" }), /Greg's voice couldn't be added/);
 });

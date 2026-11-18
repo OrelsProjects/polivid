@@ -43,13 +43,15 @@ const StageItem = ({
   state,
   clipLabel,
   mode,
+  swap,
 }: {
   step: JobStep;
   state: "done" | "current" | "upcoming";
   clipLabel: string;
   mode: string;
+  swap?: { voiceName?: string | null; parts?: number };
 }) => {
-  const label = stepLabel(step, mode);
+  const label = stepLabel(step, mode, swap);
   const stateName =
     state === "current"
       ? "current stage"
@@ -100,6 +102,7 @@ export const JobStageList = ({
   clipTotal,
   clipsDone = 0,
   songUrl = null,
+  voiceName = null,
 }: {
   mode: string;
   tier: string;
@@ -110,6 +113,8 @@ export const JobStageList = ({
   clipTotal: number;
   clipsDone?: number;
   songUrl?: string | null;
+  /** A swap that gets this character's voice after the picture is made. */
+  voiceName?: string | null;
 }) => {
   const parallel = mode === "lyrics";
   const videosLabel = (current: boolean) =>
@@ -119,7 +124,7 @@ export const JobStageList = ({
       parallel ? { done: current ? clipsDone : undefined } : undefined,
     );
   const stages = visibleStages(
-    stagesForJob({ mode, tier, model, length }),
+    stagesForJob({ mode, tier, model, length, voiceName }),
     currentStep,
   );
   const items = stages.map((step) => ({
@@ -142,6 +147,7 @@ export const JobStageList = ({
                 step={item.step}
                 state={item.state}
                 mode={mode}
+                swap={{ voiceName, parts: clipTotal }}
                 clipLabel={
                   item.step === "videos"
                     ? videosLabel(item.state === "current")
@@ -165,6 +171,7 @@ export const JobStageList = ({
                 step={item.step}
                 state={item.state}
                 mode={mode}
+                swap={{ voiceName, parts: clipTotal }}
                 clipLabel={item.step === "videos" ? videosLabel(false) : ""}
               />
             ))}

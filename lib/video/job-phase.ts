@@ -29,6 +29,8 @@ export interface PhaseInput {
   clipStartedAt: string | null;
   /** Median seconds this model took for recent clips, or null with too little history. */
   typicalClipSec: number | null;
+  /** Whose voice a swap gets after the picture is made, when it will. */
+  voiceName?: string | null;
 }
 
 /** "under a minute", "about 1 min", "about 12 min", "about 1 h 20 min". */
@@ -108,16 +110,16 @@ export const jobPhase = (job: PhaseInput, now: number | null): JobPhase => {
         return {
           badge: "RENDERING",
           tone: "render",
-          headline: `Joining the ${job.clipTotal} parts${job.characterName ? ` and giving ${job.characterName} their voice` : ""}`,
+          headline: `Joining the ${job.clipTotal} parts${job.voiceName ? ` and giving ${job.voiceName} their voice` : ""}`,
           detail: "Every part is swapped. Joining them back into one video takes a minute or two.",
         };
       }
-      if (job.mode === "swap") {
+      if (job.mode === "swap" && job.voiceName) {
         return {
-          badge: "RENDERING",
+          badge: "VOICING",
           tone: "render",
-          headline: job.characterName ? `Giving ${job.characterName} their voice` : "Putting in the character's voice",
-          detail: "The picture is done. The speech is being re-voiced, which takes a minute or two.",
+          headline: `Giving ${job.voiceName} their voice`,
+          detail: "The picture is done. The speech is being re-voiced in their voice, keeping the words and timing.",
         };
       }
       return {

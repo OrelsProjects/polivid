@@ -20,8 +20,7 @@ import {
   type JobInputFields,
   type JobStatus,
   type JobStep,
-  type VideoJobView,
-} from "./job-status";
+  type VideoJobView, readVoiceResult } from "./job-status";
 import { generationModelById, generationModelLabel } from "./models";
 import { typicalSeconds } from "./job-phase";
 import { isModelChoice } from "./model-choice";
@@ -463,14 +462,14 @@ const loadJobLabels = async (userId: string, inputs: JobInputFields[]) => {
   const presetIds = [...new Set(inputs.map((input) => input.presetId).filter((id) => id && !presetById(id)))];
   const [characters, presets] = await Promise.all([
     characterIds.length
-      ? db.character.findMany({ where: { userId, id: { in: characterIds } }, select: { id: true, name: true } })
+      ? db.character.findMany({ where: { userId, id: { in: characterIds } }, select: { id: true, name: true, providerVoiceId: true } })
       : [],
     presetIds.length
       ? db.stylePreset.findMany({ where: { userId, id: { in: presetIds } }, select: { id: true, name: true } })
       : [],
   ]);
   return {
-    characters: new Map(characters.map((row) => [row.id, row.name])),
+    characters: new Map(characters.map((row) => [row.id, { name: row.name, hasVoice: Boolean(row.providerVoiceId) }])),
     presets: new Map(presets.map((row) => [row.id, row.name])),
   };
 };
@@ -593,14 +592,17 @@ export const listActiveVideoJobs = async (userId: string): Promise<VideoJobView[
 const toView = (
   job: JobRow,
   input: JobInputFields,
-  labels: { characters: Map<string, string>; presets: Map<string, string> },
+  labels: { characters: Map<string, { name: string; hasVoice: boolean }>; presets: Map<string, string> },
   clips: JobClip[],
   typical: ReadonlyMap<string, number>,
   readyIndexes?: readonly number[],
 ): VideoJobView => {
   if (!isJobStatus(job.status)) throw new Error(`Video job ${job.id} has an unknown status.`);
   const presetName = presetById(input.presetId)?.name ?? labels.presets.get(input.presetId) ?? "";
-  const characterName = labels.characters.get(input.characterId) ?? "";
+  const character = labels.characters.get(input.characterId);
+  const characterName = character?.name ?? "";
+  // A swap gets the character's voice after the picture is made, when it keeps its sound and the character has one.
+  const voiceName = input.mode === "swap" && input.keepSound && input.characterVoice && character?.hasVoice ? character.name : null;
   const currentStep = isJobStep(job.currentStep) ? job.currentStep : null;
   const clipTotal = clipCountForJob(input);
   const clipsDone = completedClipCount(clips);
@@ -634,6 +636,8 @@ const toView = (
     modelName: input.model ? generationModelLabel(input.model) : "",
     clipStartedAt: job.status === "running" && currentStep === "videos" ? openClipStartedAt(clips) : null,
     typicalClipSec: typical.get(input.model) ?? null,
+    voiceName,
+    voiceResult: readVoiceResult(job.artifacts),
     stopping: job.stopAfterClip,
     needsModel: job.status === "paused" && isModelChoice(job.errorDetail),
     stalled: isFilmingStalled(job.status, job.heartbeatAt),

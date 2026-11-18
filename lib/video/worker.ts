@@ -18,7 +18,7 @@ import { narrationAudio, resolveCharacterVoice, speakFittedBeats } from "@/lib/v
 import { clipFinishData, clipStartData } from "./clip-timing";
 import { DEMO_FACTS, DEMO_PLAN, DEMO_QUOTES } from "./demo";
 import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, saveFootage, storeVoiced, type FootageRequest } from "./footage";
-import { progressFor, readJobInput } from "./job-status";
+import { progressFor, readJobInput, type VoiceResult } from "./job-status";
 import { markVideoJobProgress, transitionVideoJob } from "./jobs";
 import { deleteVideoMedia, putVideoMedia, readVideoMedia, signedVideoMediaUrl } from "./media-store";
 import { footageFromPrepared, prepareModeJob, referenceImageDataUrl, resolveJobPreset, type PreparedJob } from "./mode-prepare";
@@ -549,10 +549,26 @@ const withCharacterVoice = async (userId: string, jobId: string, input: JobInput
   try {
     const voiced = await revoiceVideo(video, voice.providerVoiceId);
     if (!voiced) console.info("The swap has no speech to re-voice; keeping its sound", { jobId });
+    await rememberVoiceResult(jobId, { name: voice.name, outcome: voiced ? "added" : "no-speech" });
     return voiced ?? video;
   } catch (error) {
     console.error("Could not re-voice the swap; keeping its own sound", { jobId, error });
+    await rememberVoiceResult(jobId, { name: voice.name, outcome: "failed" });
     return video;
+  }
+};
+
+/** Stores how the re-voice went on the job, so the finished video can say so. */
+const rememberVoiceResult = async (jobId: string, result: VoiceResult) => {
+  try {
+    const job = await db.videoJob.findUnique({ where: { id: jobId }, select: { artifacts: true } });
+    const artifacts = job?.artifacts && typeof job.artifacts === "object" && !Array.isArray(job.artifacts) ? job.artifacts : {};
+    await db.videoJob.update({
+      where: { id: jobId },
+      data: { artifacts: { ...(artifacts as Record<string, unknown>), characterVoice: { ...result } } as Prisma.InputJsonValue },
+    });
+  } catch (error) {
+    console.error("Could not record the re-voice result", { jobId, error });
   }
 };
 

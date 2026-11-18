@@ -171,6 +171,7 @@ const ActiveJobCard = ({
             clipTotal={job.clipTotal ?? 1}
             clipsDone={job.clipsDone}
             songUrl={job.songUrl}
+            voiceName={job.voiceName}
           />
           <div
             className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
