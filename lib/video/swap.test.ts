@@ -26,6 +26,8 @@ import {
   swapMovesPrompt,
   swapCredits,
   swapLengthProblem,
+  swapTrimNote,
+  swapUsedSeconds,
   swapResolutionFor,
   swapSeconds,
 } from "./swap";
@@ -127,7 +129,9 @@ test("the Create form sends a swap with its video and character, and no footage 
 test("replacing in a video takes 3 to 15.5 seconds, and the model records the method", () => {
   assert.equal(swapLengthProblem(7, "replace"), null);
   assert.equal(swapLengthProblem(15.5, "replace"), null);
-  assert.match(swapLengthProblem(16, "replace") ?? "", /up to 15 seconds/);
+  // Longer videos are cut to their first 15 seconds instead of being turned away.
+  assert.equal(swapLengthProblem(22.8, "replace"), null);
+  assert.match(swapLengthProblem(2, "replace") ?? "", /at least 3 seconds/);
   assert.match(swapLengthProblem(2, "replace") ?? "", /at least 3 seconds/);
   assert.equal(swapModelFor("replace"), SWAP_EDIT_MODEL);
   assert.equal(swapModelFor("moves"), SWAP_MODEL);
@@ -189,4 +193,13 @@ test("every fitted picture is within Kling's limits", () => {
     if (fit) assert.ok([fit.width, fit.height, fit.canvasWidth, fit.canvasHeight].every((side) => side % 2 === 0), `${w}x${h} has an odd side`);
     if (fit) assert.ok(fit.canvasWidth >= fit.width && fit.canvasHeight >= fit.height, `${w}x${h} canvas smaller than the picture`);
   }
+});
+
+test("replacing uses, and bills, the first 15 seconds of a longer video", () => {
+  assert.equal(swapUsedSeconds(22.8, "replace"), 15);
+  assert.equal(swapUsedSeconds(15.4, "replace"), 15.4);
+  assert.equal(swapUsedSeconds(22.8, "moves"), 22.8);
+  assert.match(swapTrimNote(22.8, "replace") ?? "", /22\.8 seconds.*first 15 seconds are used/);
+  assert.equal(swapTrimNote(12, "replace"), null);
+  assert.equal(swapTrimNote(22.8, "moves"), null);
 });

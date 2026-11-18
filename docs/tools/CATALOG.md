@@ -429,7 +429,7 @@ Use when:
 - method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.
 - method moves makes a new clip of the character doing the video's moves. The scene is not kept.
 - Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.
-- Lengths: replace 3-15s, moves 3-30s. The price follows the video's length. Its sound is kept unless keepSound is false.
+- Lengths: replace uses the first 15s of a longer video (at least 3s), moves 3-30s. The price follows the seconds used. Its sound is kept unless keepSound is false.
 
 Don't use when:
 - They want a new clip made from a description. Use make_prompt_video.

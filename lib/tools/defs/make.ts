@@ -381,7 +381,7 @@ export const makeTools = [
       "method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.",
       "method moves makes a new clip of the character doing the video's moves. The scene is not kept.",
       "Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.",
-      `Lengths: replace ${MIN_SWAP_SECONDS}-${Math.floor(MAX_SWAP_EDIT_SECONDS)}s, moves ${MIN_SWAP_SECONDS}-${MAX_SWAP_SECONDS.video}s. The price follows the video's length. Its sound is kept unless keepSound is false.`,
+      `Lengths: replace uses the first ${Math.floor(MAX_SWAP_EDIT_SECONDS)}s of a longer video (at least ${MIN_SWAP_SECONDS}s), moves ${MIN_SWAP_SECONDS}-${MAX_SWAP_SECONDS.video}s. The price follows the seconds used. Its sound is kept unless keepSound is false.`,
     ],
     avoidWhen: [
       "They want a new clip made from a description. Use make_prompt_video.",

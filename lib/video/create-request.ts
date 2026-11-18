@@ -46,6 +46,7 @@ import {
   swapLengthProblem,
   swapResolutionFor,
   swapSeconds,
+  swapUsedSeconds,
   type SwapMethod,
   type SwapOrientation,
 } from "@/lib/video/swap";
@@ -587,7 +588,8 @@ const queueSwap = async (
   }
   const problem = swapLengthProblem(seconds, input.method, input.orientation);
   if (problem) throw new CreateVideoError(problem, 400);
-  const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(seconds));
+  // Replacing in a longer video uses (and bills) its first 15 seconds.
+  const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(swapUsedSeconds(seconds, input.method)));
   const resolution = swapResolutionFor(input.tier);
   try {
     const credits = videoJobCredits({ demo: !hasOpenRouterKey(), mode: "swap", length, resolution });

@@ -53,6 +53,18 @@ export const MIN_SWAP_SECONDS = 3;
 export const MAX_SWAP_SECONDS: Record<SwapOrientation, number> = { video: 30, image: 10 };
 /** Kling 3.0 Omni edits videos up to this long. */
 export const MAX_SWAP_EDIT_SECONDS = 15.5;
+/** Replacing in a longer video uses its first this-many seconds. */
+export const SWAP_EDIT_USED_SECONDS = 15;
+
+/** The seconds of the video a swap actually uses, and bills: replacing uses the first 15 of a longer one. */
+export const swapUsedSeconds = (sourceSeconds: number, method: SwapMethod) =>
+  method === "replace" && sourceSeconds > MAX_SWAP_EDIT_SECONDS ? SWAP_EDIT_USED_SECONDS : sourceSeconds;
+
+/** Shown when only the start of the video will be used, or null. */
+export const swapTrimNote = (sourceSeconds: number, method: SwapMethod) => {
+  if (method !== "replace" || !(sourceSeconds > MAX_SWAP_EDIT_SECONDS)) return null;
+  return `Your video is ${Math.round(sourceSeconds * 10) / 10} seconds. Replacing works on up to ${SWAP_EDIT_USED_SECONDS}, so the first ${SWAP_EDIT_USED_SECONDS} seconds are used. To use all of it, copy the moves instead (up to ${MAX_SWAP_SECONDS.video}).`;
+};
 
 /** Kling reads this much of the prompt. */
 export const SWAP_PROMPT_LIMIT = 2500;
@@ -78,11 +90,8 @@ export const swapLengthProblem = (
   if (!(sourceSeconds >= MIN_SWAP_SECONDS)) {
     return `The video needs to be at least ${MIN_SWAP_SECONDS} seconds.`;
   }
-  if (method === "replace") {
-    return sourceSeconds > MAX_SWAP_EDIT_SECONDS
-      ? `Replacing in a video works up to 15 seconds. Trim it, or copy the moves instead for up to ${MAX_SWAP_SECONDS.video}.`
-      : null;
-  }
+  // A longer video is cut to its first 15 seconds for replacing, so length never blocks it.
+  if (method === "replace") return null;
   const max = MAX_SWAP_SECONDS[orientation];
   if (sourceSeconds > max + 0.5) {
     return orientation === "image"
