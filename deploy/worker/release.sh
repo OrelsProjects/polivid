@@ -28,7 +28,7 @@ sudo -u polivid -H env DATABASE_URL="postgresql://build@localhost:5432/build" \
   npm ci --include=dev --no-audit --no-fund --prefix "$RELEASE"
 
 log "Downloading the headless browser for Remotion"
-sudo -u polivid -H bash -c "cd '$RELEASE' && npx --no-install remotion browser ensure"
+sudo -u polivid -H bash -c "cd '$RELEASE' && node -e \"require('@remotion/renderer').ensureBrowser().then(() => console.log('Browser ready'))\""
 
 log "Checking the worker loads"
 sudo -u polivid -H bash -c "cd '$RELEASE' && set -a && . /etc/polivid/worker.env && set +a && node_modules/.bin/tsx --require ./scripts/server-only-stub.cjs scripts/worker.ts --dry-run"
