@@ -18,7 +18,9 @@ log "Fetching the environment"
 chgrp polivid /etc/polivid
 chmod 750 /etc/polivid
 umask 077
-aws ssm get-parameter --region "$REGION" --name "$ENV_PARAM" --with-decryption --query Parameter.Value --output text > /etc/polivid/worker.env.new
+# The snap-packaged AWS CLI writes nothing when its output is redirected straight to a file, so pipe it.
+aws ssm get-parameter --region "$REGION" --name "$ENV_PARAM" --with-decryption --query Parameter.Value --output text | cat > /etc/polivid/worker.env.new
+[[ -s /etc/polivid/worker.env.new ]] || { echo "The worker env came back empty."; exit 1; }
 chown root:polivid /etc/polivid/worker.env.new
 chmod 640 /etc/polivid/worker.env.new
 mv /etc/polivid/worker.env.new /etc/polivid/worker.env
