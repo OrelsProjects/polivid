@@ -26,7 +26,7 @@ const pngFromDataUrl = (value: string) => {
   return { mime: match[1], bytes: Buffer.from(match[2], "base64") };
 };
 
-const bytesFromImage = async (image: { b64_json?: string; url?: string } | undefined) => {
+export const bytesFromImage = async (image: { b64_json?: string; url?: string } | undefined) => {
   if (image?.b64_json) {
     const fromUrl = pngFromDataUrl(image.b64_json.startsWith("data:") ? image.b64_json : `data:image/png;base64,${image.b64_json}`);
     if (fromUrl) return fromUrl;
