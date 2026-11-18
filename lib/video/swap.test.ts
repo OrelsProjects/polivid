@@ -56,12 +56,12 @@ test("ultra swaps at 1080p and the other tiers at 720p", () => {
   }
 });
 
-test("a swap takes 3 seconds to 2 minutes; past one task's limit it is split, not refused", () => {
+test("a swap takes 3 to 10 seconds for now; a longer video is cut down in the clip editor", () => {
+  assert.equal(MAX_SWAP_TOTAL_SECONDS, 10);
   assert.match(swapLengthProblem(2.4) ?? "", /at least 3 seconds/);
   assert.equal(swapLengthProblem(3), null);
-  assert.equal(swapLengthProblem(31), null);
-  assert.equal(swapLengthProblem(MAX_SWAP_TOTAL_SECONDS), null);
-  assert.match(swapLengthProblem(MAX_SWAP_TOTAL_SECONDS + 5) ?? "", /up to 2 minutes/);
+  assert.equal(swapLengthProblem(10), null);
+  assert.match(swapLengthProblem(22.8) ?? "", /up to 10 seconds for now\. Cut your video/);
   assert.equal(swapPartLimit("moves", "video"), 30);
   assert.equal(swapPartLimit("moves", "image"), 10);
   assert.equal(swapPartLimit("replace"), 15);
@@ -133,7 +133,6 @@ test("the Create form sends a swap with its video and character, and no footage 
 
 test("replacing in a video works from 3 seconds, and the model records the method", () => {
   assert.equal(swapLengthProblem(7), null);
-  assert.equal(swapLengthProblem(22.8), null);
   assert.match(swapLengthProblem(2) ?? "", /at least 3 seconds/);
   assert.equal(swapModelFor("replace"), SWAP_EDIT_MODEL);
   assert.equal(swapModelFor("moves"), SWAP_MODEL);
@@ -228,8 +227,8 @@ test("a split point moves to a nearby scene cut, and parts stay within 3 seconds
   }
 });
 
-test("the form says when a video is swapped in parts", () => {
-  assert.match(swapSplitNote(22.8, "replace") ?? "", /22\.8 seconds.*2 parts and joined back/);
-  assert.equal(swapSplitNote(12, "replace"), null);
-  assert.equal(swapSplitNote(22.8, "moves"), null);
+test("no split note while every swap fits one task", () => {
+  // Parts start past 15 seconds, and swaps stop at 10 for now.
+  assert.equal(swapSplitNote(10, "replace"), null);
+  assert.equal(swapSplitNote(22.8, "replace"), null);
 });

@@ -20,11 +20,11 @@ export const isSwapMethod = (value: unknown): value is SwapMethod =>
 export const SWAP_METHOD_LABELS: Record<SwapMethod, { title: string; detail: string }> = {
   replace: {
     title: "Replace in video",
-    detail: "Keeps your video and swaps in your character. Longer than 15 seconds is done in parts and joined.",
+    detail: "Keeps your video and swaps in your character. Up to 10 seconds; cut a longer video first.",
   },
   moves: {
     title: "Copy the moves",
-    detail: "A new clip of your character doing the video's moves. Longer than 30 seconds is done in parts and joined.",
+    detail: "A new clip of your character doing the video's moves. Up to 10 seconds; cut a longer video first.",
   },
 };
 
@@ -53,8 +53,11 @@ export const MIN_SWAP_SECONDS = 3;
 export const MAX_SWAP_SECONDS: Record<SwapOrientation, number> = { video: 30, image: 10 };
 /** Kling 3.0 Omni edits videos up to this long in one go. */
 export const MAX_SWAP_EDIT_SECONDS = 15;
-/** A longer video is swapped in parts and joined back, up to this long in all. */
-export const MAX_SWAP_TOTAL_SECONDS = 120;
+/**
+ * The longest swap for now. People cut a longer upload down to this in the clip editor. Parts and joining
+ * still work above it (each Kling task takes up to 15 or 30 seconds), so raising it is a one-line change.
+ */
+export const MAX_SWAP_TOTAL_SECONDS = 10;
 /** A split point moves to a scene cut this close to it, so the join hides inside a cut. */
 const SCENE_SNAP_SECONDS = 2.5;
 
@@ -128,7 +131,7 @@ export const swapLengthProblem = (sourceSeconds: number) => {
     return `The video needs to be at least ${MIN_SWAP_SECONDS} seconds.`;
   }
   if (sourceSeconds > MAX_SWAP_TOTAL_SECONDS + 0.5) {
-    return `Use a video up to ${MAX_SWAP_TOTAL_SECONDS / 60} minutes long. Trim it and try again.`;
+    return `Character swap takes up to ${MAX_SWAP_TOTAL_SECONDS} seconds for now. Cut your video to ${MAX_SWAP_TOTAL_SECONDS} seconds or less.`;
   }
   return null;
 };

@@ -41,6 +41,8 @@ import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
 import {
   DEFAULT_SWAP_METHOD,
   DEFAULT_SWAP_ORIENTATION,
+  MAX_SWAP_TOTAL_SECONDS,
+  MIN_SWAP_SECONDS,
   swapEditShapeProblem,
   swapModelFor,
   swapLengthProblem,
@@ -68,6 +70,7 @@ import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
 import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
+import { clipRangesProblem, keepsEverything, keptSeconds, type ClipRange } from "@/lib/video/clip-edit";
 
 export { CreateVideoSchema, type CreateVideoInput } from "@/lib/video/create-schema";
 
@@ -129,6 +132,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       orientation: parsed.data.orientation ?? DEFAULT_SWAP_ORIENTATION,
       keepSound: parsed.data.keepSound !== false,
       characterVoice: parsed.data.characterVoice !== false,
+      mediaRanges: parsed.data.mediaRanges,
       characterId: parsed.data.characterId,
       characterLookId: parsed.data.characterLookId,
       pictureKey: parsed.data.referenceKeys?.[0] ?? parsed.data.referenceKey,
@@ -559,6 +563,8 @@ const queueSwap = async (
     orientation: SwapOrientation;
     keepSound: boolean;
     characterVoice: boolean;
+    /** The parts of the upload to use, from the clip editor. */
+    mediaRanges: ClipRange[] | undefined;
     characterId: string;
     characterLookId: string | undefined;
     pictureKey: string | undefined;
@@ -568,6 +574,7 @@ const queueSwap = async (
   const picture = await swapPicture(userId, input);
   let seconds: number;
   let format: VideoFormat;
+  let ranges: ClipRange[] | undefined;
   try {
     const probe = await probeUpload(userId, input.key);
     if (!probe.hasVideo || !(probe.durationSec > 0)) throw new Error("no picture");
@@ -580,6 +587,12 @@ const queueSwap = async (
     if (shape) throw new CreateVideoError(shape, 400);
     seconds = probe.durationSec;
     format = closestFormat(probe.width, probe.height);
+    if (input.mediaRanges && !keepsEverything(input.mediaRanges, probe.durationSec)) {
+      const cut = clipRangesProblem(input.mediaRanges, probe.durationSec, MIN_SWAP_SECONDS, MAX_SWAP_TOTAL_SECONDS);
+      if (cut) throw new CreateVideoError(cut, 400);
+      ranges = input.mediaRanges.map(({ start, end }) => ({ start, end: Math.min(end, probe.durationSec) }));
+      seconds = keptSeconds(ranges);
+    }
   } catch (error) {
     if (error instanceof CreateVideoError) throw error;
     console.error("Could not read the upload for a character swap", error);
@@ -587,7 +600,7 @@ const queueSwap = async (
   }
   const problem = swapLengthProblem(seconds);
   if (problem) throw new CreateVideoError(problem, 400);
-  // A long video is swapped in parts and joined back, so every second is used and billed.
+  // Every second kept is used and billed.
   const length = Math.max(MIN_VIDEO_LENGTH, swapSeconds(seconds));
   const resolution = swapResolutionFor(input.tier);
   try {
@@ -609,6 +622,7 @@ const queueSwap = async (
       orientation: input.method === "moves" ? input.orientation : undefined,
       keepSound: input.keepSound,
       characterVoice: input.characterVoice,
+      mediaRanges: ranges,
       showText: false,
       creditsHeld: credits,
     });

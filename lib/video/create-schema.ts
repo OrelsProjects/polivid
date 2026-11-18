@@ -7,6 +7,7 @@ import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LOOP_LENGTH, VISUAL_MEDIA } from "@/lib/video/stills";
 import { SWAP_METHODS, SWAP_ORIENTATIONS } from "@/lib/video/swap";
 import { ATTACHMENT_ROLES, MAX_BRIEF_LINE, MAX_DIRECTOR_LINE } from "@/lib/video/shot-plan";
+import { MAX_CLIP_RANGES } from "./clip-edit";
 import {
   MAX_LYRICS_NOTE,
   MAX_LYRICS_REFERENCES,
@@ -53,6 +54,11 @@ export const CreateVideoSchema = z.object({
   swapMethod: z.enum(SWAP_METHODS).optional(),
   /** Character swap, copying the moves: follow the video's framing, or keep the picture's. */
   orientation: z.enum(SWAP_ORIENTATIONS).optional(),
+  /** The parts of the uploaded video to use, in order, from the clip editor. Left out uses all of it. */
+  mediaRanges: z
+    .array(z.object({ start: z.number().min(0).max(3600), end: z.number().positive().max(3600) }))
+    .max(MAX_CLIP_RANGES)
+    .optional(),
   /** Character swap: keep the uploaded video's sound. Defaults to true. */
   keepSound: z.boolean().optional(),
   /** Character swap: re-voice the speech in the character's voice. Defaults to true; needs the character to have a voice. */

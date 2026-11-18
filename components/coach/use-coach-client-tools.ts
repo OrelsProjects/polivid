@@ -56,6 +56,7 @@ export const useCoachClientTools = (
           model: "wan",
           tier: typeof input.tier === "string" && isVideoTier(input.tier) ? input.tier : "pro",
           mediaKey: typeof input.mediaKey === "string" && input.mediaKey ? input.mediaKey : attachedFile,
+          mediaRanges: null,
           referenceKeys,
           showText: true,
           presetId: typeof input.presetId === "string" ? input.presetId : "auto",

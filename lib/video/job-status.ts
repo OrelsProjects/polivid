@@ -130,6 +130,8 @@ export interface JobInputFields {
   keepSound: boolean;
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice: boolean;
+  /** The parts of the uploaded video to use, from the clip editor. Empty uses all of it. */
+  mediaRanges: { start: number; end: number }[];
   /** Built-in clip behind a loop video. */
   backgroundId: string;
   /** The person's own clip behind a loop video. */
@@ -187,6 +189,7 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   orientation: "",
   keepSound: true,
   characterVoice: true,
+  mediaRanges: [],
   backgroundId: "",
   backgroundKey: "",
   verbatim: false,
@@ -238,6 +241,13 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const orientation = record.orientation === "video" || record.orientation === "image" ? record.orientation : "";
   const keepSound = record.keepSound !== false;
   const characterVoice = record.characterVoice !== false;
+  const mediaRanges = Array.isArray(record.mediaRanges)
+    ? record.mediaRanges
+        .filter((range): range is { start: number; end: number } =>
+          Boolean(range) && typeof range === "object" && typeof (range as { start?: unknown }).start === "number" && typeof (range as { end?: unknown }).end === "number",
+        )
+        .map(({ start, end }) => ({ start, end }))
+    : [];
   const backgroundId = typeof record.backgroundId === "string" ? record.backgroundId : "";
   const backgroundKey = typeof record.backgroundKey === "string" ? record.backgroundKey : "";
   const verbatim = record.verbatim === true;
@@ -305,6 +315,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
     orientation,
     keepSound,
     characterVoice,
+    mediaRanges,
     backgroundId,
     backgroundKey,
     verbatim,

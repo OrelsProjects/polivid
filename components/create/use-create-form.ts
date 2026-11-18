@@ -1,7 +1,8 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { ClipRange } from "@/lib/video/clip-edit";
 import { clearCreateDraft, readCreateDraft, writeCreateDraft } from "@/lib/video/create-draft";
 import { generationModelById, generationModelBySlug, type GenerationModelId } from "@/lib/video/models";
 import { DEFAULT_BACKGROUND_ID } from "@/lib/video/backgrounds";
@@ -96,7 +97,16 @@ export function useCreateForm({
     modelFromUrl ?? (tierModel && models.includes(tierModel) ? tierModel : defaultModel),
   );
   const [tier, setTier] = useState<VideoTier>(startTier);
-  const [mediaKey, setMediaKey] = useState<string | null>(null);
+  const [mediaKey, setMediaKeyState] = useState<string | null>(null);
+  /** The parts of the upload to use, from the clip editor. Picking another file starts uncut. */
+  const [mediaRanges, setMediaRanges] = useState<ClipRange[] | null>(null);
+  const setMediaKey = useCallback(
+    (next: string | null) => {
+      if (next !== mediaKey) setMediaRanges(null);
+      setMediaKeyState(next);
+    },
+    [mediaKey],
+  );
   const [referenceKeys, setReferenceKeys] = useState<string[]>([]);
   const [showText, setShowText] = useState(defaults?.showText ?? true);
   const [presetId, setPresetId] = useState(startPreset);
@@ -129,7 +139,10 @@ export function useCreateForm({
       }
       if (!modelFromUrl && models.includes(draft.model)) setModel(draft.model);
       if (!tierFromUrl) setTier(draft.tier);
-      if (draft.mediaKey) setMediaKey(draft.mediaKey);
+      if (draft.mediaKey) {
+        setMediaKeyState(draft.mediaKey);
+        setMediaRanges(draft.mediaRanges);
+      }
       if (draft.referenceKeys.length > 0) setReferenceKeys(draft.referenceKeys);
       setShowText(draft.showText);
       if (draft.presetId && presetAllowed(draft.presetId, tool?.presets)) setPresetId(draft.presetId);
@@ -169,6 +182,7 @@ export function useCreateForm({
         model,
         tier,
         mediaKey,
+        mediaRanges,
         referenceKeys,
         showText,
         presetId,
@@ -197,6 +211,7 @@ export function useCreateForm({
     model,
     tier,
     mediaKey,
+    mediaRanges,
     referenceKeys,
     showText,
     presetId,
@@ -245,6 +260,8 @@ export function useCreateForm({
     tier,
     mediaKey,
     setMediaKey,
+    mediaRanges,
+    setMediaRanges,
     referenceKeys,
     setReferenceKeys,
     showText,

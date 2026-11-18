@@ -11,6 +11,7 @@ import { readJobInput } from "@/lib/video/job-status";
 import { stillPictureCount } from "@/lib/video/script-markup";
 import { probeUpload } from "@/lib/video/compose/upload-file";
 import { swapCredits, swapResolutionFor } from "@/lib/video/swap";
+import { keptSeconds, type ClipRange } from "@/lib/video/clip-edit";
 
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -26,7 +27,9 @@ export const lookupCredits = async (userId: string, name: string, input: Record<
     if (!key) return null;
     const probe = await probeUpload(userId, key);
     if (!probe.hasVideo || !(probe.durationSec > 0)) return null;
-    return swapCredits(probe.durationSec, swapResolutionFor(text(input.tier) || undefined));
+    const keep = Array.isArray(input.keep) ? (input.keep as ClipRange[]) : null;
+    const seconds = keep && keep.length > 0 ? keptSeconds(keep) : probe.durationSec;
+    return swapCredits(seconds, swapResolutionFor(text(input.tier) || undefined));
   }
   if (name === "retry_video") {
     const id = text(input.videoId);

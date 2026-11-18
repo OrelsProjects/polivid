@@ -23,6 +23,8 @@ export interface JobInput {
   keepSound?: boolean;
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice?: boolean;
+  /** The parts of the uploaded video to use, from the clip editor. */
+  mediaRanges?: { start: number; end: number }[];
   /** Built-in clip behind a `loop` video. */
   backgroundId?: string;
   /** The person's own uploaded clip behind a `loop` video. */

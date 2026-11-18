@@ -429,7 +429,7 @@ Use when:
 - method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.
 - method moves makes a new clip of the character doing the video's moves. The scene is not kept.
 - Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.
-- Lengths: 3s to 2 minutes. A video longer than one Kling task (replace 15s, moves 30s, or 10s with image orientation) is swapped in parts, split on its own scene cuts where it can, and joined back into one video. The price follows the whole length. Its sound is kept unless keepSound is false.
+- Lengths: 3 to 10 seconds for now. For a longer video, pass keep with the parts to use (they are joined in order); ask the person which part they want if it isn't clear. The price follows the seconds used. Its sound is kept unless keepSound is false.
 
 Don't use when:
 - They want a new clip made from a description. Use make_prompt_video.
@@ -447,6 +447,7 @@ Inputs:
 | method | no | replace edits their video and swaps in the character (15s per part). moves makes a new clip of the character doing the video's moves (30s per part). Longer videos are done in parts and joined. Defaults to replace. |
 | prompt | no | For replace: what to replace, naming the character, e.g. 'Replace the monkey with Greg'. Empty replaces the main person. For moves: optional wardrobe or style notes. |
 | orientation | no | moves only. video follows the video's framing, 30s per part. image keeps the picture's framing, 10s per part. Defaults to video. |
+| keep | no | Parts of the video to use, in seconds, in order and not overlapping, e.g. [{"start": 2, "end": 9}]. They are joined into one clip. Use it to cut a longer video down: together they must be 3 to 10 seconds. Leave it out to use the whole video. |
 | keepSound | no | Keep the video's own sound. Defaults to true. |
 | characterVoice | no | Re-voice the speech in the video in the character's own voice, keeping the words and timing. Defaults to true. Needs the character to have a voice and keepSound to be true. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |

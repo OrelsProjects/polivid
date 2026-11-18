@@ -382,7 +382,7 @@ export const makeTools = [
       "method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.",
       "method moves makes a new clip of the character doing the video's moves. The scene is not kept.",
       "Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.",
-      `Lengths: ${MIN_SWAP_SECONDS}s to ${MAX_SWAP_TOTAL_SECONDS / 60} minutes. A video longer than one Kling task (replace ${MAX_SWAP_EDIT_SECONDS}s, moves ${MAX_SWAP_SECONDS.video}s, or ${MAX_SWAP_SECONDS.image}s with image orientation) is swapped in parts, split on its own scene cuts where it can, and joined back into one video. The price follows the whole length. Its sound is kept unless keepSound is false.`,
+      `Lengths: ${MIN_SWAP_SECONDS} to ${MAX_SWAP_TOTAL_SECONDS} seconds for now. For a longer video, pass keep with the parts to use (they are joined in order); ask the person which part they want if it isn't clear. The price follows the seconds used. Its sound is kept unless keepSound is false.`,
     ],
     avoidWhen: [
       "They want a new clip made from a description. Use make_prompt_video.",
@@ -412,6 +412,11 @@ export const makeTools = [
         .enum(SWAP_ORIENTATIONS)
         .optional()
         .describe("moves only. video follows the video's framing, 30s per part. image keeps the picture's framing, 10s per part. Defaults to video."),
+      keep: z
+        .array(z.object({ start: z.number().min(0), end: z.number().positive() }))
+        .max(20)
+        .optional()
+        .describe(`Parts of the video to use, in seconds, in order and not overlapping, e.g. [{"start": 2, "end": 9}]. They are joined into one clip. Use it to cut a longer video down: together they must be ${MIN_SWAP_SECONDS} to ${MAX_SWAP_TOTAL_SECONDS} seconds. Leave it out to use the whole video.`),
       keepSound: z.boolean().optional().describe("Keep the video's own sound. Defaults to true."),
       characterVoice: z
         .boolean()

@@ -52,6 +52,8 @@ export interface CreateFormValues {
   swapMethod?: SwapMethod;
   /** Character swap: re-voice the speech in the character's voice. Left out means yes. */
   characterVoice?: boolean;
+  /** The parts of the upload to use, from the clip editor. Left out uses all of it. */
+  mediaRanges?: { start: number; end: number }[] | null;
 }
 
 export interface ApprovedPlan {
@@ -126,6 +128,7 @@ export const buildCreateBody = (input: {
       ...(values.characterLookId ? { characterLookId: values.characterLookId } : {}),
       ...(values.swapMethod ? { swapMethod: values.swapMethod } : {}),
       ...(values.characterVoice === false ? { characterVoice: false } : {}),
+      ...(values.mediaRanges && values.mediaRanges.length > 0 ? { mediaRanges: values.mediaRanges } : {}),
     };
   }
 

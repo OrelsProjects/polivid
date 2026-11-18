@@ -56,6 +56,7 @@ import {
 } from "./swap";
 import { swapEditVideoUrl, swapPictureUrl } from "./compose/swap-source";
 import { revoiceVideo } from "./compose/swap-voice";
+import { cutUpload } from "./compose/clip-cut";
 import { planSwapParts, swapPartKey, swapPartTaskSeconds, swapPartUrls } from "./compose/swap-parts";
 import { WORKER_HANDOFF } from "@/lib/jobs/dispatch";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
@@ -405,11 +406,13 @@ const SWAP_LINK_SECONDS = 2 * 60 * 60;
  * twice, so a restart does not pay for a second swap.
  */
 const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
-  const videoKey = input.mediaKey;
+  const uploadKey = input.mediaKey;
   const pictureKey = input.referenceKeys?.find((key) => isImageKey(key));
-  if (!videoKey || !pictureKey) throw new Error("This character swap is missing its video or its picture.");
+  if (!uploadKey || !pictureKey) throw new Error("This character swap is missing its video or its picture.");
   if (!hasKlingKey()) throw new Error("Character swap isn't set up on this server.");
   if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
+  // A video cut in the clip editor is cut here first; the swap then reads the cut like any upload.
+  const videoKey = input.mediaRanges?.length ? await cutUpload(userId, jobId, uploadKey, input.mediaRanges) : uploadKey;
   const method = swapMethodForModel(input.model);
   const orientation = isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION;
   if (swapPartCount(input.length, method, orientation) > 1) {
@@ -1347,6 +1350,7 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   orientation: input.orientation || undefined,
   keepSound: input.keepSound,
   characterVoice: input.characterVoice,
+  mediaRanges: input.mediaRanges.length > 0 ? input.mediaRanges : undefined,
   backgroundId: input.backgroundId || undefined,
   backgroundKey: input.backgroundKey || undefined,
   tier: input.tier || undefined,

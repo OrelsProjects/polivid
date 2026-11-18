@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   RectangleHorizontal,
   RectangleVertical,
+  Scissors,
   Square,
   TriangleAlert,
 } from "lucide-react";
@@ -72,7 +73,19 @@ import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
 import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
 import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
-import { DEFAULT_SWAP_METHOD, SWAP_METHOD_LABELS, SWAP_METHODS, swapLengthProblem, swapSplitNote, type SwapMethod } from "@/lib/video/swap";
+import {
+  DEFAULT_SWAP_METHOD,
+  MAX_SWAP_TOTAL_SECONDS,
+  MIN_SWAP_SECONDS,
+  SWAP_METHOD_LABELS,
+  SWAP_METHODS,
+  swapLengthProblem,
+  swapSplitNote,
+  type SwapMethod,
+} from "@/lib/video/swap";
+import { clipClock, keptSeconds } from "@/lib/video/clip-edit";
+import { VideoCutter } from "@/components/create/video-cutter";
+import { uploadFileUrl } from "@/lib/storage/upload-key";
 import { useGetCharactersQuery } from "@/lib/store/endpoints/characters";
 
 const FORMATS: { value: VideoFormat; label: string; hint: string; icon: typeof Square }[] = [
@@ -156,6 +169,8 @@ export function Generator({
     tier,
     mediaKey,
     setMediaKey,
+    mediaRanges,
+    setMediaRanges,
     referenceKeys,
     setReferenceKeys,
     showText,
@@ -221,9 +236,21 @@ export function Generator({
   /** Character swap: the uploaded video sets the moves and the length, and a saved character takes the person's place. */
   const swap = videoMode?.engine === "swap";
   const [swapMethod, setSwapMethod] = useState<SwapMethod>(DEFAULT_SWAP_METHOD);
-  const swapDuration = useVideoDuration(swap ? mediaKey : null);
+  /** The uploaded video's own length. */
+  const swapSourceSeconds = useVideoDuration(swap ? mediaKey : null);
+  /** What the swap uses: the kept parts when the video was cut, else all of it. */
+  const swapDuration = swapSourceSeconds === null ? null : mediaRanges && mediaRanges.length > 0 ? keptSeconds(mediaRanges) : swapSourceSeconds;
   const swapProblem = swap && swapDuration !== null ? swapLengthProblem(swapDuration) : null;
   const swapNote = swap && swapDuration !== null ? swapSplitNote(swapDuration, swapMethod) : null;
+  const [cutterOpen, setCutterOpen] = useState(false);
+  /** The upload the cutter opened for by itself, so closing it doesn't make it pop up again. */
+  const [autoCutKey, setAutoCutKey] = useState<string | null>(null);
+  const tooLongToSwap = swap && mediaKey !== null && swapSourceSeconds !== null && swapSourceSeconds > MAX_SWAP_TOTAL_SECONDS + 0.05;
+  if (tooLongToSwap && !mediaRanges && autoCutKey !== mediaKey) {
+    // A video too long to swap opens the cutter once, right after it's picked.
+    setAutoCutKey(mediaKey);
+    setCutterOpen(true);
+  }
   /** Character swap: re-voice the speech in the character's own voice. Kling only changes the picture. */
   const [swapVoice, setSwapVoice] = useState(true);
   const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap });
@@ -520,6 +547,7 @@ export function Generator({
             op,
             opValue,
             swapMethod: swap ? swapMethod : undefined,
+            mediaRanges: swap ? mediaRanges : undefined,
             characterVoice: swap && swapCharacter?.hasVoice ? swapVoice : undefined,
           },
           usesVideoModel,
@@ -634,6 +662,40 @@ export function Generator({
           {uploadKind && (
             <div className="mt-3">
               <MediaUpload kind={uploadKind} mediaKey={mediaKey} onChange={setMediaKey} disabled={busy} />
+              {swap && mediaKey && swapSourceSeconds !== null ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                  {mediaRanges && mediaRanges.length > 0 ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                        <Scissors className="size-3.5" aria-hidden />
+                        Cut · {clipClock(keptSeconds(mediaRanges))} of {clipClock(swapSourceSeconds)}
+                      </span>
+                      <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setCutterOpen(true)}>
+                        Edit cut
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setMediaRanges(null)}>
+                        Use whole video
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setCutterOpen(true)}>
+                      <Scissors aria-hidden data-icon="inline-start" />
+                      Cut video
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+              {cutterOpen && swap && mediaKey && swapSourceSeconds !== null ? (
+                <VideoCutter
+                  src={uploadFileUrl(mediaKey)}
+                  duration={swapSourceSeconds}
+                  initialRanges={mediaRanges}
+                  minSeconds={MIN_SWAP_SECONDS}
+                  maxSeconds={MAX_SWAP_TOTAL_SECONDS}
+                  onSave={setMediaRanges}
+                  onClose={() => setCutterOpen(false)}
+                />
+              ) : null}
             </div>
           )}
           {swap ? (
@@ -665,6 +727,12 @@ export function Generator({
               className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
             >
               <span className="min-w-0 flex-1">{swapProblem}</span>
+              {swapSourceSeconds !== null && swapSourceSeconds >= MIN_SWAP_SECONDS ? (
+                <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setCutterOpen(true)}>
+                  <Scissors aria-hidden data-icon="inline-start" />
+                  Cut the video
+                </Button>
+              ) : null}
             </div>
           ) : swapNote ? (
             <p className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground" role="status">

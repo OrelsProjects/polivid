@@ -1,3 +1,4 @@
+import { MAX_CLIP_RANGES, type ClipRange } from "./clip-edit";
 import { isCharacterId } from "@/lib/voice/constants";
 import { backgroundById, DEFAULT_BACKGROUND_ID } from "./backgrounds";
 import { editValueFor, isEditOp, type EditOp } from "./edit-ops";
@@ -25,6 +26,8 @@ export interface CreateDraft {
   model: GenerationModelId;
   tier: VideoTier;
   mediaKey: string | null;
+  /** The parts of mediaKey to use, from the clip editor. Null uses all of it. */
+  mediaRanges: ClipRange[] | null;
   referenceKeys: string[];
   showText: boolean;
   presetId: string;
@@ -68,6 +71,16 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
     const model = isModelId(data.model) ? data.model : "wan";
     const tier = typeof data.tier === "string" && isVideoTier(data.tier) ? data.tier : "pro";
     const mediaKey = isUploadKey(data.mediaKey) ? data.mediaKey : null;
+    const savedRanges = Array.isArray(data.mediaRanges)
+      ? data.mediaRanges
+          .filter(
+            (range): range is ClipRange =>
+              Boolean(range) && typeof range === "object" && Number.isFinite((range as ClipRange).start) && Number.isFinite((range as ClipRange).end),
+          )
+          .map(({ start, end }) => ({ start, end }))
+          .slice(0, MAX_CLIP_RANGES)
+      : [];
+    const mediaRanges = mediaKey && savedRanges.length > 0 ? savedRanges : null;
     const referenceKeys = Array.isArray(data.referenceKeys)
       ? data.referenceKeys.filter(isUploadKey).slice(0, MAX_REFERENCE_IMAGES)
       : [];
@@ -95,6 +108,7 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       model,
       tier,
       mediaKey,
+      mediaRanges,
       referenceKeys,
       showText,
       presetId,
