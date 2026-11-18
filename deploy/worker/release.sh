@@ -15,6 +15,8 @@ log() { echo "[release $SHA] $*"; }
 chown -R polivid:polivid "$RELEASE"
 
 log "Fetching the environment"
+chgrp polivid /etc/polivid
+chmod 750 /etc/polivid
 umask 077
 aws ssm get-parameter --region "$REGION" --name "$ENV_PARAM" --with-decryption --query Parameter.Value --output text > /etc/polivid/worker.env.new
 chown root:polivid /etc/polivid/worker.env.new

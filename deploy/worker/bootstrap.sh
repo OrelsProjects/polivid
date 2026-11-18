@@ -37,6 +37,7 @@ fi
 id polivid >/dev/null 2>&1 || useradd --system --create-home --home-dir /home/polivid --shell /usr/sbin/nologin polivid
 mkdir -p /opt/polivid/releases /etc/polivid
 chown -R polivid:polivid /opt/polivid
+chgrp polivid /etc/polivid
 chmod 750 /etc/polivid
 
 cat > /etc/systemd/system/polivid-worker.service <<'UNIT'
