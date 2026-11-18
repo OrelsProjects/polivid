@@ -18,7 +18,7 @@ if (!out) {
 
 /** Only the website uses these. */
 const WEB_ONLY = [/^AUTH_GOOGLE_/, /^STRIPE_/];
-const DEFAULTS = { APP_PUBLIC_URL: "https://polivid.io" };
+const DEFAULTS = { APP_PUBLIC_URL: "https://www.polivid.ai" };
 /** The site checks asset links the worker signs, so the worker must sign with production's secret. */
 const MUST_MATCH_PRODUCTION = ["AUTH_SECRET", "APP_PUBLIC_URL"];
 
