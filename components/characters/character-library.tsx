@@ -1,12 +1,12 @@
 "use client";
 
 import { LoaderCircle, Pencil, Trash2, UserRound } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AudioPlayer } from "@/components/audio-player";
-import { CharacterEditor } from "@/components/characters/character-editor";
-import { HoverItem, useMotionSafe } from "@/components/motion/motion";
-import { Button } from "@/components/ui/button";
+import { NEW_CHARACTER_ID } from "@/components/characters/character-detail";
+import { HoverItem } from "@/components/motion/motion";
+import { Button, buttonVariants } from "@/components/ui/button";
 import type { CharacterSummary } from "@/lib/characters/types";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import {
@@ -41,16 +41,8 @@ export function CharacterLibrary() {
   const [previewVoice, { isLoading: previewing, originalArgs: previewArg }] = usePreviewCharacterVoiceMutation();
   const [deleteCharacter, { isLoading: deleting, originalArgs: deleteArg }] = useDeleteCharacterMutation();
   const [actionError, setActionError] = useState<string | null>(null);
-  const [editor, setEditor] = useState<"new" | CharacterSummary | null>(null);
   const [sample, setSample] = useState<{ id: string; url: string } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
-  const safe = useMotionSafe();
-  const viewMotion = {
-    initial: safe ? { opacity: 0, y: 8 } : false,
-    animate: { opacity: 1, y: 0 },
-    exit: safe ? { opacity: 0, transition: { duration: 0.12 } } : undefined,
-    transition: safe ? { duration: 0.24, ease: [0.22, 1, 0.36, 1] as const } : { duration: 0 },
-  };
   const previewId = previewing ? previewArg : null;
   const deletingId = deleting ? deleteArg : null;
   const error = actionError ?? (loadError ? apiErrorMessage(loadError, "Couldn't load your characters.") : null);
@@ -90,32 +82,12 @@ export function CharacterLibrary() {
   };
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      {editor ? (
-        <motion.div
-          key="editor"
-          {...viewMotion}
-        >
-          <CharacterEditor
-            character={editor === "new" ? null : editor}
-            onSaved={() => {
-              setEditor(null);
-              setActionError(null);
-            }}
-            onCancel={() => setEditor(null)}
-          />
-        </motion.div>
-      ) : (
-    <motion.div
-      key="library"
-      className="flex flex-col gap-6"
-      {...viewMotion}
-    >
+    <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">Your characters</h2>
-        <Button type="button" onClick={() => setEditor("new")}>
+        <Link href={`/characters/${NEW_CHARACTER_ID}`} className={buttonVariants()}>
           New character
-        </Button>
+        </Link>
       </div>
       {!characters && !loadError ? (
         <p className="text-sm text-muted-foreground">Loading characters…</p>
@@ -127,7 +99,10 @@ export function CharacterLibrary() {
         <ul className="grid gap-3 sm:grid-cols-2">
           {characters.map((character) => (
             <HoverItem key={character.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
-              <div className="flex items-start gap-3">
+              <Link
+                href={`/characters/${character.id}`}
+                className="flex items-start gap-3 rounded-xl focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
                 {character.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element -- character library thumbnail
                   <img src={character.imageUrl} alt="" className="size-16 rounded-xl object-cover" />
@@ -137,11 +112,11 @@ export function CharacterLibrary() {
                   </div>
                 )}
                 <div className="min-w-0">
-                  <p className="font-medium">{character.name}</p>
+                  <p className="font-medium transition-colors hover:text-primary">{character.name}</p>
                   <p className="text-xs text-muted-foreground">{character.hasImage ? voiceLabel(character) : "Add a picture"}</p>
                   <p className="text-xs text-muted-foreground">{libraryLabel(character)}</p>
                 </div>
-              </div>
+              </Link>
               <div className="flex flex-wrap items-center gap-2">
                 {character.hasVoice ? (
                   <Button
@@ -163,10 +138,14 @@ export function CharacterLibrary() {
                     )}
                   </Button>
                 ) : null}
-                <Button type="button" variant="outline" onClick={() => setEditor(character)} aria-label={`Edit ${character.name}`}>
+                <Link
+                  href={`/characters/${character.id}`}
+                  className={buttonVariants({ variant: "outline" })}
+                  aria-label={`Edit ${character.name}`}
+                >
                   <Pencil data-icon="inline-start" aria-hidden />
                   Edit
-                </Button>
+                </Link>
                 {pendingDelete === character.id ? (
                   <>
                     <Button
@@ -202,8 +181,6 @@ export function CharacterLibrary() {
           {error}
         </p>
       ) : null}
-    </motion.div>
-      )}
-    </AnimatePresence>
+    </div>
   );
 }
