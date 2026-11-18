@@ -8,18 +8,18 @@ import { DeleteVideoButton } from "@/components/delete-video-button";
 import { CopyButton } from "@/components/copy-button";
 import { NewProjectButton } from "@/components/editor/new-project-button";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RetryVideoMenu } from "@/components/retry-video-menu";
 import { VideoJobProgress } from "@/components/video/job-progress";
 import { VideoPlayer } from "@/components/video/video-player";
+import { DownloadAsMenu } from "@/components/video/download-as-menu";
 import { hasFootage } from "@/lib/video/footage";
 import { countStoredSegments } from "@/lib/video/jobs";
 import { getMyVideo, getMyVideoJob } from "@/lib/videos";
 import { domainOf, fillPlaceholders, formatDate, formatFact, formatValue } from "@/lib/video/format";
 import { generationModelBySlug, generationModelLabel } from "@/lib/video/models";
 import type { SceneType, VideoRecord } from "@/lib/video/schema";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Video" };
 
@@ -113,10 +113,7 @@ async function VideoDetail({ id }: { id: string }) {
             />
             <NewProjectButton videoId={video.id} label="Edit in editor" />
             {footageUrl ? (
-              <a href={footageUrl} download className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-12 rounded-xl")}>
-                <Download data-icon="inline-start" />
-                Download MP4
-              </a>
+              <DownloadAsMenu src={footageUrl} title={video.title} size="lg" />
             ) : (
               <Button variant="outline" size="lg" disabled className="h-12 rounded-xl" title="This video has no filmed clip">
                 <Download data-icon="inline-start" />

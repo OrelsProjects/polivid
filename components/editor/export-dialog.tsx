@@ -1,10 +1,11 @@
 "use client";
 
 import { skipToken } from "@reduxjs/toolkit/query";
-import { Download, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { DownloadAsMenu } from "@/components/video/download-as-menu";
 import { currentExportVideoId } from "@/lib/editor/export-mark";
 import { apiErrorMessage } from "@/lib/store/api-errors";
 import { useExportEditProjectMutation, useRememberEditExportMutation } from "@/lib/store/endpoints/editor";
@@ -20,16 +21,6 @@ import {
 } from "./editor-provider";
 
 const POLL_MS = 2000;
-
-const fileName = (title: string) => {
-  const cleaned = title.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
-  return `${cleaned.replace(/\.mp4$/i, "") || "edit"}.mp4`;
-};
-
-const downloadHref = (videoId: string, title: string) => {
-  const name = fileName(title);
-  return `/api/videos/${videoId}/file?download=1&name=${encodeURIComponent(name)}`;
-};
 
 export function ExportDialog() {
   const projectId = useEditorProjectId();
@@ -207,12 +198,7 @@ export function ExportDialog() {
                   Render again
                 </Button>
               )}
-              {!running && downloadId && (
-                <a href={downloadHref(downloadId, title)} download={fileName(title)} className={buttonVariants({ size: "sm" })}>
-                  <Download data-icon="inline-start" />
-                  Download
-                </a>
-              )}
+              {!running && downloadId && <DownloadAsMenu src={`/api/videos/${downloadId}/file`} title={title || "edit"} />}
               <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
                 Close
               </Button>
