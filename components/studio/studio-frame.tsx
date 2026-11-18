@@ -31,6 +31,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { CreditsPill } from "./studio-ui";
 
@@ -182,12 +183,7 @@ function Brand() {
       aria-label="PoliVid home"
       className={cn(PILL, "flex h-[52px] items-center gap-2.5 py-0 pr-4 pl-2 text-foreground")}
     >
-      <span
-        aria-hidden="true"
-        className="grid size-9 place-items-center rounded-[10px] bg-foreground text-[20px] font-bold text-background"
-      >
-        P
-      </span>
+      <LogoMark priority className="size-9 rounded-[10px]" />
       <span className="hidden text-[15px] font-semibold sm:inline">PoliVid</span>
     </Link>
   );
