@@ -136,6 +136,39 @@ export const swapEditConversion = (probe: { width: number | null; height: number
   return { width: nextWidth, height: nextHeight, fps: nextFps };
 };
 
+/** Kling takes reference pictures with sides of 300 pixels or more, between 1:2.5 and 2.5:1. */
+const PICTURE_MIN_RATIO = 0.4;
+const PICTURE_MAX_RATIO = 2.5;
+/** Under this the face comes out soft, so the picture is scaled up to PICTURE_TARGET_SIDE. */
+const PICTURE_SMALL_SIDE = 512;
+const PICTURE_TARGET_SIDE = 1024;
+const PICTURE_MAX_SIDE = 4096;
+
+/**
+ * How to fit a character picture to what Kling accepts, or null when it already fits.
+ * A small picture is scaled up so its short side is 1024. One too tall or too wide gets plain
+ * margins up to the nearest shape Kling takes, so nothing of the person is cropped.
+ * `width` and `height` are the scaled size; `canvasWidth` and `canvasHeight` include the margins.
+ * Sizes are even, because a 4:2:0 JPEG can't have odd sides.
+ */
+export const swapPictureConversion = (width: number | null, height: number | null) => {
+  if (!width || !height) return null;
+  const shortSide = Math.min(width, height);
+  const longSide = Math.max(width, height);
+  const tooSmall = shortSide < PICTURE_SMALL_SIDE;
+  const tooBig = longSide > PICTURE_MAX_SIDE;
+  const badShape = width / height < PICTURE_MIN_RATIO || width / height > PICTURE_MAX_RATIO;
+  if (!tooSmall && !tooBig && !badShape) return null;
+  const scale = Math.min(tooSmall ? PICTURE_TARGET_SIDE / shortSide : 1, PICTURE_MAX_SIDE / longSide);
+  const scaledWidth = even(width * scale);
+  const scaledHeight = even(height * scale);
+  const ratio = scaledWidth / scaledHeight;
+  // One pixel past the limit before rounding to even, so the shape lands inside it.
+  const canvasWidth = ratio < PICTURE_MIN_RATIO ? even(Math.ceil(scaledHeight * PICTURE_MIN_RATIO) + 1) : scaledWidth;
+  const canvasHeight = ratio > PICTURE_MAX_RATIO ? even(Math.ceil(scaledWidth / PICTURE_MAX_RATIO) + 1) : scaledHeight;
+  return { width: scaledWidth, height: scaledHeight, canvasWidth, canvasHeight };
+};
+
 /** Stored when the person wrote nothing. It is a title only. */
 export const SWAP_DEFAULT_PROMPT = "Character swap";
 

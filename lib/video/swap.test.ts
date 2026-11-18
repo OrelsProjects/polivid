@@ -20,6 +20,7 @@ import {
   swapEditDuration,
   swapEditPrompt,
   swapEditShapeProblem,
+  swapPictureConversion,
   swapMethodForModel,
   swapModelFor,
   swapMovesPrompt,
@@ -160,4 +161,32 @@ test("a small or slow video is scaled up before Kling edits it, and an odd shape
   assert.equal(swapEditConversion({ width: null, height: null, fps: null }), null);
   assert.equal(swapEditShapeProblem(1080, 1920), null);
   assert.match(swapEditShapeProblem(400, 1200) ?? "", /2:5 tall/);
+});
+
+test("character pictures are fitted to what Kling accepts", () => {
+  // Too narrow and too tall: scaled so the short side is 1024, then given side margins up to 1:2.5.
+  assert.deepEqual(swapPictureConversion(226, 627), { width: 1024, height: 2840, canvasWidth: 1138, canvasHeight: 2840 });
+  // Small but a fine shape: scaled up only.
+  assert.deepEqual(swapPictureConversion(189, 247), { width: 1024, height: 1338, canvasWidth: 1024, canvasHeight: 1338 });
+  // Big enough but too wide: margins above and below only.
+  assert.deepEqual(swapPictureConversion(3000, 900), { width: 3000, height: 900, canvasWidth: 3000, canvasHeight: 1202 });
+  // A huge picture is kept within 4096 on its long side.
+  const huge = swapPictureConversion(300, 5000);
+  assert.ok(huge && Math.max(huge.canvasWidth, huge.canvasHeight) <= 4096);
+  assert.ok(huge && huge.canvasWidth / huge.canvasHeight >= 0.4);
+  // Already fine, or size unknown: sent as is.
+  assert.equal(swapPictureConversion(1025, 1340), null);
+  assert.equal(swapPictureConversion(null, 600), null);
+});
+
+test("every fitted picture is within Kling's limits", () => {
+  for (const [w, h] of [[120, 900], [900, 120], [299, 299], [300, 1000], [4000, 500], [64, 64], [226, 627], [227, 631], [5001, 777]]) {
+    const fit = swapPictureConversion(w, h);
+    const width = fit?.canvasWidth ?? w;
+    const height = fit?.canvasHeight ?? h;
+    assert.ok(Math.min(width, height) >= 300, `${w}x${h} -> ${width}x${height} too small`);
+    assert.ok(width / height >= 0.4 && width / height <= 2.5, `${w}x${h} -> ${width}x${height} bad shape`);
+    if (fit) assert.ok([fit.width, fit.height, fit.canvasWidth, fit.canvasHeight].every((side) => side % 2 === 0), `${w}x${h} has an odd side`);
+    if (fit) assert.ok(fit.canvasWidth >= fit.width && fit.canvasHeight >= fit.height, `${w}x${h} canvas smaller than the picture`);
+  }
 });

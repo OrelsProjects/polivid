@@ -50,7 +50,7 @@ import {
   swapMovesPrompt,
   swapResolutionFor,
 } from "./swap";
-import { swapEditVideoUrl } from "./compose/swap-source";
+import { swapEditVideoUrl, swapPictureUrl } from "./compose/swap-source";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "./worker-support";
 
 /** One under the images band, so skipped script and image steps stay unchecked. */
@@ -397,7 +397,7 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   if (!taskId) {
     const replace = swapMethodForModel(input.model) === "replace";
     const [imageUrl, videoUrl, name] = await Promise.all([
-      signedGetUrl(pictureKey, SWAP_LINK_SECONDS),
+      swapPictureUrl(userId, jobId, pictureKey, SWAP_LINK_SECONDS),
       replace
         ? swapEditVideoUrl(userId, jobId, videoKey, SWAP_LINK_SECONDS)
         : signedGetUrl(videoKey, SWAP_LINK_SECONDS),
