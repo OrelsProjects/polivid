@@ -7,7 +7,7 @@ import { moreEditTools, timelineEditTools } from "./edit";
 import { editorTools } from "./editor";
 import { jobTools } from "./jobs";
 import { libraryTools } from "./library";
-import { makeTools } from "./make";
+import { layoutTools, makeTools } from "./make";
 import { navigateTools } from "./navigate";
 import { planTools } from "./plan";
 import { productionTools } from "./production";
@@ -15,6 +15,7 @@ import { productionTools } from "./production";
 /** Every tool, including legacy ones. Order is the catalog order. */
 export const TOOL_DEFS = [
   ...makeTools,
+  ...layoutTools,
   ...planTools,
   ...productionTools,
   ...assetTools,

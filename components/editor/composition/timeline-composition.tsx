@@ -2,6 +2,7 @@ import { AbsoluteFill, Sequence } from "remotion";
 import { assetById, type Timeline } from "@/lib/editor/schema";
 import { AudioLayer, ImageLayer, SceneLayer, TextLayer, VideoLayer } from "./item-layers";
 import { ItemTransition } from "./item-transition";
+import { useTimelineFonts } from "./use-fonts";
 
 export interface TimelineCompositionProps {
   timeline: Timeline;
@@ -9,6 +10,7 @@ export interface TimelineCompositionProps {
 }
 
 export function TimelineComposition({ timeline, assetUrls }: TimelineCompositionProps) {
+  useTimelineFonts(timeline.tracks.flatMap((track) => track.items.flatMap((item) => (item.kind === "text" ? [item.style.fontFamily] : []))));
   return (
     <AbsoluteFill style={{ background: "#0C1222" }}>
       {timeline.tracks.map((track) => {

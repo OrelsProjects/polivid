@@ -3,6 +3,8 @@ import { startProductionFromInput } from "@/lib/production/create-request";
 import { isCharacterId, OFF_VOICE_ID } from "@/lib/voice/constants";
 import type { ToolHandler } from "@/lib/tools/types";
 import type { VideoModeId } from "@/lib/video/modes";
+import { linkThreadVideo } from "@/lib/coach/store";
+import { LayoutRequestError, queueLayoutStyle } from "@/lib/video/layout/request";
 import { asRecord, queueModeVideo, toolError } from "./support";
 
 const modeHandler = (mode: VideoModeId): ToolHandler => async (input, ctx) => queueModeVideo(ctx, mode, asRecord(input));
@@ -14,6 +16,18 @@ export const makeMotionGraphicsHandler = modeHandler("motion-graphics");
 export const makeMusicVideoHandler = modeHandler("music");
 export const makeAvatarVideoHandler = modeHandler("avatar");
 export const makeUgcVideoHandler = modeHandler("ugc");
+
+export const applyLayoutStyleHandler: ToolHandler = async (input, ctx) => {
+  const row = asRecord(input);
+  try {
+    const { jobId, credits } = await queueLayoutStyle(ctx.userId, typeof row.videoId === "string" ? row.videoId : "", row);
+    if (ctx.threadId) await linkThreadVideo(ctx.userId, ctx.threadId, jobId);
+    return { jobId, credits, status: "queued" };
+  } catch (error) {
+    if (error instanceof LayoutRequestError) return { error: error.message };
+    return toolError(error, "Couldn't start that layout.");
+  }
+};
 export const makeImageVideoHandler = modeHandler("image");
 export const makeAvCutHandler = modeHandler("av-to-video");
 export const makeLyricsVideoHandler = modeHandler("lyrics");

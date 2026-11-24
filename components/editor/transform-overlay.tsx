@@ -1,7 +1,8 @@
 "use client";
 
 import { coverFrame } from "@/lib/editor/framing";
-import { assetById, findItem, hasTransform, type Asset, type FitMode, type Timeline } from "@/lib/editor/schema";
+import { insideRegion } from "@/lib/editor/layout-box";
+import { assetById, findItem, hasTransform, type Asset, type FitMode, type Region, type Timeline } from "@/lib/editor/schema";
 import { dimensionsFor } from "@/lib/video/schema";
 import { useEditorSelection, useEditorTimeline } from "./editor-provider";
 
@@ -10,12 +11,12 @@ type Box = { width: number; height: number };
 const TEXT_BOX: Box = { width: 80, height: 40 };
 const FULL_FRAME: Box = { width: 100, height: 100 };
 
-/** Size of the media's unscaled box as a percentage of the frame. */
-const mediaBox = (asset: Asset | null, fit: FitMode, timeline: Timeline): Box => {
+/** Size of the media's unscaled box as a percentage of the frame, or of its region when it has one. */
+const mediaBox = (asset: Asset | null, fit: FitMode, timeline: Timeline, region?: Region): Box => {
   if (fit === "cover" || !asset?.width || !asset.height) return FULL_FRAME;
   const frame = dimensionsFor(timeline.format);
   const mediaRatio = asset.width / asset.height;
-  const frameRatio = frame.width / frame.height;
+  const frameRatio = region ? (frame.width * region.w) / (frame.height * region.h) : frame.width / frame.height;
   if (mediaRatio > frameRatio) return { width: 100, height: (frameRatio / mediaRatio) * 100 };
   return { width: (mediaRatio / frameRatio) * 100, height: 100 };
 };
@@ -28,19 +29,22 @@ export function TransformOverlay() {
   if (!found || !hasTransform(found.item)) return null;
   const { item } = found;
   const { x, y, scale, rotation, fit } = item.kind === "video" ? coverFrame(item.transform) : item.transform;
-  const box = item.kind === "text" ? TEXT_BOX : mediaBox(assetById(timeline, item.assetId), fit, timeline);
+  const box = item.kind === "text" ? TEXT_BOX : mediaBox(assetById(timeline, item.assetId), fit, timeline, item.region);
   const width = box.width * scale;
   const height = box.height * scale;
+  // A clip in a region is moved and scaled inside its box, so the outline is placed in that box.
+  const region = item.kind === "text" ? undefined : item.region;
+  const outline = insideRegion(region, { left: 50 + x - width / 2, top: 50 + y - height / 2, width, height });
 
   return (
     <div className="pointer-events-none absolute inset-0" aria-hidden>
       <div
         className="absolute border-2 border-sky-400"
         style={{
-          left: `${50 + x - width / 2}%`,
-          top: `${50 + y - height / 2}%`,
-          width: `${width}%`,
-          height: `${height}%`,
+          left: `${outline.left}%`,
+          top: `${outline.top}%`,
+          width: `${outline.width}%`,
+          height: `${outline.height}%`,
           transform: `rotate(${rotation}deg)`,
         }}
       />

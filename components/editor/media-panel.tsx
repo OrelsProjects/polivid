@@ -1,7 +1,6 @@
 "use client";
 
 import { Type } from "lucide-react";
-import { useState } from "react";
 import { MediaUpload } from "@/components/media-upload";
 import { Button } from "@/components/ui/button";
 import { browserAssetUrl } from "@/lib/editor/asset-url";
@@ -17,17 +16,7 @@ import { framesFromSeconds } from "@/lib/editor/timecode";
 import type { LibraryVideo } from "@/lib/editor/types";
 import { newId, type Asset, type AssetKind } from "@/lib/editor/schema";
 import { isAudioKey, isVideoKey } from "@/lib/storage/upload-key";
-import { cn } from "@/lib/utils";
 import { useEditorActions, useEditorTimeline, useGetEditorPlayback } from "./editor-provider";
-
-type Tab = "uploads" | "videos" | "text" | "audio";
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: "uploads", label: "Uploads" },
-  { id: "videos", label: "Videos" },
-  { id: "text", label: "Text" },
-  { id: "audio", label: "Audio" },
-];
 
 const durationOf = (url: string, kind: "video" | "audio") =>
   new Promise<number>((resolve, reject) => {
@@ -51,14 +40,14 @@ const imageSize = (url: string) =>
     if (image.complete) succeed();
   });
 
-export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
-  const [tab, setTab] = useState<Tab>("uploads");
+/** Puts an upload or a library video on the timeline at the playhead. */
+const useAddMedia = () => {
   const timeline = useEditorTimeline();
   const getPlayback = useGetEditorPlayback();
   const actions = useEditorActions();
   const playheadFrame = () => getPlayback().playheadFrame;
 
-  const handleAddAsset = async (asset: Asset, kind: AssetKind) => {
+  const addAssetItem = (asset: Asset, kind: AssetKind) => {
     let next = addAsset(timeline, asset);
     if (kind === "video") next = addItem(next, createVideoItem(asset, playheadFrame()));
     if (kind === "image") next = addItem(next, createImageItem(asset, playheadFrame()));
@@ -66,7 +55,7 @@ export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
     actions.applyTimeline(next);
   };
 
-  const handleUploadKey = async (key: string | null, expected: AssetKind) => {
+  const addUpload = async (key: string | null, expected: AssetKind) => {
     if (!key) return;
     const asset: Asset = {
       id: newId(),
@@ -84,73 +73,69 @@ export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
         asset.width = size.width;
         asset.height = size.height;
       } else {
-        const seconds = await durationOf(url, expected);
-        asset.durationInFrames = framesFromSeconds(seconds);
+        asset.durationInFrames = framesFromSeconds(await durationOf(url, expected));
       }
     } catch {
       asset.durationInFrames = framesFromSeconds(3);
     }
-    await handleAddAsset(asset, expected);
+    addAssetItem(asset, expected);
   };
 
-  const handleLibraryVideo = (video: LibraryVideo) => {
-    const asset: Asset = {
-      id: newId(),
-      kind: "video",
-      source: { type: "video", videoId: video.id },
-      name: video.title,
-      durationInFrames: framesFromSeconds(video.length),
-      width: null,
-      height: null,
-    };
-    void handleAddAsset(asset, "video");
-  };
+  const addLibraryVideo = (video: LibraryVideo) =>
+    addAssetItem(
+      {
+        id: newId(),
+        kind: "video",
+        source: { type: "video", videoId: video.id },
+        name: video.title,
+        durationInFrames: framesFromSeconds(video.length),
+        width: null,
+        height: null,
+      },
+      "video",
+    );
 
+  const addTitle = () => actions.applyTimeline(addItem(timeline, createTextItem(playheadFrame())));
+
+  return { addUpload, addLibraryVideo, addTitle };
+};
+
+/** Uploads and finished videos, ready to drop on the timeline. */
+export function MediaSection({ videos }: { videos: LibraryVideo[] }) {
+  const { addUpload, addLibraryVideo } = useAddMedia();
+  const playable = videos.filter((video) => video.hasFootage);
   return (
-    <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card">
-      <div className="flex gap-1 border-b border-border p-2">
-        {TABS.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            aria-pressed={tab === entry.id}
-            onClick={() => setTab(entry.id)}
-            className={cn(
-              "flex-1 rounded-lg px-1.5 py-1 text-[11px] font-medium",
-              tab === entry.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            )}
-          >
-            {entry.label}
-          </button>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
-        {tab === "uploads" && (
-          <MediaUpload
-            kind="image"
-            librarySource="visual"
-            libraryLayout="inline"
-            label="Add picture or video"
-            hint="JPEG, PNG, WebP, MP4, or WebM"
-            mediaKey={null}
-            onChange={(key) => {
-              if (!key) return;
-              const kind = isVideoKey(key) ? "video" : isAudioKey(key) ? "audio" : "image";
-              void handleUploadKey(key, kind);
-            }}
-          />
-        )}
-        {tab === "videos" && (
-          <ul className="flex flex-col gap-1">
-            {videos.filter((video) => video.hasFootage).map((video) => (
+    <div className="flex flex-col gap-6">
+      <section className="flex flex-col gap-2">
+        <MediaUpload
+          kind="image"
+          librarySource="visual"
+          libraryLayout="inline"
+          label="Add picture or video"
+          hint="JPEG, PNG, WebP, MP4, or WebM"
+          mediaKey={null}
+          onChange={(key) => {
+            if (!key) return;
+            const kind = isVideoKey(key) ? "video" : isAudioKey(key) ? "audio" : "image";
+            void addUpload(key, kind);
+          }}
+        />
+      </section>
+      <section className="flex flex-col gap-2">
+        <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Your videos</h3>
+        {playable.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Finished videos show up here.</p>
+        ) : (
+          <ul className="grid grid-cols-2 gap-2">
+            {playable.map((video) => (
               <li key={video.id}>
                 <button
                   type="button"
-                  onClick={() => handleLibraryVideo(video)}
-                  className="flex w-full flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-muted"
+                  onClick={() => addLibraryVideo(video)}
+                  className="flex w-full flex-col items-start rounded-xl border border-border px-3 py-2 text-left transition hover:border-foreground/30 hover:bg-muted"
                 >
-                  <span className="truncate text-xs font-medium">{video.title}</span>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="line-clamp-2 text-xs font-medium">{video.title}</span>
+                  <span className="mt-0.5 text-[10px] text-muted-foreground">
                     {video.format} · {video.length}s
                   </span>
                 </button>
@@ -158,21 +143,27 @@ export function MediaPanel({ videos }: { videos: LibraryVideo[] }) {
             ))}
           </ul>
         )}
-        {tab === "text" && (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => actions.applyTimeline(addItem(timeline, createTextItem(playheadFrame())))}
-          >
-            <Type data-icon="inline-start" />
-            Add title
-          </Button>
-        )}
-        {tab === "audio" && (
-          <MediaUpload kind="audio" label="Add audio" hint="MP3 or WAV" mediaKey={null} onChange={(key) => void handleUploadKey(key, "audio")} />
-        )}
-      </div>
-    </aside>
+      </section>
+    </div>
   );
+}
+
+/** Titles. Captions have their own section. */
+export function TextSection() {
+  const { addTitle } = useAddMedia();
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">A title is added at the playhead. Select it on the timeline to change its words and look.</p>
+      <Button type="button" variant="outline" className="w-full" onClick={addTitle}>
+        <Type data-icon="inline-start" />
+        Add title
+      </Button>
+    </div>
+  );
+}
+
+/** Music, sound effects, and voice files. */
+export function AudioSection() {
+  const { addUpload } = useAddMedia();
+  return <MediaUpload kind="audio" label="Add audio" hint="MP3 or WAV" mediaKey={null} onChange={(key) => void addUpload(key, "audio")} />;
 }

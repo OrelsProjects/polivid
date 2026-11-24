@@ -26,7 +26,7 @@ export type FitMode = (typeof FIT_MODES)[number];
 export const TEXT_ALIGNS = ["left", "center", "right"] as const;
 export type TextAlign = (typeof TEXT_ALIGNS)[number];
 
-export const TEXT_ANIMATIONS = ["none", "fade", "slide"] as const;
+export const TEXT_ANIMATIONS = ["none", "fade", "slide", "pop"] as const;
 export type TextAnimationType = (typeof TEXT_ANIMATIONS)[number];
 
 export const AssetSourceSchema = z.discriminatedUnion("type", [
@@ -56,6 +56,28 @@ export const AssetSchema = z.object({
 });
 export type Asset = z.infer<typeof AssetSchema>;
 
+/**
+ * Where a picture or clip sits, as a box in percent of the frame: x and y are its top-left corner.
+ * The media covers that box and is clipped to it. Unset means the whole frame.
+ */
+export const RegionSchema = z.object({
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+  w: z.number().min(1).max(100),
+  h: z.number().min(1).max(100),
+});
+export type Region = z.infer<typeof RegionSchema>;
+
+/** The point of a picture or clip that stays in view when it is cropped, and that a zoom moves toward. Percent of the media. */
+export const FocusSchema = z.object({
+  x: z.number().min(0).max(100),
+  y: z.number().min(0).max(100),
+});
+export type Focus = z.infer<typeof FocusSchema>;
+
+/** Corner rounding of a region, in percent of its shorter side. 50 makes a circle of a square box. */
+export const RadiusSchema = z.number().min(0).max(50);
+
 export const TransformSchema = z.object({
   x: z.number(),
   y: z.number(),
@@ -71,6 +93,13 @@ export const TransitionSchema = z.object({
 });
 export type Transition = z.infer<typeof TransitionSchema>;
 
+/** A line drawn around each letter, in pixels of the finished frame. */
+export const TextOutlineSchema = z.object({
+  color: z.string().min(1),
+  width: z.number().min(0).max(20),
+});
+export type TextOutline = z.infer<typeof TextOutlineSchema>;
+
 export const TextStyleSchema = z.object({
   fontFamily: z.string().min(1),
   fontSize: z.number().min(8).max(400),
@@ -78,6 +107,30 @@ export const TextStyleSchema = z.object({
   color: z.string().min(1),
   background: z.string().nullable(),
   align: z.enum(TEXT_ALIGNS),
+  /** Shown in capitals. The text itself keeps its case. */
+  uppercase: z.boolean().optional(),
+  outline: TextOutlineSchema.optional(),
+  /** Corner rounding of the background, in pixels. A large value makes a pill. */
+  radius: z.number().min(0).max(400).optional(),
+  italic: z.boolean().optional(),
+  /** Extra space between letters, in pixels. */
+  letterSpacing: z.number().min(-10).max(40).optional(),
+  /** A CSS text-shadow, such as a soft glow or a hard drop shadow. */
+  shadow: z.string().max(200).optional(),
+  /** How the word being spoken stands out. Needs the caption's word timing; without it words are spread evenly. */
+  activeWord: z
+    .object({
+      color: z.string().min(1).optional(),
+      background: z.string().min(1).optional(),
+      /** 1 is unchanged. */
+      scale: z.number().min(0.5).max(2).optional(),
+    })
+    .optional(),
+  /**
+   * How words not yet spoken look: 0 hides them, so words appear as they are said; between 0 and 1
+   * dims them, like karaoke. Unset shows every word from the start.
+   */
+  upcomingOpacity: z.number().min(0).max(1).optional(),
 });
 export type TextStyle = z.infer<typeof TextStyleSchema>;
 
@@ -87,6 +140,31 @@ export const TextAnimationSchema = z.object({
 });
 export type TextAnimation = z.infer<typeof TextAnimationSchema>;
 
+export const CaptionWordSchema = z.object({
+  text: z.string().min(1).max(80),
+  from: z.number().int().min(0),
+  to: z.number().int().min(0),
+});
+export type CaptionWord = z.infer<typeof CaptionWordSchema>;
+
+export const TextHighlightSchema = z.object({
+  text: z.string().min(1).max(80),
+  color: z.string().min(1),
+});
+export type TextHighlight = z.infer<typeof TextHighlightSchema>;
+
+/**
+ * Marks the items a layout style placed for one beat, so the beat can be rearranged together.
+ * `name` is the layout of that beat, `role` what this item is in it. Items without it are left alone.
+ */
+export const LayoutTagSchema = z.object({
+  style: z.string().min(1).max(40),
+  beat: z.number().int().min(0),
+  name: z.string().min(1).max(40),
+  role: z.string().min(1).max(40),
+});
+export type LayoutTag = z.infer<typeof LayoutTagSchema>;
+
 const ItemBaseSchema = {
   id: z.string().min(1),
   from: z.number().int().min(0),
@@ -94,17 +172,6 @@ const ItemBaseSchema = {
   transitionIn: TransitionSchema.nullable(),
   transitionOut: TransitionSchema.nullable(),
 };
-
-export const VideoItemSchema = z.object({
-  ...ItemBaseSchema,
-  kind: z.literal("video"),
-  assetId: z.string().min(1),
-  trimStart: z.number().int().min(0),
-  volume: z.number().min(0).max(2),
-  transform: TransformSchema,
-  opacity: z.number().min(0).max(1),
-});
-export type VideoItem = z.infer<typeof VideoItemSchema>;
 
 export const IMAGE_MOTIONS = ["zoom-in", "zoom-out", "pan-left", "pan-right", "pan-up", "pan-down"] as const;
 export type ImageMotionKind = (typeof IMAGE_MOTIONS)[number];
@@ -116,6 +183,23 @@ export const ImageMotionSchema = z.object({
 });
 export type ImageMotion = z.infer<typeof ImageMotionSchema>;
 
+export const VideoItemSchema = z.object({
+  ...ItemBaseSchema,
+  kind: z.literal("video"),
+  assetId: z.string().min(1),
+  trimStart: z.number().int().min(0),
+  volume: z.number().min(0).max(2),
+  transform: TransformSchema,
+  opacity: z.number().min(0).max(1),
+  region: RegionSchema.optional(),
+  focus: FocusSchema.optional(),
+  radius: RadiusSchema.optional(),
+  /** A slow camera move over the clip, the same moves a still can make. */
+  motion: ImageMotionSchema.optional(),
+  layout: LayoutTagSchema.optional(),
+});
+export type VideoItem = z.infer<typeof VideoItemSchema>;
+
 export const ImageItemSchema = z.object({
   ...ItemBaseSchema,
   kind: z.literal("image"),
@@ -123,6 +207,10 @@ export const ImageItemSchema = z.object({
   transform: TransformSchema,
   opacity: z.number().min(0).max(1),
   motion: ImageMotionSchema.optional(),
+  region: RegionSchema.optional(),
+  focus: FocusSchema.optional(),
+  radius: RadiusSchema.optional(),
+  layout: LayoutTagSchema.optional(),
 });
 export type ImageItem = z.infer<typeof ImageItemSchema>;
 
@@ -153,6 +241,11 @@ export const TextItemSchema = z.object({
   transform: TransformSchema,
   animationIn: TextAnimationSchema,
   animationOut: TextAnimationSchema,
+  /** One word or phrase in the text drawn in a second color. */
+  highlight: TextHighlightSchema.optional(),
+  /** When each word is spoken, in frames from the start of this clip. Set on captions made from timed speech. */
+  words: z.array(CaptionWordSchema).max(200).optional(),
+  layout: LayoutTagSchema.optional(),
 });
 export type TextItem = z.infer<typeof TextItemSchema>;
 

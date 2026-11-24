@@ -4,6 +4,7 @@
  * paused → running resumes the clips that were not filmed.
  */
 
+import { readLayoutSettings, type LayoutJobSettings } from "./layout/styles";
 import type { ClipPreviewSlot } from "./clip-preview";
 import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES, MAX_REFERENCE_IMAGES } from "./schema";
 import { MAX_CUTS, type SongCut } from "@/lib/music/song-plan";
@@ -200,6 +201,8 @@ export interface JobInputFields {
   /** How a prompt video was divided. Empty outside prompt videos. */
   brief: PromptBrief;
   attachmentRoles: AttachmentAssignment[];
+  /** A layout-style job's settings. Null on every other job. */
+  layout: LayoutJobSettings | null;
 }
 
 const EMPTY_JOB_INPUT: JobInputFields = {
@@ -244,6 +247,7 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   clips: 0,
   brief: emptyPromptBrief(),
   attachmentRoles: [],
+  layout: null,
 };
 
 /** Prompt and settings stored on the job, with safe fallbacks for a bad payload. */
@@ -373,6 +377,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
     clips,
     brief: readBrief(record.brief),
     attachmentRoles: readAttachmentRoles(record.attachmentRoles),
+    layout: readLayoutSettings(record.layout),
   };
 };
 

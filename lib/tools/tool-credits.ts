@@ -24,6 +24,8 @@ export const LOOKUP_CREDIT_TOOLS = [
   "production_refilm_shot",
   // Priced by the uploaded video's length.
   "make_character_swap",
+  // Priced by the finished video's length.
+  "apply_layout_style",
 ] as const;
 
 const ONE_CREDIT_TOOLS = new Set([

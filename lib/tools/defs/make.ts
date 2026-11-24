@@ -29,6 +29,7 @@ import {
   visualDirectionField,
 } from "@/lib/tools/fields";
 import { VIDEO_MODE_IDS, VIDEO_TIERS } from "@/lib/video/modes";
+import { LAYOUT_MEDIA_ROLES, LAYOUT_STYLE_IDS } from "@/lib/video/layout/styles";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
 import {
@@ -582,6 +583,54 @@ export const makeTools = [
       {
         request: "A three-scene story about a night bus.",
         input: { text: "Three scenes on a night bus, two people, one decision.", format: "9:16", durationSec: 45, mode: "review" },
+      },
+    ],
+  }),
+];
+
+/** Applied to a finished video, so it is its own tool, not a Create mode. */
+export const layoutTools = [
+  defineTool({
+    name: "apply_layout_style",
+    title: "Apply a layout style",
+    category: "make",
+    summary:
+      "Re-edit a finished Talking Avatar or UGC video in a layout style, the way Shorts creators cut. Its own take is reused, so nothing is filmed again. Spends credits for the pictures it draws.",
+    whenToUse: [
+      "They have a finished Talking Avatar or UGC video and want it edited like a creator's Short: split screen, punch-ins, a bubble over a screenshot, and so on.",
+      "split-presenter: a picture on top and the speaker below, close-ups on the hook and the call to action.",
+      "Pass media for files they uploaded for it: role post or screenshot for pictures of a post or page, recording for a screen recording, picture for any other photo. Uploads are shown before anything is drawn, and each one lowers the price.",
+      "The result is a new video, linked to the original, that opens in the editor with every layer.",
+    ],
+    avoidWhen: [
+      "They want a new video. Use make_avatar_video or make_ugc_video first, then this.",
+      "The video is not a Talking Avatar or UGC video. Only those have one take of the speaker to cut.",
+    ],
+    inputSchema: z.object({
+      videoId: z.string().trim().uuid().describe("The finished Talking Avatar or UGC video to lay out."),
+      style: z.enum(LAYOUT_STYLE_IDS).describe("The layout style. Only split-presenter is ready now."),
+      media: z
+        .array(
+          z.object({
+            key: z.string().trim().min(1).max(200).describe("Upload key."),
+            role: z.enum(LAYOUT_MEDIA_ROLES).describe("post, screenshot, recording, or picture."),
+            note: z.string().trim().max(300).optional().describe("What it shows, in their words. Optional."),
+          }),
+        )
+        .max(12)
+        .optional()
+        .describe("Files they uploaded to show in the video. Omit when there are none."),
+      showText: z.boolean().optional().describe("Captions on or off. Defaults to on."),
+    }),
+    effects: { readOnly: false, spendsCredits: true, destructive: false, longRunning: true },
+    approval: "user",
+    runsOn: "server",
+    surfaces: ["coach", "mcp"],
+    approvalDetail: (input) => `layout · ${String(input.style ?? "")}${Array.isArray(input.media) && input.media.length ? ` · ${input.media.length} uploads` : ""}`,
+    examples: [
+      {
+        request: "Turn my last UGC video into a split-screen Short.",
+        input: { videoId: "929490c0-0f4b-4c91-a5b9-4fe5115e9480", style: "split-presenter" },
       },
     ],
   }),

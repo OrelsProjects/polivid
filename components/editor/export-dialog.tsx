@@ -1,7 +1,7 @@
 "use client";
 
 import { skipToken } from "@reduxjs/toolkit/query";
-import { LoaderCircle } from "lucide-react";
+import { ArrowUpRight, LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -156,8 +156,9 @@ export function ExportDialog() {
 
   return (
     <>
-      <Button type="button" size="sm" onClick={openExport} disabled={starting || pending}>
+      <Button type="button" size="sm" className="h-9 gap-1.5 rounded-xl px-4 font-semibold" onClick={openExport} disabled={starting || pending}>
         Export
+        <ArrowUpRight className="size-4" aria-hidden />
       </Button>
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">

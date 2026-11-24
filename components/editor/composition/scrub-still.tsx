@@ -5,10 +5,13 @@ export function ScrubStill({
   videoId,
   time,
   fit,
+  position,
 }: {
   videoId: string;
   time: number;
   fit: "cover" | "contain";
+  /** object-position, for a clip whose focus point is set. */
+  position?: string;
 }) {
   const [meta, setMeta] = useState<{ fps: number; count: number } | null>(null);
   const [src, setSrc] = useState<string | null>(null);
@@ -52,7 +55,7 @@ export function ScrubStill({
       src={src}
       alt=""
       draggable={false}
-      style={{ width: "100%", height: "100%", objectFit: fit }}
+      style={{ width: "100%", height: "100%", objectFit: fit, ...(position ? { objectPosition: position } : {}) }}
     />
   );
 }

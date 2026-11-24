@@ -156,6 +156,7 @@ export const editSetTransformHandler = planHandler("edit_set_transform");
 export const editStyleTextHandler = planHandler("edit_style_text");
 export const editStyleCaptionsHandler = planHandler("edit_style_captions");
 export const editRemoveCaptionsHandler = planHandler("edit_remove_captions");
+export const editCaptionPresetHandler = planHandler("edit_caption_preset");
 export const editSetAudioHandler = planHandler("edit_set_audio");
 export const editSetImageMotionHandler = planHandler("edit_set_image_motion");
 

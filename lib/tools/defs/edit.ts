@@ -1,3 +1,4 @@
+import { CAPTION_PRESETS } from "@/lib/editor/caption-presets";
 import { z } from "zod";
 import {
   AUDIO_ROLES,
@@ -33,6 +34,7 @@ export const BATCHABLE_EDITS = [
   "edit_style_text",
   "edit_style_captions",
   "edit_remove_captions",
+  "edit_caption_preset",
   "edit_set_audio",
   "edit_set_image_motion",
 ] as const;
@@ -262,7 +264,7 @@ const textStyleFields = () => ({
 const animationField = (description: string) =>
   z
     .object({
-      type: z.enum(TEXT_ANIMATIONS).describe("none, fade, or slide."),
+      type: z.enum(TEXT_ANIMATIONS).describe("none, fade, slide, or pop (scales up with a small bounce)."),
       seconds: z.number().min(0).max(3).optional().describe("Length of the animation."),
     })
     .optional()
@@ -421,6 +423,24 @@ export const moreEditTools = [
     summary: "Restyle every caption at once: font, size, color, box, position, animation. Free.",
     whenToUse: ["They want the captions bigger, higher, yellow, without a box, and so on."],
     inputSchema: z.object({ projectId: projectField(), ...textStyleFields() }),
+  }),
+  editTool({
+    name: "edit_caption_preset",
+    title: "Caption style preset",
+    summary: "Give every caption a ready-made look, like a creator's captions: font, colors, the spoken word lit up, words per line. Free.",
+    whenToUse: [
+      `They want the captions to look like a style: ${CAPTION_PRESETS.map((preset) => `${preset.id} (${preset.name})`).join(", ")}.`,
+      "yellow-pop, green-word, red-box, and impact light up each word as it is said. karaoke and sing-along dim the words still to come. word-reveal shows words as they are said. one-word shows one word at a time.",
+      "Timed captions are re-cut into lines of the preset's length. Other titles are left alone.",
+    ],
+    avoidWhen: [
+      "There are no captions yet. Use edit_add_captions first.",
+      "They want one part changed, like only the color or the size. Use edit_style_captions.",
+    ],
+    inputSchema: z.object({
+      projectId: projectField(),
+      presetId: z.enum(CAPTION_PRESETS.map((preset) => preset.id) as [string, ...string[]]).describe("The caption look."),
+    }),
   }),
   editTool({
     name: "edit_remove_captions",

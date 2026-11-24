@@ -10,6 +10,7 @@ import { TextInspector } from "./text-inspector";
 import { TransitionPicker } from "./transition-picker";
 import { VideoInspector } from "./video-inspector";
 
+/** The settings of the clip selected on the timeline. Shown in the editor's side panel. */
 export function InspectorPanel() {
   const timeline = useEditorTimeline();
   const selection = useEditorSelection();
@@ -17,11 +18,7 @@ export function InspectorPanel() {
   const found = selection ? findItem(timeline, selection.itemId) : null;
 
   if (!found) {
-    return (
-      <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-card p-4 text-sm text-muted-foreground">
-        Select a clip on the timeline to edit it.
-      </aside>
-    );
+    return <p className="text-sm text-muted-foreground">Select a clip on the timeline to edit it.</p>;
   }
 
   const { item, track } = found;
@@ -29,7 +26,7 @@ export function InspectorPanel() {
   const neighbor = neighbors.find((entry) => entry.from >= item.from) ?? neighbors.at(-1);
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border bg-card p-4">
+    <div className="flex flex-col gap-4">
       <div>
         <h2 className="text-sm font-semibold capitalize">{item.kind}</h2>
         <p className="text-xs text-muted-foreground">{track.name}</p>
@@ -66,6 +63,6 @@ export function InspectorPanel() {
       >
         Delete clip
       </Button>
-    </aside>
+    </div>
   );
 }

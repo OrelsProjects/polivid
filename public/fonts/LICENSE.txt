@@ -1,0 +1,13 @@
+These fonts are redistributed under the SIL Open Font License, Version 1.1
+(https://openfontlicense.org). Each font keeps its own copyright, held by its authors:
+
+- Montserrat — The Montserrat Project Authors (https://github.com/JulietaUla/Montserrat)
+- Poppins — Indian Type Foundry
+- Lexend — The Lexend Project Authors (https://github.com/googlefonts/lexend)
+- Bebas Neue — Dharma Type
+- Anton — The Anton Project Authors (https://github.com/googlefonts/AntonFont)
+- Playfair Display — The Playfair Project Authors (https://github.com/clauseggers/Playfair)
+- Bangers — Vernon Adams
+- Permanent Marker — Font Diner
+
+Only the Latin subset of each font, in WOFF2, is included. Fetched from Google Fonts.

@@ -59,6 +59,7 @@ const captionItems = (input: {
   captionChunks(input.say, input.frames).map((chunk, line) => ({
     id: `caption-${input.beat}-${line}`,
     kind: "text",
+    role: "caption",
     text: chunk.text,
     from: input.from + chunk.from,
     durationInFrames: chunk.frames,
@@ -265,6 +266,7 @@ export const buildCaptionedTimeline = (input: {
     captions.push({
       id: `caption-${index}`,
       kind: "text",
+      role: "caption",
       text: line.text.trim(),
       from,
       durationInFrames: until - from,

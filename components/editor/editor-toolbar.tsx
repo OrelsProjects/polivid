@@ -1,19 +1,24 @@
 "use client";
 
-import { ArrowLeft, Redo2, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, Cloud, CloudOff, Loader2, Monitor, Redo2, Smartphone, Square, Undo2, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { VIDEO_FORMATS } from "@/lib/video/schema";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { setFormat } from "@/lib/editor/operations";
-import { useRevertEditProjectMutation } from "@/lib/store/endpoints/editor";
 import { cn } from "@/lib/utils";
+import { VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
+import { LogoMark } from "@/components/logo";
 import {
   useEditorActions,
   useEditorCanRedo,
   useEditorCanUndo,
-  useEditorProjectId,
   useEditorSaveStatus,
-  useEditorSourceVideoId,
   useEditorTimeline,
   useEditorTitle,
 } from "./editor-provider";
@@ -27,73 +32,89 @@ const SAVE_LABEL = {
   error: "Couldn’t save",
 } as const;
 
+const FORMAT_ICON: Record<VideoFormat, LucideIcon> = { "9:16": Smartphone, "16:9": Monitor, "1:1": Square };
+const FORMAT_NAME: Record<VideoFormat, string> = { "9:16": "Vertical", "16:9": "Landscape", "1:1": "Square" };
+
 export function EditorToolbar() {
-  const projectId = useEditorProjectId();
-  const sourceVideoId = useEditorSourceVideoId();
   const saveStatus = useEditorSaveStatus();
   const canUndo = useEditorCanUndo();
   const canRedo = useEditorCanRedo();
   const title = useEditorTitle();
   const timeline = useEditorTimeline();
   const actions = useEditorActions();
-  const [revertProject] = useRevertEditProjectMutation();
-
-  const handleRevert = async () => {
-    if (!sourceVideoId) return;
-    const result = await revertProject(projectId);
-    if (result.data) actions.replaceProject(result.data);
-  };
+  const SaveIcon = saveStatus === "saving" ? Loader2 : saveStatus === "error" || saveStatus === "conflict" ? CloudOff : Cloud;
+  const FormatIcon = FORMAT_ICON[timeline.format];
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-4">
+      <Link href="/dashboard" aria-label="Home" className="shrink-0">
+        <LogoMark className="size-8" />
+      </Link>
       <Link
         href="/editor"
         aria-label="Back to edits"
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <ArrowLeft className="size-4" aria-hidden />
-        Back
+        <ChevronLeft className="size-4" aria-hidden />
       </Link>
-      <span className="h-5 w-px bg-border" aria-hidden />
       <input
         value={title}
         aria-label="Edit title"
         onChange={(event) => actions.setTitle(event.target.value)}
-        className="h-8 min-w-0 flex-1 rounded-lg border border-transparent px-2 text-sm font-medium outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-9 w-[min(28rem,40vw)] min-w-0 truncate rounded-lg border border-transparent px-2 text-[15px] font-semibold outline-none hover:border-border focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
       />
-      <span className="hidden text-xs text-muted-foreground sm:inline">{SAVE_LABEL[saveStatus]}</span>
-      <div className="flex items-center gap-1">
-        {VIDEO_FORMATS.map((format) => (
-          <Button
-            key={format}
-            type="button"
-            size="xs"
-            variant={timeline.format === format ? "default" : "ghost"}
-            aria-pressed={timeline.format === format}
-            aria-label={`Canvas ${format}`}
-            onClick={() => actions.applyTimeline(setFormat(timeline, format))}
-          >
-            {format}
-          </Button>
-        ))}
-      </div>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label="Undo" disabled={!canUndo} onClick={() => actions.undo()}>
-        <Undo2 />
-      </Button>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label="Redo" disabled={!canRedo} onClick={() => actions.redo()}>
-        <Redo2 />
-      </Button>
-      {sourceVideoId && (
-        <Button type="button" variant="outline" size="sm" onClick={() => void handleRevert()}>
-          Revert to original
+      <span
+        className={cn(
+          "hidden items-center gap-1.5 text-xs sm:flex",
+          saveStatus === "error" || saveStatus === "conflict" ? "text-destructive" : "text-muted-foreground",
+        )}
+        role={saveStatus === "conflict" ? "alert" : undefined}
+        title={saveStatus === "conflict" ? "This edit was saved in another tab. Reload to keep going." : undefined}
+      >
+        <SaveIcon className={cn("size-4", saveStatus === "saving" && "animate-spin")} aria-hidden />
+        {SAVE_LABEL[saveStatus]}
+      </span>
+
+      <div className="ml-auto flex items-center gap-1">
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Undo" disabled={!canUndo} onClick={() => actions.undo()}>
+          <Undo2 />
         </Button>
-      )}
-      <ExportDialog />
-      {saveStatus === "conflict" && (
-        <p className={cn("text-xs text-destructive")} role="alert">
-          This edit was saved in another tab. Reload to keep going.
-        </p>
-      )}
+        <Button type="button" variant="ghost" size="icon-sm" aria-label="Redo" disabled={!canRedo} onClick={() => actions.redo()}>
+          <Redo2 />
+        </Button>
+        <span className="mx-2 h-6 w-px bg-border" aria-hidden />
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            aria-label={`Canvas ${timeline.format}`}
+            className="flex h-9 cursor-pointer items-center gap-2 rounded-xl border border-border px-3 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <FormatIcon className="size-4" aria-hidden />
+            {timeline.format}
+            <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44 p-1">
+            <DropdownMenuRadioGroup
+              value={timeline.format}
+              onValueChange={(next) => {
+                if ((VIDEO_FORMATS as readonly string[]).includes(next)) actions.applyTimeline(setFormat(timeline, next as VideoFormat));
+              }}
+            >
+              {VIDEO_FORMATS.map((format) => {
+                const Icon = FORMAT_ICON[format];
+                return (
+                  <DropdownMenuRadioItem key={format} value={format} className="gap-2">
+                    <Icon className="size-4" aria-hidden />
+                    {format}
+                    <span className="ml-auto text-xs text-muted-foreground">{FORMAT_NAME[format]}</span>
+                  </DropdownMenuRadioItem>
+                );
+              })}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <span className="mx-1" />
+        <ExportDialog />
+      </div>
     </header>
   );
 }

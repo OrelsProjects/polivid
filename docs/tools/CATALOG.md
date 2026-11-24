@@ -557,6 +557,39 @@ Examples:
 {"text":"Three scenes on a night bus, two people, one decision.","format":"9:16","durationSec":45,"mode":"review"}
 ```
 
+### apply_layout_style
+
+**Apply a layout style.** Re-edit a finished Talking Avatar or UGC video in a layout style, the way Shorts creators cut. Its own take is reused, so nothing is filmed again. Spends credits for the pictures it draws.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They have a finished Talking Avatar or UGC video and want it edited like a creator's Short: split screen, punch-ins, a bubble over a screenshot, and so on.
+- split-presenter: a picture on top and the speaker below, close-ups on the hook and the call to action.
+- Pass media for files they uploaded for it: role post or screenshot for pictures of a post or page, recording for a screen recording, picture for any other photo. Uploads are shown before anything is drawn, and each one lowers the price.
+- The result is a new video, linked to the original, that opens in the editor with every layer.
+
+Don't use when:
+- They want a new video. Use make_avatar_video or make_ugc_video first, then this.
+- The video is not a Talking Avatar or UGC video. Only those have one take of the speaker to cut.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| videoId | yes | The finished Talking Avatar or UGC video to lay out. |
+| style | yes | The layout style. Only split-presenter is ready now. |
+| media | no | Files they uploaded to show in the video. Omit when there are none. |
+| showText | no | Captions on or off. Defaults to on. |
+
+Examples:
+
+> Turn my last UGC video into a split-screen Short.
+
+```json
+{"videoId":"929490c0-0f4b-4c91-a5b9-4fe5115e9480","style":"split-presenter"}
+```
+
 ## Plan
 
 ### make_storyboard
@@ -2096,6 +2129,28 @@ Inputs:
 | position | no | Where the words sit: top, center, or bottom. |
 | animationIn | no | How the words appear. |
 | animationOut | no | How the words leave. |
+
+### edit_caption_preset
+
+**Caption style preset.** Give every caption a ready-made look, like a creator's captions: font, colors, the spoken word lit up, words per line. Free.
+
+No side effects.
+
+Use when:
+- They want the captions to look like a style: bold-caps (Bold), yellow-pop (Yellow pop), green-word (Green word), red-box (Red box), white-pill (Pill), karaoke (Karaoke), word-reveal (Word by word), elegant (Elegant), elegant-gold (Elegant gold), tall-caps (Tall caps), impact (Impact), comic (Comic), marker (Marker), neon (Neon), sing-along (Sing-along), lower-third (Lower third), headline (Headline), soft-card (Soft card), one-word (One word), subtle (Subtle).
+- yellow-pop, green-word, red-box, and impact light up each word as it is said. karaoke and sing-along dim the words still to come. word-reveal shows words as they are said. one-word shows one word at a time.
+- Timed captions are re-cut into lines of the preset's length. Other titles are left alone.
+
+Don't use when:
+- There are no captions yet. Use edit_add_captions first.
+- They want one part changed, like only the color or the size. Use edit_style_captions.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| projectId | no | Editor project id. Omit it in this chat; the open project is used. |
+| presetId | yes | The caption look. |
 
 ### edit_remove_captions
 

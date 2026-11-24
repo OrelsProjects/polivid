@@ -3,6 +3,7 @@ import { EDIT_LABEL, EDIT_MODEL } from "./edit-ops";
 import { LOOP_LABEL, LOOP_MODEL, STILLS_LABEL, STILLS_MODEL } from "./stills";
 import { CREDITS_PER_USD } from "@/lib/billing/plans";
 import { SWAP_EDIT_LABEL, SWAP_EDIT_MODEL, SWAP_LABEL, SWAP_MODEL } from "./swap";
+import { LAYOUT_LABEL, LAYOUT_MODEL } from "./layout/styles";
 
 /**
  * Video models the creator can pick on the Create page. The prompt is filmed by that model.
@@ -410,7 +411,7 @@ const CHAT_MODEL_LABELS: Record<string, string> = {
 
 /** Label for a stored slug. Older text-model rows fall back to the slug. */
 export const generationModelLabel = (slug: string) =>
-  generationModelBySlug(slug)?.name ?? CHAT_MODEL_LABELS[slug] ?? (slug === STILLS_MODEL ? STILLS_LABEL : slug === LOOP_MODEL ? LOOP_LABEL : slug === EDIT_MODEL ? EDIT_LABEL : slug === CAPTIONS_MODEL ? CAPTIONS_LABEL : slug === SWAP_MODEL ? SWAP_LABEL : slug === SWAP_EDIT_MODEL ? SWAP_EDIT_LABEL : slug);
+  generationModelBySlug(slug)?.name ?? CHAT_MODEL_LABELS[slug] ?? (slug === STILLS_MODEL ? STILLS_LABEL : slug === LOOP_MODEL ? LOOP_LABEL : slug === EDIT_MODEL ? EDIT_LABEL : slug === CAPTIONS_MODEL ? CAPTIONS_LABEL : slug === SWAP_MODEL ? SWAP_LABEL : slug === SWAP_EDIT_MODEL ? SWAP_EDIT_LABEL : slug === LAYOUT_MODEL ? LAYOUT_LABEL : slug);
 
 /** The Create page opens on Wan 3.0 unless POLIVID_MODEL is one of these video slugs. */
 export const generationModelIdForSlug = (slug: string): GenerationModelId =>

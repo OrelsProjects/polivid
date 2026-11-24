@@ -19,7 +19,8 @@ import { countStoredSegments } from "@/lib/video/jobs";
 import { getMyVideo, getMyVideoJob } from "@/lib/videos";
 import { voiceResultLabel } from "@/lib/video/job-status";
 import { domainOf, fillPlaceholders, formatDate, formatFact, formatValue } from "@/lib/video/format";
-import { generationModelBySlug, generationModelLabel } from "@/lib/video/models";
+import { generationModelBySlug, generationModelLabel, isTalkingHeadMode } from "@/lib/video/models";
+import { ApplyLayoutStyle } from "@/components/video/apply-layout-style";
 import type { SceneType, VideoRecord } from "@/lib/video/schema";
 
 export const metadata: Metadata = { title: "Video" };
@@ -119,6 +120,7 @@ async function VideoDetail({ id }: { id: string }) {
               className={video.format === "9:16" ? "mx-auto w-full max-w-[380px]" : "w-full"}
             />
             <NewProjectButton videoId={video.id} label="Edit in editor" />
+            {footageUrl && isTalkingHeadMode(job?.mode) ? <ApplyLayoutStyle videoId={video.id} /> : null}
             {footageUrl ? (
               <DownloadAsMenu src={footageUrl} title={video.title} size="lg" />
             ) : (

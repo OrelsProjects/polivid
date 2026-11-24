@@ -1,3 +1,4 @@
+import { applyCaptionPreset, captionPresetById } from "@/lib/editor/caption-presets";
 import {
   addTextEdit,
   addTrackEdit,
@@ -6,6 +7,7 @@ import {
   duplicateEdit,
   imageMotionEdit,
   moveEdit,
+  isCaption,
   removeCaptionsEdit,
   removeEdit,
   removeTrackEdit,
@@ -220,6 +222,17 @@ export const EDIT_BUILDERS: Record<BatchableEdit, (row: Row) => EditPlan> = {
   },
   edit_style_captions: (row) => ({ summary: "Restyled the captions.", edit: (timeline) => styleCaptionsEdit(timeline, textStyle(row)) }),
   edit_remove_captions: () => ({ summary: "Removed the captions.", edit: (timeline) => removeCaptionsEdit(timeline) }),
+  edit_caption_preset: (row) => {
+    const presetId = required(str(row.presetId), "Pass a presetId.");
+    if (!captionPresetById(presetId)) throw new EditInputError("That caption style doesn't exist.");
+    return {
+      summary: `Gave the captions the ${captionPresetById(presetId)!.name} look.`,
+      edit: (timeline) => {
+        const next = applyCaptionPreset(timeline, presetId);
+        return { timeline: next, changedItemIds: next.tracks.flatMap((track) => track.items.filter(isCaption).map((item) => item.id)) };
+      },
+    };
+  },
   edit_set_audio: (row) => {
     const itemId = required(str(row.itemId), "Pass the clip id.");
     return {

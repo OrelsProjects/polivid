@@ -1,3 +1,4 @@
+import { LAYOUT_MODEL } from "@/lib/video/layout/styles";
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { getCharacter } from "@/lib/characters/store";
@@ -157,12 +158,14 @@ export const createBlankProject = async (format: VideoFormat = "9:16") =>
 
 export const createProjectFromTimelineForUser = async (
   userId: string,
-  input: { title: string; format: VideoFormat; timeline: Timeline },
+  /** `sourceVideoId` ties the edit to the video it made, so opening that video opens this edit. */
+  input: { title: string; format: VideoFormat; timeline: Timeline; sourceVideoId?: string },
 ) => {
   const timeline = parseTimeline(input.timeline);
   const row = await db.editProject.create({
     data: {
       userId,
+      ...(input.sourceVideoId ? { sourceVideoId: input.sourceVideoId } : {}),
       title: input.title.trim() || "Untitled edit",
       format: input.format,
       timeline: timeline as unknown as Prisma.InputJsonValue,
@@ -195,10 +198,24 @@ const footageOptions = async (userId: string, videoId: string) => {
   return { hasFootage: footage, hasSource: source, voice: voiceName ? { name: voiceName } : null };
 };
 
+/**
+ * A layout-style video was rendered from a timeline of layers. A new edit of it starts from those
+ * layers, as first rendered, instead of from the flat file.
+ */
+const layeredTimeline = async (userId: string, video: { id: string; model: string }) => {
+  if (video.model !== LAYOUT_MODEL) return null;
+  const layered = await db.editProject.findFirst({
+    where: { userId, sourceVideoId: video.id },
+    orderBy: { createdAt: "asc" },
+    select: { timeline: true },
+  });
+  return layered ? parseTimeline(layered.timeline) : null;
+};
+
 export const createProjectFromVideoForUser = async (userId: string, videoId: string) => {
   const video = await getVideoForUser(userId, videoId);
   if (!video || video.status !== "ready") return null;
-  const timeline = timelineFromVideo(video, await footageOptions(userId, video.id));
+  const timeline = (await layeredTimeline(userId, video)) ?? timelineFromVideo(video, await footageOptions(userId, video.id));
   const row = await db.editProject.create({
     data: {
       userId,

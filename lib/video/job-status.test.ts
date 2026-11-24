@@ -90,6 +90,7 @@ test("reads the prompt stored on a video job", () => {
         mustAvoid: "",
       },
       attachmentRoles: [],
+      layout: null,
     },
   );
   assert.deepEqual(readJobInput(null), {
@@ -141,6 +142,7 @@ test("reads the prompt stored on a video job", () => {
       mustAvoid: "",
     },
     attachmentRoles: [],
+    layout: null,
   });
   assert.equal(readJobInput({ prompt: "  ", aspectRatio: "square", duration: 1.5 }).format, "9:16");
   assert.deepEqual(
@@ -240,4 +242,29 @@ test("video progress stays inside the step bands", () => {
   assert.equal(progressFor("videos", 4, 4), 85);
   assert.equal(progressFor("render"), 98);
   assert.equal(progressFor("finalize"), 100);
+});
+
+test("a layout job keeps its style, source video, and checked uploads", () => {
+  const input = readJobInput({
+    prompt: "Layout",
+    aspectRatio: "9:16",
+    duration: 11,
+    model: "layout-style",
+    mode: "layout-style",
+    layout: {
+      style: "split-presenter",
+      sourceVideoId: "929490c0-0f4b-4c91-a5b9-4fe5115e9480",
+      media: [
+        { key: "uploads/u/post.png", kind: "image", role: "post", note: "  The post  " },
+        { key: "not-an-upload", kind: "image", role: "post" },
+        { key: "uploads/u/clip.mp4", kind: "video", role: "nope" },
+      ],
+    },
+  });
+  assert.deepEqual(input.layout, {
+    style: "split-presenter",
+    sourceVideoId: "929490c0-0f4b-4c91-a5b9-4fe5115e9480",
+    media: [{ key: "uploads/u/post.png", kind: "image", role: "post", note: "The post" }],
+  });
+  assert.equal(readJobInput({ prompt: "x", layout: { style: "made-up", sourceVideoId: "v" } }).layout, null);
 });

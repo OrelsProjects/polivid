@@ -27,6 +27,7 @@ import { isModelChoice } from "./model-choice";
 import { presetById } from "./presets";
 import { stillPictureCount } from "./script-markup";
 import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
+import type { LayoutJobSettings } from "./layout/styles";
 
 /** Model slug stamped on edit exports, so they can be kept out of the video library. */
 export const EDITOR_EXPORT_MODEL = "editor";
@@ -88,6 +89,8 @@ export interface VideoJobInput {
   vo?: string;
   brief?: PromptBrief;
   attachmentRoles?: AttachmentAssignment[];
+  /** A layout-style job's settings. */
+  layout?: LayoutJobSettings;
   creditsHeld?: number;
   /** Clips the person chose. Unset means the fewest the model needs. */
   clips?: number;
@@ -169,6 +172,7 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
               }
             : null,
           attachmentRoles: (input.attachmentRoles ?? []).map((role) => ({ index: role.index, role: role.role })),
+          ...(input.layout ? { layout: { style: input.layout.style, sourceVideoId: input.layout.sourceVideoId, media: input.layout.media.map((item) => ({ ...item })) } } : {}),
         },
         artifacts: {},
       },

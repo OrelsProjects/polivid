@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
-import { backgroundById } from "@/lib/video/backgrounds";
+import { libraryFile } from "@/lib/video/backdrops";
 import { saveFootage } from "@/lib/video/footage";
 import { markVideoJobProgress } from "@/lib/video/jobs";
 import { assetUrlMap } from "./asset-url";
@@ -71,7 +71,7 @@ export const renderEditProject = async (
     assetUrls: assetUrlMap(timeline, (asset) => {
       // Built-in clips are public files. Everything else is the person's own and needs a signed link.
       if (asset.source.type === "library") {
-        const file = backgroundById(asset.source.id)?.file;
+        const file = libraryFile(asset.source.id);
         return file ? `${origin}${file}` : null;
       }
       const url = direct.get(asset.id);

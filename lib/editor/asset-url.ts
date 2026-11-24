@@ -1,5 +1,5 @@
 import { uploadFileUrl } from "@/lib/storage/upload-key";
-import { backgroundById } from "@/lib/video/backgrounds";
+import { libraryFile } from "@/lib/video/backdrops";
 import type { Asset, Timeline } from "./schema";
 
 export const browserAssetUrl = (asset: Asset) => {
@@ -8,7 +8,7 @@ export const browserAssetUrl = (asset: Asset) => {
   if (source.type === "production") return `/api/productions/assets/${source.assetId}`;
   if (source.type === "song") return `/api/songs/${source.songId}`;
   if (source.type === "voice") return `/api/videos/${source.videoId}/voice`;
-  if (source.type === "library") return backgroundById(source.id)?.file ?? "";
+  if (source.type === "library") return libraryFile(source.id) ?? "";
   const layer = source.layer === "source" ? "?layer=source" : "";
   return `/api/videos/${source.videoId}/file${layer}`;
 };

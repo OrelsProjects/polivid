@@ -1,9 +1,12 @@
 "use client";
 
-import { assetById, type Timeline, type TimelineItem, type Transform } from "@/lib/editor/schema";
+import type { ReactNode } from "react";
+import { assetById, type Region, type Timeline, type TimelineItem, type Transform } from "@/lib/editor/schema";
 import { browserAssetUrl } from "@/lib/editor/asset-url";
 import { coverFrame } from "@/lib/editor/framing";
-import { FPS } from "@/lib/video/schema";
+import { focusPosition, regionBoxStyle, textBoxStyle } from "@/lib/editor/layout-box";
+import { dimensionsFor, FPS } from "@/lib/video/schema";
+import { CaptionText } from "./composition/caption-text";
 import { ScrubStill } from "./composition/scrub-still";
 import { useEditorPlayback, useEditorTimeline, useHoverFrame } from "./editor-provider";
 
@@ -44,6 +47,18 @@ export function ScrubOverlay() {
   const items = visibleItems(timeline, previewFrame);
   // Only legacy videos have scrub stills. Covering anything else would hide the paused player frame.
   if (items.some((item) => item.kind === "video" && !scrubVideoId(timeline, item))) return null;
+  const frame = dimensionsFor(timeline.format);
+  /** A layer in its region box, as the render draws it. */
+  const placed = (item: { id: string; region?: Region; radius?: number }, layer: ReactNode) => {
+    const box = regionBoxStyle(item, frame);
+    return box ? (
+      <div key={item.id} style={box}>
+        {layer}
+      </div>
+    ) : (
+      layer
+    );
+  };
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden bg-[#0C1222]" aria-hidden>
@@ -54,50 +69,46 @@ export function ScrubOverlay() {
         if (item.kind === "video") {
           const videoId = scrubVideoId(timeline, item);
           if (!videoId) return null;
-          return (
+          return placed(
+            item,
             <div key={item.id} style={layerStyle(coverFrame(item.transform), item.opacity)}>
               <ScrubStill
                 videoId={videoId}
                 time={(item.trimStart + localFrame) / FPS}
                 fit={item.transform.fit}
+                position={focusPosition(item.focus)}
               />
-            </div>
+            </div>,
           );
         }
 
         if (item.kind === "image") {
           const src = asset ? browserAssetUrl(asset) : null;
           if (!src) return null;
-          return (
+          return placed(
+            item,
             <div key={item.id} style={layerStyle(item.transform, item.opacity)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
                 alt=""
                 draggable={false}
-                style={{ width: "100%", height: "100%", objectFit: item.transform.fit }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: item.transform.fit,
+                  ...(item.focus ? { objectPosition: focusPosition(item.focus) } : {}),
+                }}
               />
-            </div>
+            </div>,
           );
         }
 
         if (item.kind === "text") {
           return (
             <div key={item.id} style={layerStyle(item.transform, 1)}>
-              <div
-                style={{
-                  maxWidth: "86%",
-                  padding: item.style.background ? "16px 28px" : 0,
-                  background: item.style.background ?? "transparent",
-                  color: item.style.color,
-                  fontFamily: item.style.fontFamily,
-                  fontSize: item.style.fontSize,
-                  fontWeight: item.style.fontWeight,
-                  textAlign: item.style.align,
-                  lineHeight: 1.15,
-                }}
-              >
-                {item.text}
+              <div style={textBoxStyle(item.style)}>
+                <CaptionText item={item} frame={localFrame} />
               </div>
             </div>
           );

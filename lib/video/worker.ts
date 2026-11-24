@@ -38,6 +38,8 @@ import { assembleSongVideo, lastFrameDataUrl, sliceSong, stitchClips } from "./s
 import { voiceBeatTimings } from "./beat-text";
 import { writeBeats } from "./beats";
 import { composeCaptions } from "./compose/captions";
+import { composeLayout } from "./layout/compose";
+import { LAYOUT_JOB_MODE } from "./layout/styles";
 import { composeEdit } from "./compose/edit";
 import { composeLoop } from "./compose/loop";
 import { composeStills } from "./compose/stills";
@@ -216,6 +218,7 @@ const runJob = async (userId: string, jobId: string, input: JobInput) => {
   if (input.mode === "edit") return composeEdit(userId, jobId, input);
   if (input.mode === "captions") return composeCaptions(userId, jobId, input);
   if (!hasOpenRouterKey()) return filmDemo(userId, jobId, input);
+  if (input.mode === LAYOUT_JOB_MODE) return composeLayout(userId, jobId, input);
   if (input.media === "stills") return composeStills(userId, jobId, input);
   if (input.media === "loop") return composeLoop(userId, jobId, input);
   if (input.mode === "motion-graphics") return filmMotion(userId, jobId, input);
@@ -1446,4 +1449,5 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
     ? input.brief
     : undefined,
   attachmentRoles: input.attachmentRoles.length > 0 ? input.attachmentRoles : undefined,
+  layout: input.layout ?? undefined,
 });

@@ -1,3 +1,4 @@
+import { estimatedPictures, type LayoutStyle } from "@/lib/video/layout/styles";
 import { lyricsCreditBreakdown } from "@/lib/music/song-plan";
 import { EDIT_CREDITS } from "@/lib/video/edit-ops";
 import { swapCredits } from "@/lib/video/swap";
@@ -141,3 +142,17 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
 export const productionCredits = (usd: number, demo = false) => (demo ? 0 : jobCreditsFromUsd(usd));
 
 export const spentCredits = (usd: number) => usdToCredits(usd, 0);
+
+/** Timing the words, planning the layouts, finding the face, and the render. */
+const LAYOUT_BASE_CREDITS = 5;
+
+/**
+ * A layout style applied to a finished video: nothing is filmed again, so it costs the pictures
+ * it draws at final quality, plus a small base. Uploads the person gives take the place of
+ * drawn pictures, so each one makes it cheaper.
+ */
+export const layoutStyleCredits = (input: { style: LayoutStyle; seconds: number; uploads?: number; demo?: boolean }) => {
+  if (input.demo) return 0;
+  const pictures = Math.max(0, estimatedPictures(input.style, input.seconds) - (input.uploads ?? 0));
+  return LAYOUT_BASE_CREDITS + usdToCredits(pictures * STILL_IMAGE_USD.final);
+};
