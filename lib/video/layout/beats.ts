@@ -76,3 +76,22 @@ export const captionLines = (beat: LayoutBeat, maxWords: number) => {
     end: lines[index + 1]?.start ?? beat.end,
   }));
 };
+
+/**
+ * Gives the last sentence its own beat, when the last beat holds more than one. A style that ends on
+ * a card uses it, so the card carries the call to action alone.
+ */
+export const lastSentenceAlone = (beats: readonly LayoutBeat[]): LayoutBeat[] => {
+  const last = beats.at(-1);
+  if (!last) return [...beats];
+  const ends = last.words.flatMap((word, index) => (SENTENCE_END.test(word.text) && index < last.words.length - 1 ? [index] : []));
+  if (ends.length === 0) return [...beats];
+  const cut = ends.at(-1)! + 1;
+  const head = last.words.slice(0, cut);
+  const tail = last.words.slice(cut);
+  return [
+    ...beats.slice(0, -1),
+    { say: head.map((word) => word.text).join(" "), words: head, start: last.start, end: tail[0].start },
+    { say: tail.map((word) => word.text).join(" "), words: tail, start: tail[0].start, end: last.end },
+  ];
+};

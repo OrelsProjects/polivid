@@ -23,7 +23,7 @@ import { NO_ON_SCREEN_TEXT } from "../on-screen-text";
 import type { ScenePlan, VideoFormat } from "../schema";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "../worker-support";
 import { withRenderSlot } from "../compose/render-slot";
-import { beatsFromWords, type LayoutBeat } from "./beats";
+import { beatsFromWords, lastSentenceAlone, type LayoutBeat } from "./beats";
 import { findFace, suggestLayoutPlan } from "./plan";
 import { enforcePlan, type BeatPlan } from "./rules";
 import { layoutStyleById, type LayoutJobSettings } from "./styles";
@@ -132,7 +132,6 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
   const settings: LayoutJobSettings | undefined = input.layout;
   const style = layoutStyleById(settings?.style);
   if (!settings || !style) throw new Error("This layout job is missing its style.");
-  if (!style.avatar) throw new Error(`${style.title} isn't ready yet.`);
   const sourceId = settings.sourceVideoId;
   const [source, sourceJob, job] = await Promise.all([
     db.video.findFirst({ where: { id: sourceId, userId }, select: { id: true, title: true, format: true } }),
@@ -162,16 +161,19 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
     }
     progress.words = words.length > 0 ? words : evenWords(script, take.seconds);
     progress.seconds = take.seconds;
-    progress.face = await findFace(take.frame);
+    // Only a take of a speaker has a face to keep in view. A sketch is drawn with nobody on camera.
+    progress.face = style.avatar ? await findFace(take.frame) : { x: 50, y: 50 };
     await remember(jobId, progress);
   }
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
 
-  const beats = beatsFromWords(progress.words, {
+  const cut = beatsFromWords(progress.words, {
     ...style.beatSeconds,
     total: progress.seconds,
     sentences: style.id === "punch-in",
   });
+  // A framed post ends on a card that carries the call to action, so its last sentence stands alone.
+  const beats = style.layouts.includes("endcard") ? lastSentenceAlone(cut) : cut;
   if (beats.length === 0) throw new Error("No speech was found in that video.");
   if (progress.plans.length !== beats.length) {
     if (!(await markVideoJobProgress(jobId, "script", 20))) return;
@@ -219,7 +221,8 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
   const timeline = buildLayoutTimeline({
     format,
     style,
-    take: { videoId: sourceId, seconds: progress.seconds, focus: progress.face ?? { x: 50, y: 35 } },
+    source: { videoId: sourceId, seconds: progress.seconds },
+    take: style.avatar ? { focus: progress.face ?? { x: 50, y: 35 } } : undefined,
     beats,
     plans: progress.plans,
     media: beatMedia,

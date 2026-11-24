@@ -8,8 +8,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LAYOUT_STYLES, type LayoutMediaRole, type LayoutStyleId } from "@/lib/video/layout/styles";
 
-/** Styles that can run today. The rest are listed so people can see what is coming. */
-const READY: ReadonlySet<LayoutStyleId> = new Set(["split-presenter"]);
+const isVideoUpload = (key: string) => /\.(mp4|mov|webm|m4v)$/i.test(key);
 
 const ROLE_LABEL: Record<LayoutMediaRole, string> = {
   picture: "Picture",
@@ -22,16 +21,19 @@ const ROLE_LABEL: Record<LayoutMediaRole, string> = {
  * Re-edits a finished avatar or UGC video in a layout style. The take is reused, so only the
  * pictures it draws cost credits. Uploads are shown first and lower the price.
  */
-export function ApplyLayoutStyle({ videoId }: { videoId: string }) {
+export function ApplyLayoutStyle({ videoId, talkingHead }: { videoId: string; talkingHead: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [style, setStyle] = useState<LayoutStyleId>("split-presenter");
+  // A video with one take of a speaker can take any style. Any other video with a voice can be sketched.
+  const offered = LAYOUT_STYLES.filter((item) => talkingHead || !item.avatar);
+  const [style, setStyle] = useState<LayoutStyleId>(offered[0]?.id ?? "sketch-explainer");
   const [keys, setKeys] = useState<string[]>([]);
   const [roles, setRoles] = useState<Record<string, LayoutMediaRole>>({});
   const [credits, setCredits] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const media = keys.map((key) => ({ key, role: roles[key] ?? "picture" }));
+  const media = keys.map((key) => ({ key, role: roles[key] ?? (isVideoUpload(key) ? "recording" : "picture") }));
+  const picked = LAYOUT_STYLES.find((item) => item.id === style);
   const body = JSON.stringify({ style, media });
 
   useEffect(() => {
@@ -81,15 +83,14 @@ export function ApplyLayoutStyle({ videoId }: { videoId: string }) {
         <p className="mt-1 text-xs text-muted-foreground">Re-edits this video the way Shorts creators cut. Your take is reused, so nothing is filmed again.</p>
       </div>
       <div role="radiogroup" aria-label="Layout style" className="flex flex-col gap-2">
-        {LAYOUT_STYLES.filter((item) => item.avatar).map((item) => {
-          const ready = READY.has(item.id);
+        {offered.map((item) => {
           return (
             <button
               key={item.id}
               type="button"
               role="radio"
               aria-checked={style === item.id}
-              disabled={!ready || busy}
+              disabled={busy}
               onClick={() => setStyle(item.id)}
               className={cn(
                 "cursor-pointer rounded-xl border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-50",
@@ -97,35 +98,38 @@ export function ApplyLayoutStyle({ videoId }: { videoId: string }) {
               )}
             >
               <span className="text-sm font-medium">{item.title}</span>
-              {!ready ? <span className="ml-2 text-xs text-muted-foreground">Soon</span> : null}
+              {item.needs ? <span className="ml-2 text-xs text-muted-foreground">Needs {item.needs.map((role) => ROLE_LABEL[role].toLowerCase()).join(" or ")}</span> : null}
               <span className="mt-0.5 block text-xs text-muted-foreground">{item.description}</span>
             </button>
           );
         })}
       </div>
-      <MediaUpload
-        kind="image"
-        multiple
-        max={12}
-        mediaKeys={keys}
-        onChangeKeys={setKeys}
-        disabled={busy}
-        label="Your pictures, posts, or screenshots (optional)"
-        hint="Shown before anything is drawn. Each one you add makes it cheaper."
-      />
-      {keys.length > 0 ? (
+      {picked?.avatar ? (
+        <MediaUpload
+          kind="image"
+          librarySource="visual"
+          multiple
+          max={12}
+          mediaKeys={keys}
+          onChangeKeys={setKeys}
+          disabled={busy}
+          label={picked.needs ? "Your uploads" : "Your pictures, posts, or screenshots (optional)"}
+          hint="Pictures, screenshots, or a screen recording. Shown before anything is drawn, and each one makes it cheaper."
+        />
+      ) : null}
+      {picked?.avatar && keys.length > 0 ? (
         <ul className="flex flex-col gap-1.5">
           {keys.map((key, index) => (
             <li key={key} className="flex items-center justify-between gap-2 text-xs">
               <span className="text-muted-foreground">Upload {index + 1}</span>
               <select
-                value={roles[key] ?? "picture"}
+                value={roles[key] ?? (isVideoUpload(key) ? "recording" : "picture")}
                 disabled={busy}
                 onChange={(event) => setRoles((current) => ({ ...current, [key]: event.target.value as LayoutMediaRole }))}
                 className="h-8 rounded-lg border border-border bg-background px-2"
                 aria-label={`What upload ${index + 1} is`}
               >
-                {(["picture", "post", "screenshot"] as const).map((role) => (
+                {(isVideoUpload(key) ? (["recording", "picture"] as const) : (["picture", "post", "screenshot"] as const)).map((role) => (
                   <option key={role} value={role}>
                     {ROLE_LABEL[role]}
                   </option>

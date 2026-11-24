@@ -1,3 +1,4 @@
+import { SketchSchema } from "@/lib/video/layout/sketch";
 import { z } from "zod";
 import {
   FactSchema,
@@ -221,6 +222,9 @@ export const SceneItemSchema = z.object({
   facts: z.array(FactSchema),
   quotes: z.array(SourcedQuoteSchema),
   trimStart: z.number().int().min(0),
+  /** A sketch-explainer beat: drawn on paper instead of as a motion-graphics scene. */
+  sketch: SketchSchema.optional(),
+  layout: LayoutTagSchema.optional(),
 });
 export type SceneItem = z.infer<typeof SceneItemSchema>;
 

@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { auth } from "@/auth";
 import type { ViewAsSession } from "@/lib/auth/view-as-session";
 import { StopViewingButton } from "./stop-viewing-button";
@@ -7,6 +8,9 @@ import { StopViewingButton } from "./stop-viewing-button";
  * mistaken for their own account. Everything done here acts on that person's account.
  */
 export async function ViewAsBanner() {
+  // The session is read per request. Without this, prerendering the layout reaches the session's
+  // random values and Next stops the prerender ("unstable value crypto.getRandomValues()").
+  await connection();
   const session = (await auth()) as ViewAsSession | null;
   if (!session?.viewAs || !session.user) return null;
   const who = session.user.name || session.user.email || "this user";

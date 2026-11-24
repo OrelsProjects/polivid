@@ -10,7 +10,13 @@ export interface TimelineCompositionProps {
 }
 
 export function TimelineComposition({ timeline, assetUrls }: TimelineCompositionProps) {
-  useTimelineFonts(timeline.tracks.flatMap((track) => track.items.flatMap((item) => (item.kind === "text" ? [item.style.fontFamily] : []))));
+  useTimelineFonts(
+    timeline.tracks.flatMap((track) =>
+      track.items.flatMap((item) =>
+        item.kind === "text" ? [item.style.fontFamily] : item.kind === "scene" && item.sketch ? ["Permanent Marker", "Lexend"] : [],
+      ),
+    ),
+  );
   return (
     <AbsoluteFill style={{ background: "#0C1222" }}>
       {timeline.tracks.map((track) => {

@@ -598,17 +598,17 @@ export const layoutTools = [
       "Re-edit a finished Talking Avatar or UGC video in a layout style, the way Shorts creators cut. Its own take is reused, so nothing is filmed again. Spends credits for the pictures it draws.",
     whenToUse: [
       "They have a finished Talking Avatar or UGC video and want it edited like a creator's Short: split screen, punch-ins, a bubble over a screenshot, and so on.",
-      "split-presenter: a picture on top and the speaker below, close-ups on the hook and the call to action.",
+      "Styles: split-presenter (picture over speaker), punch-in (close-ups and cutaways), source-reader (a post with the speaker in a bubble; needs a post), framed-post (name, headline, band, end card), screen-demo (screen in a window; needs a recording or screenshot), sketch-explainer (drawn charts on paper; any video with a voice).",
       "Pass media for files they uploaded for it: role post or screenshot for pictures of a post or page, recording for a screen recording, picture for any other photo. Uploads are shown before anything is drawn, and each one lowers the price.",
       "The result is a new video, linked to the original, that opens in the editor with every layer.",
     ],
     avoidWhen: [
       "They want a new video. Use make_avatar_video or make_ugc_video first, then this.",
-      "The video is not a Talking Avatar or UGC video. Only those have one take of the speaker to cut.",
+      "The video is not a Talking Avatar or UGC video, and the style is not sketch-explainer. Only those videos have one take of the speaker to cut.",
     ],
     inputSchema: z.object({
       videoId: z.string().trim().uuid().describe("The finished Talking Avatar or UGC video to lay out."),
-      style: z.enum(LAYOUT_STYLE_IDS).describe("The layout style. Only split-presenter is ready now."),
+      style: z.enum(LAYOUT_STYLE_IDS).describe("The layout style."),
       media: z
         .array(
           z.object({

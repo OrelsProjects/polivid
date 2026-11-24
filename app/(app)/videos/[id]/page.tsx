@@ -120,7 +120,7 @@ async function VideoDetail({ id }: { id: string }) {
               className={video.format === "9:16" ? "mx-auto w-full max-w-[380px]" : "w-full"}
             />
             <NewProjectButton videoId={video.id} label="Edit in editor" />
-            {footageUrl && isTalkingHeadMode(job?.mode) ? <ApplyLayoutStyle videoId={video.id} /> : null}
+            {footageUrl ? <ApplyLayoutStyle videoId={video.id} talkingHead={isTalkingHeadMode(job?.mode)} /> : null}
             {footageUrl ? (
               <DownloadAsMenu src={footageUrl} title={video.title} size="lg" />
             ) : (

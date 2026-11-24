@@ -101,8 +101,7 @@ export const queueLayoutStyle = async (userId: string, videoId: string, raw: unk
   if (!parsed.success) throw new LayoutRequestError("Pick a layout style.", 400);
   const style = layoutStyleById(parsed.data.style)!;
   const { video, input } = await loadSource(userId, videoId);
-  if (!style.avatar) throw new LayoutRequestError(`${style.title} isn't ready yet.`, 400);
-  if (!isTalkingHeadMode(input?.mode)) {
+  if (style.avatar && !isTalkingHeadMode(input?.mode)) {
     throw new LayoutRequestError("Layout styles work on Talking Avatar and UGC videos, which have one take of the speaker.", 400);
   }
   const media = checkMedia(userId, parsed.data.media);

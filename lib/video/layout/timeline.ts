@@ -6,6 +6,7 @@ import {
   type ImageItem,
   type LayoutTag,
   type Region,
+  type SceneItem,
   type TextItem,
   type TextStyle,
   type Timeline,
@@ -32,6 +33,38 @@ export const DEFAULT_FACE: Focus = { x: 50, y: 35 };
 export const CLOSE_SCALE = 1.3;
 
 export const HIGHLIGHT_COLOR = "#FFD400";
+
+/** A punch-in cutaway covers at most this much of its beat. */
+const CUTAWAY_FRAMES = 2 * FPS;
+
+/**
+ * Beats in a row that show the same upload the same way become one clip, so a post keeps panning
+ * and a recording keeps playing instead of restarting at every beat. The take is never merged:
+ * each beat's cut keeps its own layout.
+ */
+const mergeHeld = <T extends ImageItem | VideoItem | SceneItem>(items: T[]): T[] => {
+  const merged: T[] = [];
+  for (const item of items) {
+    const previous = merged.at(-1);
+    const same =
+      previous &&
+      previous.kind === item.kind &&
+      (previous.kind === "image" || previous.kind === "video") &&
+      (item.kind === "image" || item.kind === "video") &&
+      previous.assetId === item.assetId &&
+      previous.assetId !== "take" &&
+      previous.from + previous.durationInFrames === item.from &&
+      previous.layout?.name === item.layout?.name &&
+      JSON.stringify([previous.region, previous.radius, previous.transform]) === JSON.stringify([item.region, item.radius, item.transform]) &&
+      (previous.kind !== "video" || item.kind !== "video" || previous.trimStart + previous.durationInFrames === item.trimStart);
+    if (same) {
+      merged[merged.length - 1] = { ...previous, durationInFrames: previous.durationInFrames + item.durationInFrames };
+      continue;
+    }
+    merged.push(item);
+  }
+  return merged;
+};
 
 const CAPTION_SIZE: Record<VideoFormat, number> = { "9:16": 76, "1:1": 64, "16:9": 58 };
 
@@ -70,9 +103,13 @@ export const layoutRegions = (format: VideoFormat) => {
 const captionY = (layout: LayoutName, format: VideoFormat) => {
   if (format === "16:9") return layout === "window" ? 40 : 34;
   if (layout === "split") return 0;
+  // Clear of the round bubble in the lower corner: just under the middle over a post,
+  // and in the band above the window on a screen.
+  if (layout === "bubble") return 6;
+  if (layout === "window") return -38;
+  if (layout === "sketch") return 34;
   if (layout === "framed") return 25;
   if (layout === "card") return 30;
-  if (layout === "window") return 31;
   return 26;
 };
 
@@ -85,6 +122,17 @@ const captionStyle = (format: VideoFormat): TextStyle => ({
   align: "center",
   uppercase: true,
   outline: { color: "#000000", width: 10 },
+});
+
+/** Captions on paper: dark ink on a soft white card, so they read on the light backdrop. */
+const paperCaptionStyle = (format: VideoFormat): TextStyle => ({
+  fontFamily: "'Lexend', sans-serif",
+  fontSize: CAPTION_SIZE[format] * 0.72,
+  fontWeight: 700,
+  color: "#1F2937",
+  background: "rgba(255,255,255,0.88)",
+  align: "center",
+  radius: 18,
 });
 
 const pillStyle = (format: VideoFormat, fontSize = CAPTION_SIZE[format] * 0.72): TextStyle => ({
@@ -144,8 +192,10 @@ const textItem = (input: {
 export const buildLayoutTimeline = (input: {
   format: VideoFormat;
   style: LayoutStyle;
-  /** The avatar take. Its sound is the voice. */
-  take: { videoId: string; seconds: number; focus: Focus };
+  /** The finished video this is made from. Its sound is the voice. */
+  source: { videoId: string; seconds: number };
+  /** Set when that video is one take of a speaker, which the layouts cut and frame. A sketch has none. */
+  take?: { focus: Focus };
   beats: readonly LayoutBeat[];
   plans: readonly BeatPlan[];
   /** What each beat shows, when its layout shows something. */
@@ -154,14 +204,14 @@ export const buildLayoutTimeline = (input: {
   /** Name and headline across the top of a framed layout. */
   header?: { name: string; headline: string };
 }): Timeline => {
-  const { format, style, take } = input;
+  const { format, style, take, source } = input;
   const regions = layoutRegions(format);
-  const total = frameAt(Math.max(take.seconds, input.beats.at(-1)?.end ?? 0));
-  const assets: Asset[] = [
-    { id: "take", kind: "video", source: { type: "video", videoId: take.videoId }, name: "Avatar take", durationInFrames: total, width: null, height: null },
-  ];
+  const total = frameAt(Math.max(source.seconds, input.beats.at(-1)?.end ?? 0));
+  const assets: Asset[] = take
+    ? [{ id: "take", kind: "video", source: { type: "video", videoId: source.videoId }, name: "Avatar take", durationInFrames: total, width: null, height: null }]
+    : [];
   const backdrop: (ImageItem | VideoItem)[] = [];
-  const pictures: (ImageItem | VideoItem)[] = [];
+  const pictures: (ImageItem | VideoItem | SceneItem)[] = [];
   const avatar: VideoItem[] = [];
   const over: (ImageItem | VideoItem)[] = [];
   const captions: TextItem[] = [];
@@ -178,6 +228,10 @@ export const buildLayoutTimeline = (input: {
   if (input.plans.some((plan) => plan.layout === "window")) {
     assets.push({ id: "backdrop-dusk", kind: "image", source: { type: "library", id: "dusk" }, name: "Dusk gradient", durationInFrames: null, width: null, height: null });
   }
+  if (input.plans.some((plan) => plan.layout === "sketch")) {
+    assets.push({ id: "backdrop-paper", kind: "image", source: { type: "library", id: "paper" }, name: "Paper", durationInFrames: null, width: null, height: null });
+  }
+  const sketch = style.id === "sketch-explainer";
 
   input.beats.forEach((beat, index) => {
     const plan = input.plans[index];
@@ -186,7 +240,9 @@ export const buildLayoutTimeline = (input: {
     const tag = (role: string): LayoutTag => ({ style: style.id, beat: index, name: plan.layout, role });
     const base = { from, durationInFrames: frames, transitionIn: null, transitionOut: null };
 
-    const takeCut = (role: string, extra: Partial<VideoItem> = {}): VideoItem => ({
+    const takeCut = (role: string, extra: Partial<VideoItem> = {}): VideoItem => {
+      if (!take) throw new Error(`${style.title} needs a video with one take of the speaker.`);
+      return {
       id: `take-${index}-${role}`,
       kind: "video",
       assetId: "take",
@@ -199,7 +255,8 @@ export const buildLayoutTimeline = (input: {
       focus: take.focus,
       layout: tag(role),
       ...extra,
-    });
+      };
+    };
 
     const media = input.media[index];
     const shown = (role: string, extra: MediaPlacement = {}): ImageItem | VideoItem | null => {
@@ -230,7 +287,13 @@ export const buildLayoutTimeline = (input: {
         break;
       case "picture": {
         const picture = shown("picture", { motion: { kind: "zoom-in", amount: 0.1 } });
-        if (picture) pictures.push(picture);
+        if (picture && style.id === "punch-in") {
+          // A cutaway: the take keeps running underneath, and the picture covers only the start of the beat.
+          avatar.push(takeCut("avatar"));
+          over.push({ ...picture, durationInFrames: Math.min(frames, CUTAWAY_FRAMES) });
+        } else if (picture) {
+          pictures.push(picture);
+        }
         break;
       }
       case "card": {
@@ -247,17 +310,48 @@ export const buildLayoutTimeline = (input: {
       case "window": {
         backdrop.push({ id: `backdrop-${index}`, kind: "image", assetId: "backdrop-dusk", ...base, transform: defaultTransform(), opacity: 1, layout: tag("backdrop") });
         const picture = shown("window", { region: regions.window, radius: 4, motion: { kind: "zoom-in", amount: 0.08 } });
-        if (picture) over.push(picture);
+        if (picture) pictures.push(picture);
+        if (style.id === "screen-demo") over.push(takeCut("bubble", { region: regions.bubble, radius: 50 }));
         break;
       }
       case "framed":
         avatar.push(takeCut("avatar", { region: regions.framedBand }));
         break;
+      case "endcard":
+        // The call to action, said as the card shows it. The words are the card, so no captions run under it.
+        labels.push(
+          textItem({
+            id: `endcard-${index}`,
+            text: beat.say,
+            from,
+            frames,
+            style: { ...captionStyle(format), fontSize: CAPTION_SIZE[format] * 1.1, outline: undefined },
+            y: 0,
+            layout: tag("endcard"),
+            pop: true,
+            highlight: plan.highlight,
+          }),
+        );
+        break;
       case "sketch":
+        backdrop.push({ id: `backdrop-${index}`, kind: "image", assetId: "backdrop-paper", ...base, transform: defaultTransform(), opacity: 1, layout: tag("backdrop") });
+        if (plan.sketch) {
+          pictures.push({
+            id: `sketch-${index}`,
+            kind: "scene",
+            ...base,
+            scene: { type: "text", headline: plan.sketch.headline, narration: "", factIds: [], quote: null, durationSec: Math.min(12, Math.max(2, Number(((frames) / FPS).toFixed(2)))) },
+            facts: [],
+            quotes: [],
+            trimStart: 0,
+            sketch: plan.sketch,
+            layout: tag("sketch"),
+          });
+        }
         break;
     }
 
-    if (input.captions) {
+    if (input.captions && plan.layout !== "endcard") {
       for (const [line, caption] of captionLines(beat, style.captionWords).entries()) {
         const start = frameAt(caption.start);
         const end = frameAt(caption.end);
@@ -267,7 +361,7 @@ export const buildLayoutTimeline = (input: {
             text: caption.text,
             from: Math.max(from, start),
             frames: Math.min(from + frames, end) - Math.max(from, start),
-            style: captionStyle(format),
+            style: sketch ? paperCaptionStyle(format) : captionStyle(format),
             y: captionY(plan.layout, format),
             layout: tag("caption"),
             pop: true,
@@ -286,10 +380,18 @@ export const buildLayoutTimeline = (input: {
 
   if (input.header && input.plans.some((plan) => plan.layout === "framed")) {
     const framed = { style: style.id, beat: 0, name: "framed", role: "header" } satisfies LayoutTag;
-    labels.push(
-      textItem({ id: "header-name", text: input.header.name, from: 0, frames: total, style: { ...captionStyle(format), uppercase: false, outline: undefined, fontSize: CAPTION_SIZE[format] * 0.62, fontWeight: 800 }, y: -40, layout: framed }),
-      textItem({ id: "header-headline", text: input.header.headline, from: 0, frames: total, style: { ...captionStyle(format), uppercase: false, outline: undefined, fontSize: CAPTION_SIZE[format] * 0.7, fontWeight: 700, color: "#E5E7EB" }, y: -32, layout: framed }),
-    );
+    // The header stays up while the band does, and gives way to the end card.
+    const card = input.plans.findIndex((plan) => plan.layout === "endcard");
+    const until = card > 0 ? frameAt(input.beats[card].start) : total;
+    const headerItems = [
+      input.header.name
+        ? textItem({ id: "header-name", text: input.header.name, from: 0, frames: until, style: { ...captionStyle(format), uppercase: false, outline: undefined, fontSize: CAPTION_SIZE[format] * 0.62, fontWeight: 800 }, y: -40, layout: framed })
+        : null,
+      input.header.headline
+        ? textItem({ id: "header-headline", text: input.header.headline, from: 0, frames: until, style: { ...captionStyle(format), uppercase: false, outline: undefined, fontSize: CAPTION_SIZE[format] * 0.7, fontWeight: 700, color: "#E5E7EB" }, y: -32, layout: framed })
+        : null,
+    ];
+    labels.push(...headerItems.filter((item): item is TextItem => item !== null));
   }
 
   const voice: AudioItem = {
@@ -306,16 +408,16 @@ export const buildLayoutTimeline = (input: {
     fadeIn: 0,
     fadeOut: 0,
   };
-  assets.push({ id: "voice", kind: "audio", source: { type: "video", videoId: take.videoId }, name: "Voice", durationInFrames: total, width: null, height: null });
+  assets.push({ id: "voice", kind: "audio", source: { type: "video", videoId: source.videoId }, name: "Voice", durationInFrames: total, width: null, height: null });
 
   return {
     version: 1,
     format,
     tracks: [
       ...(backdrop.length ? [track("backdrop", "visual", "Backdrop", backdrop)] : []),
-      track("pictures", "visual", "Pictures", pictures),
-      track("avatar", "visual", "Avatar", avatar),
-      ...(over.length ? [track("over", "visual", "Over", over)] : []),
+      track("pictures", "visual", "Pictures", mergeHeld(pictures)),
+      ...(avatar.length ? [track("avatar", "visual", "Avatar", avatar)] : []),
+      ...(over.length ? [track("over", "visual", "Over", mergeHeld(over))] : []),
       track("captions", "text", "Captions", captions),
       ...(labels.length ? [track("labels", "text", "Labels", labels)] : []),
       track("voice", "audio", "Voice", [voice]),

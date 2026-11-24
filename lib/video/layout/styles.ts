@@ -14,7 +14,7 @@ export const LAYOUT_STYLE_IDS = [
 ] as const;
 export type LayoutStyleId = (typeof LAYOUT_STYLE_IDS)[number];
 
-export const LAYOUT_NAMES = ["split", "avatar", "avatar-close", "picture", "card", "bubble", "framed", "window", "sketch"] as const;
+export const LAYOUT_NAMES = ["split", "avatar", "avatar-close", "picture", "card", "bubble", "framed", "window", "sketch", "endcard"] as const;
 export type LayoutName = (typeof LAYOUT_NAMES)[number];
 
 /** What an upload the person gave is, so the planner and the rules know where it can go. */
@@ -86,7 +86,7 @@ export const LAYOUT_STYLES: readonly LayoutStyle[] = [
     avatar: true,
     beatSeconds: { target: 4, max: 7 },
     captionWords: 4,
-    layouts: ["framed"],
+    layouts: ["framed", "endcard"],
     pictureShare: 0,
   },
   {

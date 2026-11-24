@@ -12,6 +12,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { SceneFrame } from "@/components/video/composition";
+import { SketchFrame } from "@/components/video/sketch";
 import { CaptionText } from "./caption-text";
 import { coverFrame } from "@/lib/editor/framing";
 import { focusPosition, regionBoxStyle, textBoxStyle } from "@/lib/editor/layout-box";
@@ -143,6 +144,7 @@ export function ImageLayer({ item, src, name }: { item: ImageItem; src: string |
 
 export function SceneLayer({ item }: { item: SceneItem }) {
   const { width, height } = useVideoConfig();
+  if (item.sketch) return <SketchFrame sketch={item.sketch} vertical={height > width} />;
   return (
     <AbsoluteFill>
       <SceneFrame scene={item.scene} facts={item.facts} quotes={item.quotes} vertical={height > width} />

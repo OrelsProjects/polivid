@@ -5,6 +5,7 @@ import { hasOpenRouterKey, openrouter } from "@/lib/ai/openrouter";
 import type { Focus } from "@/lib/editor/schema";
 import type { LayoutBeat } from "./beats";
 import type { BeatPlan } from "./rules";
+import { SKETCH_KINDS } from "./sketch";
 import { LAYOUT_NAMES, type LayoutMedia, type LayoutStyle } from "./styles";
 import { DEFAULT_FACE } from "./timeline";
 
@@ -19,6 +20,13 @@ const PlanSchema = z.object({
       picture: z.string().nullable(),
       highlight: z.string().nullable(),
       stat: z.string().nullable(),
+      sketch: z
+        .object({
+          headline: z.string(),
+          kind: z.enum(SKETCH_KINDS),
+          items: z.array(z.object({ label: z.string(), value: z.string().nullable() })),
+        })
+        .nullable(),
     }),
   ),
 });
@@ -33,7 +41,8 @@ const STYLE_NOTES: Record<string, string> = {
   "framed-post": "framed is the only layout: the speaker in a band with the captions under it.",
   "screen-demo":
     "avatar-close is the hook. window shows the uploaded screen recording or screenshot in a rounded window, for every line that walks through it.",
-  "sketch-explainer": "sketch is the only layout.",
+  "sketch-explainer":
+    "sketch is the only layout: a hand-drawn page on paper, no person on camera. For each line also return sketch: a headline of about two words taken from the line, and one simple drawing that explains it. kind number shows one figure (one item with value); bars compares two to four figures (items with values); steps shows two to four short steps in order (items with labels only); compare sets two things side by side (two items with labels); words is the headline alone. A value must be a number said in that line, written the same way. Never make up, round, or combine numbers. Labels are one to three words. For other styles return sketch: null.",
 };
 
 /**
@@ -64,7 +73,8 @@ For each line return:
 - upload: the number of an upload to show on this line, or null. Only use an upload where it fits, and each upload once.
 - picture: when the layout shows a picture and no upload, one or two sentences saying what is in the frame: subject, place, light, framing. Show the idea of the line, not its words. Never ask for text, letters, numbers, logos, or charts. Never name a real person. Otherwise null.
 - highlight: one word from that line worth stressing, copied exactly, or null.
-- stat: a short figure from that line, such as "43% never reach 10", only when the line itself says the number. Never make up or round a number. Otherwise null.`,
+- stat: a short figure from that line, such as "43% never reach 10", only when the line itself says the number. Never make up or round a number. Otherwise null.
+- sketch: only for the sketch layout, as described above. Otherwise null.`,
       prompt: `What the video is about:\n${input.topic.trim().slice(0, 1200)}\n\nUploads:\n${uploads}\n\nLines:\n${input.beats
         .map((beat, index) => `${index + 1}. (${(beat.end - beat.start).toFixed(1)}s) ${beat.say}`)
         .join("\n")}`,
@@ -78,6 +88,9 @@ For each line return:
       picture: beat.picture ?? undefined,
       highlight: beat.highlight ?? undefined,
       stat: beat.stat ?? undefined,
+      sketch: beat.sketch
+        ? { headline: beat.sketch.headline, kind: beat.sketch.kind, items: beat.sketch.items.map((item) => ({ label: item.label, value: item.value ?? undefined })) }
+        : undefined,
     }));
   } catch (error) {
     console.error("Could not plan the layouts. Using the style's defaults.", error);

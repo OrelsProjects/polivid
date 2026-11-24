@@ -19,6 +19,11 @@ export function NewProjectButton({
 
   const handleClick = async () => {
     if (busy) return;
+    // A video opens its latest edit, so captions and changes made there are still there.
+    if (videoId) {
+      router.push(`/editor/open/${videoId}`);
+      return;
+    }
     setError(null);
     try {
       const id = await createProject(videoId).unwrap();
