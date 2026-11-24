@@ -34,6 +34,8 @@ export function ExportDialog() {
   const [pending, setPending] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The edit is unchanged, so the download is the video it was opened from, with no render. */
+  const [original, setOriginal] = useState(false);
   const renderedVersion = useRef<number | null>(null);
   const rememberedJob = useRef<string | null>(null);
   const startingExport = useRef(false);
@@ -51,6 +53,8 @@ export function ExportDialog() {
   );
   const downloadId = running ? null : (readyId ?? finishedId);
   const failed = job?.status === "failed";
+  /** The last finished export, when it is for an older version of the edit. */
+  const previousId = exportVideoId && exportVersion != null && exportVersion !== version ? exportVideoId : null;
 
   useEffect(() => {
     if (!open) return;
@@ -96,15 +100,17 @@ export function ExportDialog() {
     };
   }, [job?.status, jobId, markExported, projectId, rememberExport]);
 
-  const startRender = async () => {
+  /** `force` renders even an unchanged edit, instead of handing back the original video. */
+  const startRender = async (force = false) => {
     if (startingExport.current) return;
     startingExport.current = true;
     setError(null);
     setPending(true);
     renderedVersion.current = version;
     try {
-      const result = await exportProject(projectId).unwrap();
+      const result = await exportProject(force ? { id: projectId, force: true } : projectId).unwrap();
       renderedVersion.current = result.resumed ? null : version;
+      setOriginal(result.original);
       setJobId(result.jobId);
     } catch (cause) {
       setError(apiErrorMessage(cause, "Couldn't start the export."));
@@ -137,6 +143,7 @@ export function ExportDialog() {
         renderedVersion.current = version;
         const result = await exportProject(projectId).unwrap();
         renderedVersion.current = result.resumed ? null : version;
+        setOriginal(result.original);
         setJobId(result.jobId);
       } catch (cause) {
         setError(apiErrorMessage(cause, "Couldn't start the export."));
@@ -173,9 +180,15 @@ export function ExportDialog() {
             {!error && running && (
               <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
                 <LoaderCircle className="size-4 animate-spin" aria-hidden />
-                {job ? `Rendering… ${job.progressPct}%` : "Starting the render…"}
+                {!job ? "Starting the render…" : job.currentStep === "finalize" ? "Saving the file…" : `Rendering… ${job.progressPct}%`}
               </p>
             )}
+            {(running || failed) && previousId ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border px-3 py-2.5 text-sm">
+                <span className="text-muted-foreground">Your last export, from before your latest changes, is ready now.</span>
+                <DownloadAsMenu src={`/api/videos/${previousId}/file`} title={title || "edit"} />
+              </div>
+            ) : null}
             {!running && failed && (
               <p className="mt-3 text-sm text-destructive" role="alert">
                 {job?.error ?? "The export failed."}
@@ -183,7 +196,11 @@ export function ExportDialog() {
             )}
             {!running && downloadId && (
               <p className="mt-3 text-sm">
-                {finishedId === downloadId ? "Export finished." : "This edit is already rendered."}{" "}
+                {original && finishedId === downloadId
+                  ? "Your edit hasn't changed, so this is the original video. No render needed."
+                  : finishedId === downloadId
+                    ? "Export finished."
+                    : "This edit is already rendered."}{" "}
                 <Link
                   href={`/videos/${downloadId}`}
                   className="font-medium text-primary underline-offset-4 hover:underline"
@@ -194,8 +211,8 @@ export function ExportDialog() {
             )}
             <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
               {!running && downloadId && (
-                <Button type="button" variant="outline" size="sm" onClick={() => void startRender()} disabled={starting}>
-                  Render again
+                <Button type="button" variant="outline" size="sm" onClick={() => void startRender(true)} disabled={starting}>
+                  {original ? "Render anyway" : "Render again"}
                 </Button>
               )}
               {!running && downloadId && <DownloadAsMenu src={`/api/videos/${downloadId}/file`} title={title || "edit"} />}

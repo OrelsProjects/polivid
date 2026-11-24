@@ -6,6 +6,7 @@ import { timelineDurationInFrames } from "@/lib/editor/schema";
 import { createQueuedVideoJob, EDITOR_EXPORT_MODEL } from "@/lib/video/jobs";
 import { FPS } from "@/lib/video/schema";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
+import { hasFootage } from "@/lib/video/footage";
 
 const PROJECT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -24,13 +25,29 @@ const findActiveEditorExport = async (userId: string, projectId: string) => {
   return null;
 };
 
+/**
+ * The video an edit was opened from, when the edit hasn't changed since (version 1) and that video has
+ * its finished file. Exporting it would only render the same video again, so its file is used instead.
+ */
+const unchangedOriginal = async (userId: string, project: { version: number; sourceVideoId: string | null }) => {
+  if (project.version !== 1 || !project.sourceVideoId) return null;
+  const [video, job] = await Promise.all([
+    db.video.findFirst({ where: { id: project.sourceVideoId, userId, status: "ready" }, select: { id: true } }),
+    db.videoJob.findFirst({ where: { id: project.sourceVideoId, userId, status: "succeeded" }, select: { id: true } }),
+  ]);
+  if (!video || !job) return null;
+  return (await hasFootage(video.id)) ? video.id : null;
+};
+
 /** Queues a render of an editor project the person owns. */
-export const exportProjectFromInput = async (userId: string, projectId: string) => {
+export const exportProjectFromInput = async (userId: string, projectId: string, options: { force?: boolean } = {}) => {
   if (!PROJECT_ID.test(projectId)) return { error: "Not found." };
   const project = await getProjectForUser(userId, projectId);
   if (!project) return { error: "Not found." };
   const active = await findActiveEditorExport(userId, project.id);
   if (active) return { jobId: active, resumed: true };
+  const original = options.force ? null : await unchangedOriginal(userId, project);
+  if (original) return { jobId: original, resumed: true, original: true };
   const length = Math.max(2, Math.round(timelineDurationInFrames(project.timeline) / FPS));
   try {
     const job = await createQueuedVideoJob(userId, {

@@ -10,6 +10,7 @@ import { markVideoJobProgress } from "@/lib/video/jobs";
 import { assetUrlMap } from "./asset-url";
 import { publicAppUrl, signAssetToken } from "./asset-token";
 import { chromeForRender } from "./chrome-executable";
+import { directAssetUrl } from "./render-assets";
 import type { Timeline } from "./schema";
 
 /** Maps a render fraction onto a band of the job's progress bar. */
@@ -40,6 +41,13 @@ const remotionBundle = () => {
   return bundleLocation;
 };
 
+/** Builds the Remotion bundle ahead of time, so the first export after a restart doesn't wait for it. */
+export const warmRemotionBundle = () =>
+  remotionBundle().then(
+    () => console.info("Remotion bundle ready"),
+    (error: unknown) => console.error("Could not build the Remotion bundle ahead of time", error),
+  );
+
 /**
  * Renders a timeline to the job's video file.
  * `progress` is the band of the job's progress bar the render fills. An export owns the whole bar.
@@ -48,10 +56,16 @@ export const renderEditProject = async (
   userId: string,
   jobId: string,
   timeline: Timeline,
-  progress: { from: number; to: number } = { from: 10, to: 90 },
+  progress: { from: number; to: number } = { from: 10, to: 85 },
 ) => {
   const serveUrl = await remotionBundle();
   const origin = publicAppUrl();
+  // Clips are read straight from S3 where possible; the website's asset route is the fallback.
+  const direct = new Map(
+    await Promise.all(
+      timeline.assets.map(async (asset) => [asset.id, await directAssetUrl(userId, asset.source).catch(() => null)] as const),
+    ),
+  );
   const inputProps = {
     timeline,
     assetUrls: assetUrlMap(timeline, (asset) => {
@@ -60,6 +74,8 @@ export const renderEditProject = async (
         const file = backgroundById(asset.source.id)?.file;
         return file ? `${origin}${file}` : null;
       }
+      const url = direct.get(asset.id);
+      if (url) return url;
       const token = signAssetToken(userId, asset.source);
       return `${origin}/api/editor/assets/${encodeURIComponent(token)}`;
     }),
@@ -85,6 +101,8 @@ export const renderEditProject = async (
         void markVideoJobProgress(jobId, "render", renderProgress(progress.from, progress.to, done));
       },
     });
+    // Past the frames: the file is saved next, which the progress page shows as its own step.
+    await markVideoJobProgress(jobId, "finalize", 92);
     await saveFootage(jobId, new Uint8Array(await readFile(outputLocation)));
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => undefined);

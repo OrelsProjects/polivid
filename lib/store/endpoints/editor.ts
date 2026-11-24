@@ -18,11 +18,18 @@ export const editorApi = api.injectEndpoints({
       query: (id) => ({ url: `editor/projects/${id}/revert`, method: "POST" }),
     }),
     /** Starts an MP4 render. Resolves to the new job, or the one already running for this edit. */
-    exportEditProject: build.mutation<{ jobId: string; resumed: boolean }, string>({
-      query: (id) => ({ url: `editor/projects/${id}/export`, method: "POST" }),
-      transformResponse: (body: { jobId: string; resumed?: boolean }) => ({
+    exportEditProject: build.mutation<
+      { jobId: string; resumed: boolean; original: boolean },
+      string | { id: string; force?: boolean }
+    >({
+      query: (arg) => {
+        const { id, force } = typeof arg === "string" ? { id: arg, force: false } : arg;
+        return { url: `editor/projects/${id}/export`, method: "POST", ...(force ? { body: { force: true } } : {}) };
+      },
+      transformResponse: (body: { jobId: string; resumed?: boolean; original?: boolean }) => ({
         jobId: body.jobId,
         resumed: body.resumed === true,
+        original: body.original === true,
       }),
       invalidatesTags: ["ActiveJobs", "Credits"],
     }),

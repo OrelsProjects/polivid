@@ -22,10 +22,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!mark) return Response.json({ error: "Not found." }, { status: 404 });
     return Response.json(mark);
   }
-  const result = await exportProjectFromInput(userId, id);
+  // force: render even when the edit is unchanged and the original video could be used as is.
+  const force = Boolean(body && typeof body === "object" && (body as { force?: unknown }).force === true);
+  const result = await exportProjectFromInput(userId, id, { force });
   if ("error" in result && result.error === "Not found.") {
     return Response.json({ error: "Not found." }, { status: 404 });
   }
   if ("error" in result) return Response.json({ error: result.error }, { status: 500 });
-  return Response.json({ jobId: result.jobId, resumed: result.resumed }, { status: result.resumed ? 200 : 202 });
+  const original = "original" in result && result.original === true;
+  return Response.json({ jobId: result.jobId, resumed: result.resumed, original }, { status: result.resumed ? 200 : 202 });
 }

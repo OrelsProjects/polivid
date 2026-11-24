@@ -26,7 +26,7 @@ export { FootageStopped } from "./provider-http";
 
 const API = "https://openrouter.ai/api/v1";
 
-const footageKey = (id: string) => `${assertVideoId(id)}.mp4`;
+export const footageKey = (id: string) => `${assertVideoId(id)}.mp4`;
 
 /** The filmed clip before a voice is laid on top. */
 export const sourceFootageKey = (id: string) => `${assertVideoId(id)}.source.mp4`;

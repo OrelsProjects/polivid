@@ -39,6 +39,8 @@ const main = async () => {
   const { tickProductionJobs } = await import("@/lib/production/jobs/runner");
   let stopping = false;
   log("Worker started", { pid: process.pid, pollMs: POLL_MS, staleMs: STALE_MS });
+  // Build the Remotion bundle now, so the first editor export after a deploy doesn't wait for it.
+  void import("@/lib/editor/render").then(({ warmRemotionBundle }) => warmRemotionBundle());
 
   const stop = async (signal: string) => {
     if (stopping) return;
