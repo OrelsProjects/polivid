@@ -2,7 +2,10 @@ import "server-only";
 import { writeVoiceover } from "@/lib/ai/voiceover";
 import { getUpload, toDataUrl } from "@/lib/storage/s3";
 import { isAudioKey, isImageKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
-import { generationModelBySlug } from "./models";
+import { generationModelBySlug, isTalkingHeadMode } from "./models";
+import { generateImage } from "@/lib/images/generate";
+import { framePicture } from "./talking-head";
+import { talkingHeadMotion, ugcStillPrompt } from "./talking-head-request";
 import { OFF_VOICE_ID, modeCanNarrate } from "@/lib/voice/constants";
 import { narrationSource, trimToWords, wordsForSeconds } from "./beat-text";
 import { writeBeats } from "./beats";
@@ -39,6 +42,8 @@ export interface PreparedJob {
   spokenBeats?: string[];
   /** One reference list per shot. When set, later shots are not left without their pictures. */
   shotReferences?: Record<string, unknown>[][];
+  /** The still a UGC ad was filmed from, kept so a resumed job does not pay for another. */
+  stillKey?: string;
 }
 
 export const prepareModeJob = async (
@@ -72,9 +77,12 @@ export const prepareModeJob = async (
     cuts?: { seconds: number; camera: string; images?: number[]; action?: string; samePlace?: boolean }[];
     brief?: PromptBrief;
     attachmentRoles?: AttachmentAssignment[];
+    /** A UGC still made on an earlier run of this job. */
+    existingStillKey?: string;
   },
 ): Promise<PreparedJob> => {
   const mode = input.mode ? videoModeById(input.mode) : null;
+  if (mode && isTalkingHeadMode(mode.id)) return prepareTalkingHead(userId, mode.id as "avatar" | "ugc", input);
   const media = input.mediaKey ? await readOwnedMedia(userId, input.mediaKey) : null;
   const rawPrompt = (input.prompt.trim() || (mode ? defaultPromptForMode(mode) : "")).trim();
   const savedBeats = input.existingBeats?.filter((beat) => beat.trim().length > 0) ?? [];
@@ -194,18 +202,6 @@ export const prepareModeJob = async (
     return { ...base, imageDataUrl: media.dataUrl };
   }
 
-  if (mode.id === "avatar") {
-    if (!media || !isImageKey(input.mediaKey ?? "")) throw new Error("Upload a photo of the speaker.");
-    return {
-      ...base,
-      prompt: `The person in the reference photo speaks this to camera, looking at the lens, with natural lip sync and a matching voice:\n${prompt}`,
-      beats: [
-        `The person in the reference photo speaks this to camera, looking at the lens, with natural lip sync and a matching voice:\n${prompt}`,
-      ],
-      imageDataUrl: media.dataUrl,
-    };
-  }
-
   if (mode.id === "music") {
     if (!media || !isAudioKey(input.mediaKey ?? "")) throw new Error("Upload a song.");
     return {
@@ -227,6 +223,56 @@ export const prepareModeJob = async (
   }
 
   return base;
+};
+
+/**
+ * A talking avatar or UGC ad. The script is spoken word for word by the voice, and Avatar 6
+ * lip-syncs one picture to it, so there are no beats to write and nothing to cut into clips.
+ * The avatar's picture is the upload or the character's. A UGC ad first makes a selfie still
+ * of the character, holding the product when there is a product photo.
+ */
+const prepareTalkingHead = async (
+  userId: string,
+  mode: "avatar" | "ugc",
+  input: Parameters<typeof prepareModeJob>[1],
+): Promise<PreparedJob> => {
+  const script = input.existingSpoken?.trim() || spokenScript(input.prompt.trim()) || input.prompt.trim();
+  if (!script) throw new Error("Write the words to say.");
+  const motion = talkingHeadMotion(input.visualDirection);
+  const base = {
+    prompt: motion,
+    beats: [motion],
+    format: input.format,
+    length: input.length,
+    model: input.model,
+    resolution: input.resolution,
+    spoken: script,
+    spokenBeats: [script],
+  };
+  if (mode === "avatar") {
+    if (!input.mediaKey || !isImageKey(input.mediaKey)) throw new Error("Upload a photo of the speaker, or pick a character.");
+    const media = await readOwnedMedia(userId, input.mediaKey);
+    return { ...base, imageDataUrl: await framePicture(media.bytes, media.contentType, input.format) };
+  }
+  const stillKey = input.existingStillKey || (await makeUgcStill(userId, input));
+  const still = await readOwnedMedia(userId, stillKey);
+  return { ...base, stillKey, imageDataUrl: await framePicture(still.bytes, still.contentType, input.format) };
+};
+
+const makeUgcStill = async (userId: string, input: Parameters<typeof prepareModeJob>[1]) => {
+  const keys = input.referenceKeys ?? [];
+  const people = Math.max(1, Math.min(input.characterRefs || 1, keys.length));
+  const [subjectKey, ...moreSubjectKeys] = keys.slice(0, people);
+  if (!subjectKey) throw new Error("Pick a character with a picture to present the ad.");
+  const product = input.mediaKey && isImageKey(input.mediaKey) ? input.mediaKey : undefined;
+  const { imageKey } = await generateImage(userId, {
+    prompt: ugcStillPrompt({ hasProduct: Boolean(product), direction: input.visualDirection }),
+    format: input.format,
+    subjectKey,
+    moreSubjectKeys,
+    referenceKeys: product ? [product] : [],
+  });
+  return imageKey;
 };
 
 const readOwnedMedia = async (userId: string, key: string) => {

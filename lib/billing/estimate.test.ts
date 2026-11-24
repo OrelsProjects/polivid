@@ -6,6 +6,13 @@ test("a 30s Wan 720p video costs 300 credits", () => {
   assert.equal(videoJobCredits({ modelId: "wan", resolution: "720p", length: 30 }), 300);
 });
 
+test("Avatar 6 is priced by the second, and a UGC ad adds its still", () => {
+  assert.equal(videoJobCredits({ mode: "avatar", tier: "pro", length: 20 }), 200);
+  assert.equal(videoJobCredits({ mode: "avatar", tier: "low", length: 20 }), 100);
+  assert.equal(videoJobCredits({ mode: "avatar", tier: "ultra", length: 20 }), 290);
+  assert.equal(videoJobCredits({ mode: "ugc", tier: "pro", length: 20 }), 208);
+});
+
 test("demo and editor exports cost nothing", () => {
   assert.equal(videoJobCredits({ demo: true, modelId: "wan", resolution: "720p", length: 30 }), 0);
   assert.equal(videoJobCredits({ mode: "editor-export", length: 90 }), 0);

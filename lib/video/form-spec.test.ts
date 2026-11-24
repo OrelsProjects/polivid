@@ -52,6 +52,23 @@ test("a presenter video takes a script", () => {
   assert.equal(spec("shorts").input, "script");
 });
 
+test("a talking avatar and a UGC ad take a script, a character, and an optional picture", () => {
+  for (const mode of ["avatar", "ugc"]) {
+    const form = spec(mode);
+    assert.equal(form.input, "script", mode);
+    assert.equal(form.uploadKind, "image", mode);
+    assert.equal(form.uploadOptional, true, mode);
+    for (const section of ["character", "format", "tier", "model", "visualDirection"] as const) {
+      assert.ok(form.sections.has(section), `${mode} ${section}`);
+    }
+    // The script sets the length, and one picture is lip-synced, so there are no looks or shots.
+    for (const section of ["length", "look", "references", "showText"] as const) {
+      assert.equal(form.sections.has(section), false, `${mode} ${section}`);
+    }
+  }
+  assert.equal(spec("image").uploadOptional, false);
+});
+
 test("a tool narrows the form of its mode", () => {
   const loop = spec("prompt", "b-roll");
   assert.equal(loop.sections.has("character"), false);

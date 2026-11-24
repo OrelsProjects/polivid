@@ -8,6 +8,7 @@ import {
   GENERATION_MODEL_IDS,
   generationModelById,
   generationModelBySlug,
+  modelFitsMode,
   type GenerationModelId,
 } from "@/lib/video/models";
 import { resolveFilming, resolveModeTier } from "@/lib/video/modes";
@@ -75,6 +76,7 @@ export const briefModelChoices = (
   return available.filter((id) => {
     const model = generationModelById(id);
     if (!model || !model.aspectRatios.includes(brief.format)) return false;
+    if (!modelFitsMode(model, brief.mode)) return false;
     if (brief.frames.length > 0 && !model.referenceImages) return false;
     return true;
   });

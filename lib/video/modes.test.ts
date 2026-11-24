@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { modeAcceptsReferenceImages, resolveModeTier, videoModeById, VIDEO_MODES, VIDEO_TIERS } from "./modes";
+import { modeAcceptsReferenceImages, resolveFilming, resolveModeTier, videoModeById, VIDEO_MODES, VIDEO_TIERS } from "./modes";
 
 test("every catalog mode is live and resolves a Pro tier", () => {
   for (const mode of VIDEO_MODES) {
@@ -17,9 +17,20 @@ test("prompt mode maps Low, Pro, and Ultra to different models", () => {
   assert.equal(resolveModeTier("prompt", "ultra")?.model?.id, "seedance");
 });
 
-test("image and avatar share first-frame models", () => {
+test("image keeps first-frame models, and avatar and UGC film on HeyGen Avatar 6", () => {
   assert.equal(resolveModeTier("image", "pro")?.model?.id, "flux");
-  assert.equal(resolveModeTier("avatar", "ultra")?.model?.id, "seedance");
+  for (const mode of ["avatar", "ugc"]) {
+    assert.equal(resolveModeTier(mode, "low")?.model?.id, "avatar-6-turbo");
+    assert.equal(resolveModeTier(mode, "pro")?.model?.id, "avatar-6");
+    assert.equal(resolveModeTier(mode, "ultra")?.model?.id, "avatar-6");
+    assert.equal(resolveModeTier(mode, "ultra")?.resolution, "2K");
+  }
+});
+
+test("a talking-head model is ignored outside avatar and UGC, and the other way round", () => {
+  assert.equal(resolveFilming({ mode: "prompt", tier: "pro", modelId: "avatar-6" }).model?.id, "hailuo");
+  assert.equal(resolveFilming({ mode: "avatar", tier: "pro", modelId: "wan" }).model?.id, "avatar-6");
+  assert.equal(resolveFilming({ mode: "ugc", tier: "pro", modelId: "avatar-6-turbo" }).model?.id, "avatar-6-turbo");
 });
 
 test("motion graphics uses chat models", () => {

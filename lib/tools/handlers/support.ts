@@ -8,7 +8,8 @@ import { CreateVideoError, queueVideoFromInput } from "@/lib/video/create-reques
 import { mergeReferenceKeys } from "@/lib/coach/reference-notes";
 import { modeAcceptsReferenceImages, modeNeedsUpload, videoModeById, type ModeUpload, type VideoModeId, modeAllowsMedia } from "@/lib/video/modes";
 import { isCharacterId, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
-import { VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
+import { MIN_VIDEO_LENGTH, VIDEO_FORMATS, type VideoFormat } from "@/lib/video/schema";
+import { isTalkingHeadMode } from "@/lib/video/models";
 import { InsufficientCreditsError } from "@/lib/billing/errors";
 import type { ToolContext } from "@/lib/tools/types";
 
@@ -58,7 +59,7 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
   if (!mode) return { error: "That mode is not available." };
   const requestedMedia = text(input.mediaKey);
   const mediaKey = requestedMedia || (modeNeedsUpload(mode) ? mediaForUpload(ctx, mode.upload) : undefined);
-  if (modeNeedsUpload(mode) && !mediaKey) {
+  if (modeNeedsUpload(mode) && !mode.uploadOptional && !mediaKey) {
     return { error: "Attach the file this mode needs, or pass its upload key." };
   }
   const referenceKeys = modeAcceptsReferenceImages(mode)
@@ -74,7 +75,8 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
     const queued = await queueVideoFromInput(ctx.userId, {
       prompt: typeof input.prompt === "string" ? input.prompt : "",
       format: input.format ?? (fromUpload ? "9:16" : undefined),
-      length: input.length ?? (fromUpload ? 5 : undefined),
+      // A talking head's length comes from its script on the server. This only fills the shared field.
+      length: input.length ?? (fromUpload ? 5 : isTalkingHeadMode(modeId) ? MIN_VIDEO_LENGTH : undefined),
       mode: modeId,
       tier: typeof input.tier === "string" ? input.tier : "pro",
       ...(model ? { model } : {}),

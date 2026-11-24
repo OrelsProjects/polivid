@@ -2,6 +2,7 @@ import { AUTO_APPROVE_UNDER_CREDITS, spendNeedsApproval } from "@/lib/billing/au
 import { songCredits, videoJobCredits } from "@/lib/billing/estimate";
 import { storyboardCreditsFor } from "@/lib/coach/storyboard";
 import { toolByName } from "@/lib/tools/registry";
+import { isTalkingHeadMode } from "@/lib/video/models";
 import { resolveFilming, resolveModeTier } from "@/lib/video/modes";
 import { MIN_VIDEO_LENGTH } from "@/lib/video/schema";
 import { scriptSize, stillPictureCount } from "@/lib/video/script-markup";
@@ -61,7 +62,9 @@ const videoCredits = (mode: string, input: Record<string, unknown>, options: Too
   if (mode === "edit") return videoJobCredits({ demo: options.demo, mode, length: 0 });
   // A swap is priced by the uploaded video's length, which only the server can read.
   if (mode === "swap") return options.demo ? 0 : null;
-  if (typeof input.length !== "number" || !Number.isInteger(input.length)) return null;
+  // A talking avatar or UGC ad says its script word for word, so the script sets the length.
+  const talkingHead = isTalkingHeadMode(mode) && typeof input.prompt === "string";
+  if (!talkingHead && (typeof input.length !== "number" || !Number.isInteger(input.length))) return null;
   const tier = typeof input.tier === "string" && input.tier.trim() ? input.tier.trim() : "pro";
   if (mode !== "motion-graphics" && !resolveModeTier(mode, tier)) return null;
   const referenceCount = Array.isArray(input.referenceKeys)
@@ -73,9 +76,9 @@ const videoCredits = (mode: string, input: Record<string, unknown>, options: Too
   const media = input.media === "stills" || input.media === "loop" ? input.media : undefined;
   // A script read word for word runs as long as it takes to say, whatever length was passed.
   const verbatim = input.verbatim === true && mode === "voiceover" && typeof input.prompt === "string";
-  const length = verbatim
+  const length = verbatim || talkingHead
     ? Math.max(MIN_VIDEO_LENGTH, scriptSize(input.prompt as string).seconds)
-    : input.length;
+    : (input.length as number);
   return videoJobCredits({
     demo: options.demo,
     mode,

@@ -6,7 +6,7 @@ import { InsufficientCreditsError } from "@/lib/billing/errors";
 import { isAudioKey, isImageKey, isMediaKey, isOwnedUploadKey, isVideoKey } from "@/lib/storage/upload-key";
 import { isGenerationModelAvailable } from "@/lib/video/available-models";
 import { createQueuedVideoJob } from "@/lib/video/jobs";
-import { clipDuration } from "@/lib/video/models";
+import { clipDuration, isTalkingHeadMode } from "@/lib/video/models";
 import {
   defaultPromptForMode,
   isDirectMode,
@@ -103,8 +103,14 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     throw new CreateVideoError("That tool isn't available. Pick one from the Tools page.", 400);
   }
 
-  const mediaKey = parsed.data.mediaKey ?? parsed.data.imageKey;
-  if (resolved && modeNeedsUpload(resolved.mode) && resolved.mode.upload !== "none") {
+  let mediaKey = parsed.data.mediaKey ?? parsed.data.imageKey;
+  // An optional upload is still checked when one is sent.
+  if (
+    resolved &&
+    modeNeedsUpload(resolved.mode) &&
+    resolved.mode.upload !== "none" &&
+    !(resolved.mode.uploadOptional && !mediaKey)
+  ) {
     const missing = missingUpload(resolved.mode.upload, userId, mediaKey);
     if (missing) throw new CreateVideoError(missing, 400);
   }
@@ -149,16 +155,20 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   /** Drawn or looped pictures: no footage model films this video. */
   const composed = stills || loop;
   const maxLength = maxLengthForMedia(media);
+  /** A talking avatar or UGC ad says the script word for word, so it runs as long as that takes. */
+  const talkingHead = isTalkingHeadMode(resolved?.mode.id);
   const verbatim = parsed.data.verbatim === true && resolved?.mode.spokenScript === true;
   let length = parsed.data.length;
-  if (verbatim) {
+  if (verbatim || talkingHead) {
     // Notes and pauses in the script are not words. Pauses still take time.
     const size = scriptSize(prompt);
     if (size.words === 0) throw new CreateVideoError("Write the words to read. Notes in brackets are not read aloud.", 400);
     const seconds = size.seconds;
     if (seconds > maxLength) {
       throw new CreateVideoError(
-        `That script takes about ${seconds} seconds to read. The limit is ${maxLength}. Shorten it, or let us fit it to a length.`,
+        talkingHead
+          ? `That script takes about ${seconds} seconds to say. The limit is ${maxLength}. Shorten it.`
+          : `That script takes about ${seconds} seconds to read. The limit is ${maxLength}. Shorten it, or let us fit it to a length.`,
         400,
       );
     }
@@ -222,8 +232,14 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   if (composed && characterId === OFF_VOICE_ID) {
     throw new CreateVideoError("Pick a voice to read the script.", 400);
   }
-  if (resolved?.mode.id === "shorts" && (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)) {
+  if (
+    (resolved?.mode.id === "shorts" || resolved?.mode.id === "ugc") &&
+    (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)
+  ) {
     throw new CreateVideoError("Pick a character to present this video.", 400);
+  }
+  if (resolved?.mode.id === "avatar" && !mediaKey && (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)) {
+    throw new CreateVideoError("Upload a photo of the speaker, or pick a character.", 400);
   }
   if (resolved?.mode.id === "shorts" && requestedKeys.length > 1) {
     throw new CreateVideoError("Add one background picture at most.", 400);
@@ -255,11 +271,16 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       referenceClipKey = clip.key;
     }
   }
+  // A talking avatar with no upload speaks as the character's main picture, in the look picked.
+  if (resolved?.mode.id === "avatar" && !mediaKey) mediaKey = characterPictures[0];
+  if (resolved?.mode.id === "avatar" && !mediaKey) throw new CreateVideoError("This character has no picture yet.", 400);
   const canUseCharacterImage = characterPictures.length > 0 && acceptsReferences && Boolean(videoModel?.referenceImages);
   const characterSlots = canUseCharacterImage
     ? Math.max(1, Math.min(characterPictures.length, MAX_REFERENCE_IMAGES - requestedKeys.length))
     : 0;
-  const characterKeys = characterPictures.slice(0, characterSlots);
+  // A UGC ad paints its first still from the character's pictures, so they travel as references.
+  const characterKeys =
+    resolved?.mode.id === "ugc" ? characterPictures.slice(0, MAX_CHARACTER_REFERENCES) : characterPictures.slice(0, characterSlots);
   const referenceKeys = [...characterKeys, ...requestedKeys.filter((key) => !characterKeys.includes(key))].slice(
     0,
     MAX_REFERENCE_IMAGES,
@@ -287,7 +308,11 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     ? ownedPictures(parsed.data.directionKeys, "Upload a shot reference picture.")
     : [];
   const sceneKeys = lyricsMode ? ownedPictures(parsed.data.sceneKeys, "Upload a scene picture.") : [];
-  if ((referenceKeys.length > 0 || directionKeys.length > 0 || sceneKeys.length > 0) && !videoModel?.referenceImages) {
+  if (
+    (referenceKeys.length > 0 || directionKeys.length > 0 || sceneKeys.length > 0) &&
+    !videoModel?.referenceImages &&
+    !talkingHead
+  ) {
     throw new CreateVideoError("This model can't use a reference picture.", 400);
   }
 

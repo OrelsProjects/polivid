@@ -6,6 +6,7 @@ export const HANDLER_KEYS = [
   "make_motion_graphics",
   "make_music_video",
   "make_avatar_video",
+  "make_ugc_video",
   "make_image_video",
   "make_av_cut",
   "make_lyrics_video",

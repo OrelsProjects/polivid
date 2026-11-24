@@ -21,7 +21,7 @@ export const navigateTools = [
     summary: "Open the Create form with these settings filled in. Does not spend credits.",
     whenToUse: [
       "They want to tweak the form themselves instead of generating now.",
-      "Pass mode so the right Create page opens: prompt, voiceover, motion-graphics, music, avatar, image, av-to-video, lyrics, or captions.",
+      "Pass mode so the right Create page opens: prompt, voiceover, motion-graphics, music, avatar, ugc, image, av-to-video, lyrics, or captions.",
       "Pass referenceKeys so attached pictures are waiting. Pass mediaKey so an attached song or clip is waiting.",
     ],
     avoidWhen: ["They already approved a brief. Call the matching make tool instead."],

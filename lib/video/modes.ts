@@ -6,6 +6,7 @@ import {
   Music,
   PersonStanding,
   Scissors,
+  ShoppingBag,
   Smartphone,
   Sparkles,
   Type,
@@ -20,6 +21,7 @@ import {
   generationModelById,
   generationModelLabel,
   maxClipSeconds,
+  modelFitsMode,
   priceForResolution,
   type GenerationModel,
   type GenerationModelId,
@@ -46,6 +48,7 @@ export const VIDEO_MODE_IDS = [
   "edit",
   "direct",
   "swap",
+  "ugc",
 ] as const;
 export type VideoModeId = (typeof VIDEO_MODE_IDS)[number];
 
@@ -83,6 +86,11 @@ export interface VideoMode {
   media?: readonly VisualMedia[];
   /** The main box holds words to be spoken, so they can be read exactly as written. */
   spokenScript?: boolean;
+  /**
+   * The upload can be left out. A talking avatar can use a saved character's picture instead,
+   * and a UGC ad's product photo is optional.
+   */
+  uploadOptional?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -109,6 +117,13 @@ const IMAGE_TIERS: Record<VideoTier, ModeTier> = {
   low: { model: "wan", resolution: "480p", strength: "Inexpensive first-frame animation." },
   pro: { model: "flux", resolution: "720p", strength: "Keyframe-driven motion." },
   ultra: { model: "seedance", resolution: "720p", strength: "Cinematic motion from a still." },
+};
+
+/** HeyGen Avatar 6 lip-syncs the picture to the voice track, so the video runs as long as the speech. */
+const AVATAR_TIERS: Record<VideoTier, ModeTier> = {
+  low: { model: "avatar-6-turbo", resolution: "1080p", strength: "Half the price. Misses more gestures." },
+  pro: { model: "avatar-6", resolution: "1080p", strength: "Lip-synced to the voice, with gestures that follow the words." },
+  ultra: { model: "avatar-6", resolution: "2K", strength: "The same, in sharper 2K." },
 };
 
 const REFERENCE_TIERS: Record<VideoTier, ModeTier> = {
@@ -213,15 +228,30 @@ export const VIDEO_MODES: readonly VideoMode[] = [
   {
     id: "avatar",
     title: "Talking Avatar",
-    description: "Make a talking-avatar video from a photo and a script.",
+    description: "A photo or one of your characters says your script to camera, lip-synced to the voice.",
     icon: UserRound,
     tint: "from-stone-200 to-amber-50",
     status: "live",
     phase: 4,
     engine: "video",
     upload: "image",
-    placeholder: "Paste the words this person should say, looking at the camera.",
-    tiers: IMAGE_TIERS,
+    uploadOptional: true,
+    placeholder: "Paste the words to say to camera. They are spoken exactly as written.",
+    tiers: AVATAR_TIERS,
+  },
+  {
+    id: "ugc",
+    title: "UGC Ad",
+    description: "Your character talks about your product to camera, lip-synced to their voice.",
+    icon: ShoppingBag,
+    tint: "from-orange-200 to-pink-100",
+    status: "live",
+    phase: 4,
+    engine: "video",
+    upload: "image",
+    uploadOptional: true,
+    placeholder: "Write what your character says about the product. Open with the problem, then the product.",
+    tiers: AVATAR_TIERS,
   },
   {
     id: "image",
@@ -409,7 +439,9 @@ export const resolveFilming = (input: {
   if (resolved?.chatModel) {
     return { model: null, chatModel: resolved.chatModel, resolution: resolved.resolution };
   }
-  const explicit = input.modelId ? generationModelById(input.modelId) : null;
+  const picked = input.modelId ? generationModelById(input.modelId) : null;
+  // A talking-head model can't film a scene, and a talking-head mode films with nothing else.
+  const explicit = picked && modelFitsMode(picked, input.mode) ? picked : null;
   const model = explicit ?? resolved?.model ?? null;
   if (!model) return { model: null, resolution: resolved?.resolution };
   if (!explicit || explicit.id === resolved?.model?.id) {

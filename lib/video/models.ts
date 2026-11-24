@@ -33,10 +33,12 @@ export const GENERATION_MODEL_IDS = [
   "kling-omni",
   "kling-26",
   "kling-25",
+  "avatar-6",
+  "avatar-6-turbo",
 ] as const;
 export type GenerationModelId = (typeof GENERATION_MODEL_IDS)[number];
 
-export const MODEL_VENDORS = ["Seedance", "Wan", "HappyHorse", "MiniMax", "Kling", "FLUX", "Google"] as const;
+export const MODEL_VENDORS = ["Seedance", "Wan", "HappyHorse", "MiniMax", "Kling", "FLUX", "Google", "HeyGen"] as const;
 export type ModelVendor = (typeof MODEL_VENDORS)[number];
 
 export const VIDEO_PROVIDERS = ["openrouter", "google", "kling"] as const;
@@ -72,7 +74,23 @@ export interface GenerationModel {
   refusesRealPeople?: boolean;
   /** Rejects a request that has both a first frame and reference pictures. The first frame wins. */
   noFrameWithReferences?: boolean;
+  /**
+   * Animates one picture to speak an audio track, lip-synced. The clip runs as long as the audio,
+   * so it is never cut into clips and the voice is not laid over it afterwards.
+   * Only the modes in TALKING_HEAD_MODE_IDS film with it, and they film with nothing else.
+   */
+  talkingHead?: boolean;
 }
+
+/** Modes that put a picture on camera speaking a voice track, filmed by a talking-head model. */
+export const TALKING_HEAD_MODE_IDS = ["avatar", "ugc"] as const;
+
+export const isTalkingHeadMode = (mode?: string | null) =>
+  Boolean(mode) && (TALKING_HEAD_MODE_IDS as readonly string[]).includes(mode as string);
+
+/** Talking-head models film only talking-head modes, and those modes film with nothing else. */
+export const modelFitsMode = (model: GenerationModel, mode?: string | null) =>
+  isTalkingHeadMode(mode) === (model.talkingHead === true);
 
 export const GENERATION_MODELS: readonly GenerationModel[] = [
   {
@@ -321,6 +339,42 @@ export const GENERATION_MODELS: readonly GenerationModel[] = [
     audio: false,
     referenceImages: true,
     inputs: ["text", "image"],
+  },
+  {
+    id: "avatar-6",
+    vendor: "HeyGen",
+    provider: "openrouter",
+    slug: "heygen/heygen-avatar-6",
+    name: "HeyGen Avatar 6",
+    summary: "A photo speaks your voice track, lip-synced",
+    detail:
+      "Animates one photo to say the voice track, with gestures that follow the words. 1080p is about $0.10 a second, 2K about $0.145. The clip runs as long as the speech.",
+    durations: seconds(2, 90),
+    resolutions: ["1080p", "2K"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "1080p": 0.1, "2K": 0.145 },
+    audio: true,
+    referenceImages: false,
+    inputs: ["image", "audio"],
+    talkingHead: true,
+  },
+  {
+    id: "avatar-6-turbo",
+    vendor: "HeyGen",
+    provider: "openrouter",
+    slug: "heygen/heygen-avatar-6-turbo",
+    name: "HeyGen Avatar 6 Turbo",
+    summary: "Half-price Avatar 6",
+    detail:
+      "The same photo-to-speech model at about $0.05 a second. It is not faster, and it misses more of the gestures the script asks for.",
+    durations: seconds(2, 90),
+    resolutions: ["1080p"],
+    aspectRatios: ["16:9", "9:16", "1:1"],
+    pricePerSecond: { "1080p": 0.05 },
+    audio: true,
+    referenceImages: false,
+    inputs: ["image", "audio"],
+    talkingHead: true,
   },
 ];
 

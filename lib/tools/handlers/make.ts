@@ -13,6 +13,7 @@ export const makeShortsVideoHandler = modeHandler("shorts");
 export const makeMotionGraphicsHandler = modeHandler("motion-graphics");
 export const makeMusicVideoHandler = modeHandler("music");
 export const makeAvatarVideoHandler = modeHandler("avatar");
+export const makeUgcVideoHandler = modeHandler("ugc");
 export const makeImageVideoHandler = modeHandler("image");
 export const makeAvCutHandler = modeHandler("av-to-video");
 export const makeLyricsVideoHandler = modeHandler("lyrics");

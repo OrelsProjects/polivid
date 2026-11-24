@@ -31,6 +31,7 @@ const VENDOR_ICON: Record<ModelVendor, LucideIcon> = {
   Kling: Film,
   FLUX: Blend,
   Google: Gem,
+  HeyGen: Video,
 };
 
 const VENDOR_TONE: Record<ModelVendor, string> = {
@@ -41,6 +42,7 @@ const VENDOR_TONE: Record<ModelVendor, string> = {
   Kling: "bg-amber-400/20 text-amber-800",
   FLUX: "bg-sky-500/15 text-sky-800",
   Google: "bg-emerald-500/15 text-emerald-800",
+  HeyGen: "bg-indigo-500/15 text-indigo-800",
 };
 
 function VendorMark({ vendor }: { vendor: ModelVendor }) {

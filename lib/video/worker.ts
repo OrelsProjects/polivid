@@ -30,6 +30,7 @@ import { modeNeedsUpload, videoModeById } from "./modes";
 import { buildScenePlan, normalizePlan, runResearch, writeScript } from "./pipeline";
 import { FPS, VIDEO_FORMATS, type ScenePlan, type VideoFormat, type VideoRecord } from "./schema";
 import { shouldHoldAfterClip } from "./job-stages";
+import { mediaSeconds, talkingHeadAudioKey, talkingHeadAudioUrl, talkingHeadSpeech } from "./talking-head";
 import { AUTO_PRESET_ID, withVisualStyle } from "./presets";
 import { filmSecondsFor } from "./shot-plan";
 import { isStitchedMode, planSegments, readStitchPlan, segmentMediaKey } from "./segments";
@@ -238,7 +239,7 @@ const filmQueuedJob = async (userId: string, jobId: string) => {
       throw new Error("This queued video is missing a model, format, or length.");
     }
     const mode = input.mode ? videoModeById(input.mode) : null;
-    if (mode && modeNeedsUpload(mode) && !input.mediaKey) {
+    if (mode && modeNeedsUpload(mode) && !mode.uploadOptional && !input.mediaKey) {
       throw new Error("Upload a file for this mode.");
     }
 
@@ -345,8 +346,13 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     cuts: approvedCuts ?? undefined,
     brief: input.brief,
     attachmentRoles: input.attachmentRoles,
+    existingStillKey: readStillKey(job?.artifacts),
   });
   if (prepared.spoken) await rememberSpoken(jobId, job?.artifacts, prepared.spoken, prepared.spokenBeats);
+  if (model.talkingHead) {
+    await filmTalkingHead(userId, jobId, input, prepared);
+    return;
+  }
   const speech = await speechForCuts(userId, input.characterId, prepared, segments.length > 0 ? segments : [input.length]);
   if (prepared.reuseUploadAsFootage && prepared.mediaBytes) {
     await storeClip(userId, jobId, input, input.length, prepared.mediaBytes, prepared.transcript ?? prepared.prompt);
@@ -366,6 +372,50 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
   );
   const voiced = speech ? await storeVoiced(jobId, clip.bytes, speech, clip.durationSec) : clip.bytes;
   await storeClip(userId, jobId, input, clip.durationSec, voiced, prepared.spoken?.trim() || prepared.prompt);
+};
+
+/**
+ * Avatar 6 lip-syncs the picture to the voice track, so the voice is made first and sent with it.
+ * The clip comes back with that speech as its sound, so nothing is laid over it afterwards.
+ * The speech is stored, so a retried clip says exactly the same take.
+ */
+const filmTalkingHead = async (userId: string, jobId: string, input: JobInput, prepared: PreparedJob) => {
+  if (prepared.stillKey) await rememberStillKey(jobId, prepared.stillKey);
+  const speech =
+    (await readVideoMedia(talkingHeadAudioKey(jobId))) ??
+    (await talkingHeadSpeech(userId, input.characterId, prepared.spoken ?? ""));
+  const audioUrl = await talkingHeadAudioUrl(jobId, speech);
+  const speechSeconds = await mediaSeconds(speech, "mp3").catch(() => input.length);
+  if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
+  const clip = await filmClipWithRetries(
+    jobId,
+    0,
+    { ...footageFromPrepared(prepared), length: Math.max(2, Math.round(speechSeconds)), audioUrl },
+    () => isStillRunning(userId, jobId),
+    null,
+  );
+  const seconds = await clipSeconds(clip.bytes, speechSeconds);
+  await storeClip(userId, jobId, input, seconds, clip.bytes, prepared.spoken?.trim() || prepared.prompt);
+};
+
+/** Whole seconds the clip runs, measured from the file. */
+const clipSeconds = async (bytes: Uint8Array, fallback: number) =>
+  Math.max(1, Math.round(await mediaSeconds(bytes, "mp4").catch(() => fallback)));
+
+const readStillKey = (artifacts: unknown) => {
+  if (!artifacts || typeof artifacts !== "object" || Array.isArray(artifacts)) return undefined;
+  const key = (artifacts as Record<string, unknown>).stillKey;
+  return typeof key === "string" && isImageKey(key) ? key : undefined;
+};
+
+const rememberStillKey = async (jobId: string, stillKey: string) => {
+  const job = await db.videoJob.findUnique({ where: { id: jobId }, select: { artifacts: true } });
+  if (readStillKey(job?.artifacts) === stillKey) return;
+  const current =
+    job?.artifacts && typeof job.artifacts === "object" && !Array.isArray(job.artifacts)
+      ? (job.artifacts as Record<string, unknown>)
+      : {};
+  await db.videoJob.update({ where: { id: jobId }, data: { artifacts: { ...current, stillKey } } });
 };
 
 const filmMotion = async (userId: string, jobId: string, input: JobInput) => {
@@ -597,8 +647,11 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
     await finishProviderClip(providerJobId, "completed", input.model);
     const jobInput = toJobInput(input);
     const spoken = readSpoken(job.artifacts);
-    const durationSec = clipDuration(input.length, model.durations);
-    const speech = await narrationAudio(userId, jobInput.characterId, spoken);
+    // A talking head already speaks its voice track, and runs as long as it.
+    const durationSec = model.talkingHead
+      ? await clipSeconds(bytes, input.length)
+      : clipDuration(input.length, model.durations);
+    const speech = model.talkingHead ? null : await narrationAudio(userId, jobInput.characterId, spoken);
     const voiced = speech ? await storeVoiced(jobId, bytes, speech, durationSec) : bytes;
     await storeClip(userId, jobId, jobInput, durationSec, voiced, spoken || undefined);
   } catch (error) {

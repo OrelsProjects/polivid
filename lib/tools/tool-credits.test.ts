@@ -114,6 +114,16 @@ test("every credit tool is priced from its input or looked up", () => {
   }
 });
 
+test("a talking avatar and a UGC ad are priced by how long their script takes to say", () => {
+  const script = "word ".repeat(50).trim();
+  const avatar = creditsForToolInput("make_avatar_video", { prompt: script, format: "9:16", tier: "pro" });
+  const ugc = creditsForToolInput("make_ugc_video", { prompt: script, format: "9:16", tier: "pro" });
+  assert.ok(typeof avatar === "number" && avatar > 0);
+  assert.equal(ugc, (avatar as number) + 8);
+  // A length passed with the script does not change the price.
+  assert.equal(creditsForToolInput("make_avatar_video", { prompt: script, format: "9:16", tier: "pro", length: 90 }), avatar);
+});
+
 test("a model named in the tool call changes the price", () => {
   const base = { prompt: "A street at night", format: "9:16", length: 10, tier: "pro" };
   const tierPrice = creditsForToolInput("make_prompt_video", base);

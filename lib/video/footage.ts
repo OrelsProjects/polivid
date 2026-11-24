@@ -7,6 +7,7 @@ import { finishGeminiVideo, submitGeminiVideo } from "./gemini-footage";
 import { finishKlingVideo, submitKlingVideo } from "./kling-footage";
 import { assertVideoId, hasVideoMedia, isVideoId, putVideoMedia, readVideoMedia, videoMediaResponse } from "./media-store";
 import { clipDuration, clipResolution, GENERATION_MODELS, generationModelBySlug, type VideoProvider } from "./models";
+import { talkingHeadBody } from "./talking-head-request";
 import { prepareFootageForSeeking } from "./prepare-footage";
 import {
   checkVideoBytes,
@@ -127,6 +128,8 @@ export interface FootageRequest {
   inputReferences?: Record<string, unknown>[];
   /** When set, overrides the model's own audio default. Lyrics clips stay silent. */
   generateAudio?: boolean;
+  /** The voice track a talking-head model lip-syncs the picture to. */
+  audioUrl?: string;
 }
 
 export interface FootageClip {
@@ -188,7 +191,9 @@ export const renderFootage = async (
             imageDataUrl: input.imageDataUrl,
             inputReferences: input.inputReferences,
           })
-        : await submitJob({
+        : model.talkingHead
+          ? await submitJob(talkingHeadRequest(model.slug, resolution, input))
+          : await submitJob({
           model: model.slug,
           prompt: input.prompt,
           duration,
@@ -219,7 +224,20 @@ export const renderFootage = async (
     }
   }
   const bytes = await finishFootage(providerJobId, model.provider, shouldContinue);
-  return { durationSec: duration, bytes };
+  // A talking head runs as long as its voice track, which the caller measures.
+  return { durationSec: model.talkingHead ? input.length : duration, bytes };
+};
+
+const talkingHeadRequest = (slug: string, resolution: string, input: FootageRequest) => {
+  if (!input.imageDataUrl) throw new Error("Add the picture that should speak.");
+  if (!input.audioUrl) throw new Error("There is no voice track to speak.");
+  return talkingHeadBody({
+    model: slug,
+    prompt: input.prompt,
+    resolution,
+    imageUrl: input.imageDataUrl,
+    audioUrl: input.audioUrl,
+  });
 };
 
 /** Keeps polling a video that was already submitted to `provider`. */

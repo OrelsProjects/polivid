@@ -1,4 +1,5 @@
 import { modeCanNarrate } from "@/lib/voice/constants";
+import { isTalkingHeadMode } from "./models";
 import { isDirectMode, modeAcceptsReferenceImages, modeAllowsStills, type ModeUpload, type VideoMode } from "./modes";
 import type { CreateTool, FormSection } from "./tool-catalog";
 
@@ -10,6 +11,8 @@ export interface FormSpec {
   sections: ReadonlySet<FormSection>;
   /** The file this mode needs before it can run. */
   uploadKind: Exclude<ModeUpload, "none"> | null;
+  /** The upload can be left out: an avatar can use a character's picture, and a UGC product photo is optional. */
+  uploadOptional: boolean;
   /** A step the person approves before anything is filmed. */
   planFirst: "shots" | "song" | null;
   /** Looks offered. Null means every look the engine allows. */
@@ -41,6 +44,14 @@ export const formSpecFor = (mode: VideoMode | null, tool?: CreateTool | null): F
     sections.add("length");
     sections.add("tier");
     sections.add("model");
+  } else if (isTalkingHeadMode(mode?.id)) {
+    // The script is said word for word to one picture, so it sets the length, and there are no
+    // shots, looks, or on-screen text. The direction box says how they move, or where a UGC ad is set.
+    sections.add("format");
+    sections.add("visualDirection");
+    sections.add("tier");
+    sections.add("model");
+    sections.add("character");
   } else if (mode?.engine === "compose") {
     // Captions and the like work on an upload as it is. Its shape and length come from the file.
   } else {
@@ -61,9 +72,10 @@ export const formSpecFor = (mode: VideoMode | null, tool?: CreateTool | null): F
   for (const hidden of tool?.hide ?? []) sections.delete(hidden);
 
   return {
-    input: mode?.id === "lyrics" ? "lyrics" : mode?.id === "shorts" ? "script" : "prompt",
+    input: mode?.id === "lyrics" ? "lyrics" : mode?.id === "shorts" || isTalkingHeadMode(mode?.id) ? "script" : "prompt",
     sections,
     uploadKind: mode && mode.upload !== "none" ? mode.upload : null,
+    uploadOptional: mode?.uploadOptional === true,
     planFirst: mode?.id === "lyrics" ? "song" : mode?.id === "prompt" ? "shots" : null,
     presetIds: tool?.presets ?? null,
     linkFirst: tool?.input === "link" && sections.has("link"),

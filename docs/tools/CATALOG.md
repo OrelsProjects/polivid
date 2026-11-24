@@ -198,32 +198,80 @@ Inputs:
 
 ### make_avatar_video
 
-**Talking Avatar.** Make a talking-avatar video from a photo and a script.
+**Talking Avatar.** A photo or one of your characters says your script to camera, lip-synced to the voice.
 
 Spends credits. Long-running. Needs approval at 200 credits or more.
 
 Use when:
-- A photo of a person should say a script to camera.
-- mediaKey is that photo. If you omit it, the attached picture is used.
+- A photo of a person, or a saved character, should say a script to camera with real lip sync.
+- HeyGen Avatar 6 animates one picture to the voice track. The script is spoken word for word and sets the length.
+- Pass characterId to use that character's picture and voice. Pass characterLookId for one of its looks.
+- mediaKey is a photo to use instead of the character's picture. With a character, the photo speaks in the character's voice. With no character, the studio voice reads it.
 
 Don't use when:
 - Nobody is on camera. Use make_voiceover_video.
+- The character should hold a product, like a creator's ad. Use make_ugc_video.
 - The photo should only guide a filmed scene. Use make_prompt_video with referenceKeys.
 
 Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
-| prompt | yes | The words this person should say, looking at the camera. |
-| mediaKey | no | Photo upload key. Omit to use the attached picture. |
+| prompt | yes | The words to say to camera, word for word. |
+| mediaKey | no | Optional photo upload key. Omit to use the character's picture, or the attached picture. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
-| length | yes | Length in seconds, from 2 to 90. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 | model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
-| presetId | no | Visual preset id from list_presets or suggest_preset. auto lets the model pick. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |
-| showText | no | Whether on-screen text and titles are allowed. Defaults to yes. |
-| template | no | Template slug from list_templates, for this same mode. Recorded on the video; it does not change other settings. |
+
+Examples:
+
+> Have Orel say this to camera as a vertical video.
+
+```json
+{"prompt":"Three things I learned shipping every week for a year.","format":"9:16","tier":"pro"}
+```
+
+### make_ugc_video
+
+**UGC Ad.** Your character talks about your product to camera, lip-synced to their voice.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- They want a UGC ad, testimonial, or product review where their character talks about a product to camera, like a creator's selfie video.
+- First a still is made of the character, with the product photo when there is one, then HeyGen Avatar 6 lip-syncs it to the character's voice. The script is spoken word for word and sets the length.
+- Pass characterId. It must be a saved character with a picture. Pass characterLookId for one of its looks.
+- mediaKey is the product photo. It is optional. If you omit it, the attached picture is used when there is one.
+- Pass the script as they wrote it. Nothing is added to the picture or the motion beyond what they ask for.
+- visualDirection is how the picture and the motion should look: the place, what they hold, how they move. Pass only what they asked for.
+
+Don't use when:
+- There is no character, only a product. Use make_image_video for a product clip.
+- They want a filmed ad with several scenes. Use start_production.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| prompt | yes | What the character says about the product, word for word. |
+| mediaKey | no | Optional product photo upload key. Omit to use the attached picture. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
+| tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| model | no | Footage model id from list_models. Overrides the model the tier would pick. Check its clip lengths, reference-picture support, and price in list_models first. |
+| visualDirection | no | Look and shot notes, at most 600 characters. |
+
+Examples:
+
+> Make a UGC ad of Dana holding this serum, in her bathroom.
+
+```json
+{"prompt":"My skin was so dry every winter. Then I tried this serum. Two weeks in, it's honestly glowing. Link's below.","format":"9:16","tier":"pro","visualDirection":"A bright bathroom, morning light."}
+```
 
 ### make_image_video
 
@@ -2271,7 +2319,7 @@ Runs in the app.
 
 Use when:
 - They want to tweak the form themselves instead of generating now.
-- Pass mode so the right Create page opens: prompt, voiceover, motion-graphics, music, avatar, image, av-to-video, lyrics, or captions.
+- Pass mode so the right Create page opens: prompt, voiceover, motion-graphics, music, avatar, ugc, image, av-to-video, lyrics, or captions.
 - Pass referenceKeys so attached pictures are waiting. Pass mediaKey so an attached song or clip is waiting.
 
 Don't use when:

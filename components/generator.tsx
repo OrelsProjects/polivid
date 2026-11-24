@@ -60,7 +60,7 @@ import {
   type VisualMedia,
 } from "@/lib/video/stills";
 import { toolBySlug } from "@/lib/video/tool-catalog";
-import { clipDuration, generationModelById, type GenerationModelId } from "@/lib/video/models";
+import { clipDuration, generationModelById, isTalkingHeadMode, modelFitsMode, type GenerationModelId } from "@/lib/video/models";
 import {
   isDirectMode,
   modeAcceptsReferenceImages,
@@ -269,12 +269,20 @@ export function Generator({
   const formatStep = opStep + (showOp ? 1 : 0);
   const qualityStep = formatStep + (showFormat ? 1 : 0);
   const readAsWritten = verbatim && spec.sections.has("verbatim");
+  /** A talking avatar or UGC ad says the script word for word to one picture, so the script sets the length. */
+  const talkingHead = isTalkingHeadMode(videoMode?.id);
+  const ugc = videoMode?.id === "ugc";
   // Notes in brackets and pauses are directions. They are not counted as words, but a pause takes time.
   const script = useMemo(() => scriptSize(prompt), [prompt]);
   const scriptWords = script.words;
   const createPath = videoMode ? `/create/${createTool?.slug ?? videoMode.id}` : "/create";
   const uploadKind = spec.uploadKind;
   const needsUpload = uploadKind !== null;
+  // An avatar can speak as a character's picture instead of an upload. A UGC product photo is optional.
+  const uploadMissing =
+    needsUpload &&
+    !mediaKey &&
+    !(spec.uploadOptional && (videoMode?.id !== "avatar" || isPresenterCharacter(characterId)));
   const promptReady = Boolean(videoMode?.promptOptional) || prompt.trim().length >= 3;
   // A swap's picture is the character's, picked with / or the picker, not an extra reference.
   const acceptsReferences = !swap && (!videoMode || modeAcceptsReferenceImages(videoMode));
@@ -286,6 +294,7 @@ export function Generator({
   const videoModelChoices = models.filter((id) => {
     const entry = generationModelById(id);
     if (!entry) return false;
+    if (!modelFitsMode(entry, videoMode?.id)) return false;
     if (videoMode?.id === "shorts" && entry.refusesRealPeople) return false;
     return true;
   });
@@ -298,7 +307,7 @@ export function Generator({
   const pickedLength = customLength === "" ? length : Number(customLength);
   // A script read word for word runs as long as it takes to say, so the length is not a choice.
   // A direct prompt is one clip, so it runs the nearest length the chosen model can film.
-  const activeLength = readAsWritten
+  const activeLength = readAsWritten || talkingHead
     ? Math.max(MIN_VIDEO_LENGTH, script.seconds)
     : direct && filmingModel && Number.isInteger(pickedLength)
       ? clipDuration(pickedLength, filmingModel.durations)
@@ -310,8 +319,8 @@ export function Generator({
   const planFirst = spec.planFirst !== null;
   const shorts = videoMode?.id === "shorts";
   /** The words are said to camera exactly as written, so a count helps size the script. */
-  const sayToCamera = shorts || videoMode?.id === "avatar";
-  const needsPresenter = shorts && !isPresenterCharacter(characterId);
+  const sayToCamera = shorts || talkingHead;
+  const needsPresenter = (shorts || ugc) && !isPresenterCharacter(characterId);
   const needsVoice = composed && characterId === OFF_VOICE_ID;
   const needsSwapCharacter = swap && !isPresenterCharacter(characterId);
   const clipSplit = useMemo(() => {
@@ -482,7 +491,7 @@ export function Generator({
     const value = text.trim();
     if (busy || !lengthValid || !promptReady) return;
     if (!videoMode?.promptOptional && !value) return;
-    if (needsUpload && !mediaKey) return;
+    if (uploadMissing) return;
     if (needsPresenter || needsVoice || needsSwapCharacter || swapProblem) return;
     if (songFirst && !approvedTake) return;
 
@@ -661,7 +670,23 @@ export function Generator({
           <h2 className="text-sm font-semibold">1 · Your input</h2>
           {uploadKind && (
             <div className="mt-3">
-              <MediaUpload kind={uploadKind} mediaKey={mediaKey} onChange={setMediaKey} disabled={busy} />
+              <MediaUpload
+                kind={uploadKind}
+                mediaKey={mediaKey}
+                onChange={setMediaKey}
+                disabled={busy}
+                {...(ugc
+                  ? {
+                      label: "Product photo (optional)",
+                      hint: "Shown with your character. Say how in the direction box. A clear photo on a plain background works best.",
+                    }
+                  : videoMode?.id === "avatar"
+                    ? {
+                        label: "Photo of the speaker",
+                        hint: "Or leave it empty and pick a character below. Their picture and voice are used.",
+                      }
+                    : {})}
+              />
               {swap && mediaKey && swapSourceSeconds !== null ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                   {mediaRanges && mediaRanges.length > 0 ? (
@@ -1318,13 +1343,13 @@ export function Generator({
                   setUseClip(false);
                 }}
                 disabled={busy}
-                usesImage={swap || (acceptsReferences && Boolean(filmingModel?.referenceImages))}
-                {...(swap
+                usesImage={swap || talkingHead || (acceptsReferences && Boolean(filmingModel?.referenceImages))}
+                {...(swap || ugc
                   ? {
                       allowOff: false,
                       allowStudio: false,
                       offLabel: "Pick a character",
-                      offDetail: "Type / in the box above, or pick one here",
+                      offDetail: ugc ? "Pick who presents the ad" : "Type / in the box above, or pick one here",
                     }
                   : {})}
                 detail={
@@ -1334,6 +1359,16 @@ export function Generator({
                       : swapMethod === "replace"
                         ? "This character replaces what you name in your video. The rest of the video and its sound stay."
                         : "This character performs the moves from your video in a new clip, with your video's sound."
+                    : ugc
+                    ? needsPresenter
+                      ? "Pick a saved character. They are on camera, and their voice says the script."
+                      : "This character is on camera and says the script in their voice, lip-synced."
+                    : videoMode?.id === "avatar"
+                    ? isPresenterCharacter(characterId)
+                      ? mediaKey
+                        ? "Your photo speaks in this character's voice, lip-synced."
+                        : "This character's picture speaks in their voice, lip-synced."
+                      : "Pick a character to use their picture and voice. A photo with no character speaks in the studio voice."
                     : videoMode?.id === "lyrics"  
                     ? characterId === OFF_VOICE_ID
                       ? "No added voice keeps the sung track."
@@ -1478,6 +1513,8 @@ export function Generator({
               ? `Pick a voice in step ${qualityStep}. It reads the script.`
               : needsPresenter
               ? `Pick a character in step ${qualityStep}. They present the video.`
+              : uploadMissing && videoMode?.id === "avatar"
+              ? `Upload a photo of the speaker, or pick a character in step ${qualityStep}.`
               : songFirst && !approvedTake
               ? "Make the song and listen to it first. Filming uses that exact song."
               : activePlan
@@ -1495,7 +1532,7 @@ export function Generator({
               !promptReady ||
               busy ||
               !lengthValid ||
-              (needsUpload && !mediaKey) ||
+              uploadMissing ||
               needsPresenter ||
               needsVoice ||
               needsSwapCharacter ||

@@ -37,7 +37,9 @@ test("voiceover starts on the studio narrator, and music keeps its own audio", (
   assert.equal(modeCanNarrate("lyrics"), true);
   assert.equal(modeCanNarrate(undefined), true);
   assert.equal(modeCanNarrate("music"), false);
-  assert.equal(modeCanNarrate("avatar"), false);
+  // A talking avatar and a UGC ad speak in the character's voice.
+  assert.equal(modeCanNarrate("avatar"), true);
+  assert.equal(modeCanNarrate("ugc"), true);
   assert.equal(isVoiceSettingId("studio"), true);
   assert.equal(isVoiceSettingId("off"), true);
   assert.equal(isVoiceSettingId("11111111-2222-3333-4444-555555555555"), true);

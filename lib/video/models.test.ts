@@ -9,8 +9,9 @@ import {
   supportsReferenceImages,
 } from "./models";
 
-test("every generation model accepts a reference picture", () => {
-  for (const model of GENERATION_MODELS) {
+test("every footage model accepts a reference picture", () => {
+  // A talking-head model animates one picture to a voice track. It takes no reference pictures.
+  for (const model of GENERATION_MODELS.filter((item) => !item.talkingHead)) {
     assert.equal(supportsReferenceImages(model), true, model.id);
   }
 });

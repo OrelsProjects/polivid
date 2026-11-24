@@ -133,7 +133,9 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
       ? // One clip, at a length the model can film.
         clipDuration(Math.max(0, input.length), model.durations)
       : Math.max(0, input.length);
-  return jobCreditsFromUsd(usd * seconds);
+  // A UGC ad paints one final-quality still of the character with the product before filming it.
+  const still = input.mode === "ugc" ? STILL_IMAGE_USD.final : 0;
+  return jobCreditsFromUsd(usd * seconds + still);
 };
 
 export const productionCredits = (usd: number, demo = false) => (demo ? 0 : jobCreditsFromUsd(usd));

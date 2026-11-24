@@ -126,6 +126,7 @@ const MODE_CATEGORY: Record<VideoModeId, ToolCategoryId> = {
   edit: "editing",
   direct: "creation",
   swap: "creation",
+  ugc: "marketing",
 };
 
 const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
@@ -134,7 +135,7 @@ const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
   prompt: ["idea", "text to video", "scene", "clip"],
   "motion-graphics": ["animation", "explainer", "charts", "kinetic text"],
   music: ["song", "track", "mp3", "music video"],
-  avatar: ["photo", "talking", "speaker", "headshot"],
+  avatar: ["photo", "talking", "speaker", "headshot", "lip sync", "heygen", "character"],
   image: ["photo", "picture", "animate", "still"],
   "av-to-video": ["podcast", "interview", "long video", "clips"],
   lyrics: ["song", "lyrics", "singer", "karaoke"],
@@ -142,6 +143,7 @@ const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
   edit: ["rotate", "flip", "resize", "crop", "loop", "volume", "mute", "mirror"],
   direct: ["raw", "exact", "as typed", "no planning", "untouched", "model prompt", "one clip"],
   swap: ["swap", "replace person", "motion control", "copy moves", "dance", "performance", "video to video"],
+  ugc: ["ugc", "creator", "testimonial", "review", "product", "selfie", "ad", "tiktok ad", "heygen"],
 };
 
 const FEATURED_MODES: readonly VideoModeId[] = ["prompt", "voiceover", "shorts"];

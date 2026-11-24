@@ -80,7 +80,14 @@ const VOICE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
 
 /** Prompt, voiceover, image, lyrics, and shorts can carry a voice track. */
 export const modeCanNarrate = (mode?: string | null) =>
-  !mode || mode === "prompt" || mode === "voiceover" || mode === "image" || mode === "lyrics" || mode === "shorts";
+  !mode ||
+  mode === "prompt" ||
+  mode === "voiceover" ||
+  mode === "image" ||
+  mode === "lyrics" ||
+  mode === "shorts" ||
+  mode === "avatar" ||
+  mode === "ugc";
 
 /** A saved character with a face and a voice. Off and the studio narrator have no picture. */
 export const isPresenterCharacter = (id?: string | null) =>
