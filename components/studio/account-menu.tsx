@@ -1,6 +1,6 @@
 "use client";
 
-import { CreditCard, LogOut, Plug } from "lucide-react";
+import { CreditCard, Eye, LogOut, Plug } from "lucide-react";
 import Link from "next/link";
 import { useTransition, type ReactNode } from "react";
 import { signOutAction } from "@/app/login/actions";
@@ -18,10 +18,13 @@ export function AccountMenu({
   detail,
   image,
   footer,
+  admin = false,
 }: {
   label: string;
   detail: string;
   image?: string | null;
+  /** Show admin tools, such as viewing the app as another user. */
+  admin?: boolean;
   /** A short status line under the menu items. */
   footer?: ReactNode;
 }) {
@@ -53,6 +56,12 @@ export function AccountMenu({
           <Plug className="size-4" aria-hidden />
           Connect agents
         </DropdownMenuItem>
+        {admin ? (
+          <DropdownMenuItem render={<Link href="/admin/view-as" />} className="gap-2.5 rounded-lg px-2.5 py-2">
+            <Eye className="size-4" aria-hidden />
+            View as a user
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           disabled={leaving}
           onClick={() => startLeaving(() => signOutAction())}

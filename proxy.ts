@@ -37,5 +37,6 @@ export const config = {
     "/settings/:path*",
     "/oauth/:path*",
     "/approve/:path*",
+    "/admin/:path*",
   ],
 };

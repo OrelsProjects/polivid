@@ -3,6 +3,7 @@ import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Resend from "next-auth/providers/resend";
 import { db } from "@/lib/db";
+import { applyViewAs } from "@/lib/auth/view-as-session";
 
 const emailProviders = () => {
   const resendApiKey = process.env.AUTH_RESEND_KEY ?? process.env.RESEND_API_KEY;
@@ -23,7 +24,7 @@ const emailProviders = () => {
  * Providers are built per request so adding AUTH_EMAIL_FROM / the Resend key
  * does not leave a stale "Google only" Auth.js instance in memory.
  */
-export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
+const nextAuth = NextAuth(() => ({
   trustHost: true,
   adapter: PrismaAdapter(db),
   session: { strategy: "database" },
@@ -41,3 +42,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
     verifyRequest: "/login/check-email",
   },
 }));
+
+export const { handlers, signIn, signOut } = nextAuth;
+
+/** Who is really signed in, ignoring "view as". Admin tools check this. */
+export const realAuth = () => nextAuth.auth();
+
+/**
+ * The session the app acts on. While an admin views as another user (lib/auth/view-as.ts), it is that
+ * user's, with `viewAs` naming the admin; otherwise it is the signed-in person's.
+ */
+export const auth = async () => applyViewAs(await nextAuth.auth());

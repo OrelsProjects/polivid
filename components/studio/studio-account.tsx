@@ -1,3 +1,5 @@
+import { realAuth } from "@/auth";
+import { isAdminEmail } from "@/lib/auth/view-as";
 import type { ReactNode } from "react";
 import { connection } from "next/server";
 import { getBalance } from "@/lib/billing/credits";
@@ -20,7 +22,7 @@ export async function StudioPlanCard() {
 }
 
 export async function StudioAccount({ footer }: { footer?: ReactNode }) {
-  const user = await getCurrentUser();
+  const [user, real] = await Promise.all([getCurrentUser(), realAuth()]);
   const label = user.name ?? user.email ?? "Signed in";
   return (
     <AccountMenu
@@ -28,6 +30,7 @@ export async function StudioAccount({ footer }: { footer?: ReactNode }) {
       detail={user.name && user.email ? user.email : "Workspace owner"}
       image={user.image}
       footer={footer}
+      admin={isAdminEmail(real?.user?.email)}
     />
   );
 }

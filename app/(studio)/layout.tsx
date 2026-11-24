@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import { PageTransition } from "@/components/motion/motion";
 import { StoreProvider } from "@/components/store-provider";
 import { ThemeScope } from "@/components/studio/studio-frame";
+import { ViewAsBanner } from "@/components/admin/view-as-banner";
 
 /**
  * Full-screen studio chrome. The project editor leaves the signed-in app's
@@ -18,6 +19,9 @@ export default function StudioLayout({ children }: { children: ReactNode }) {
           </PageTransition>
         </Suspense>
       </StoreProvider>
+      <Suspense fallback={null}>
+        <ViewAsBanner />
+      </Suspense>
     </main>
   );
 }

@@ -9,6 +9,7 @@ import {
   StudioPlanCard,
 } from "@/components/studio/studio-account";
 import { StudioFrame } from "@/components/studio/studio-frame";
+import { ViewAsBanner } from "@/components/admin/view-as-banner";
 import { hasOpenRouterKey, MODEL } from "@/lib/ai/openrouter";
 import {
   DEFAULT_GENERATION_MODEL,
@@ -42,6 +43,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <StoreProvider>
         <PageTransition>{children}</PageTransition>
       </StoreProvider>
+      <Suspense fallback={null}>
+        <ViewAsBanner />
+      </Suspense>
     </StudioFrame>
   );
 }
