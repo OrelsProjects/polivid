@@ -61,6 +61,13 @@ const main = async () => {
   }, PRODUCTION_TICK_MS);
   productionTimer.unref();
 
+  // Partner webhooks that didn't land are tried again on a backoff.
+  const { retryPartnerWebhooks } = await import("@/lib/partners/webhooks");
+  const webhookTimer = setInterval(() => {
+    if (!stopping) void retryPartnerWebhooks().catch((error) => console.error("Partner webhook retries failed", error));
+  }, PRODUCTION_TICK_MS);
+  webhookTimer.unref();
+
   let lastStatus = 0;
   while (!stopping) {
     try {

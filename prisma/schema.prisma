@@ -42,8 +42,71 @@ model User {
   oauthCodes         OAuthCode[]
   oauthTokens        OAuthToken[]
   spendQuotes        SpendQuote[]
+  /// Set on accounts a partner product made for its own users. They never sign in here.
+  partnerId          String?
+  partner            Partner?       @relation(fields: [partnerId], references: [id])
+  partnerLink        PartnerUser?
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+
+  @@index([partnerId])
+}
+
+/// A product that makes videos for its own users through the partner API, under its own name.
+model Partner {
+  /// A short slug, such as "writestack".
+  id                  String                   @id
+  name                String
+  /// sha256 of the partner secret. The secret itself is shown once and never stored.
+  secretHash          String                   @unique
+  /// Where finished, failed, and canceled videos are reported. Empty means the partner polls.
+  webhookUrl          String?
+  /// Signs webhook bodies. Kept so they can be signed; never sent anywhere.
+  webhookSecret       String?
+  /// The name shown in place of ours, in anything the partner's users might read.
+  brandName           String
+  active              Boolean                  @default(true)
+  users               User[]
+  links               PartnerUser[]
+  webhookDeliveries   PartnerWebhookDelivery[]
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+
+  @@map("partner")
+}
+
+/// Which of our accounts stands for one of the partner's users.
+model PartnerUser {
+  id             String   @id @default(cuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  /// The partner's own id for the person.
+  externalUserId String
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+
+  @@unique([partnerId, externalUserId])
+  @@map("partner_user")
+}
+
+/// One webhook sent to a partner about a video, kept so each change is reported once and retried until it lands.
+model PartnerWebhookDelivery {
+  id          String    @id @default(cuid())
+  partnerId   String
+  partner     Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  jobId       String
+  status      String
+  /// "{jobId}:{status}", so the same change is never reported twice.
+  eventKey    String    @unique
+  attempts    Int       @default(0)
+  deliveredAt DateTime?
+  lastError   String?
+  nextTryAt   DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([deliveredAt, nextTryAt])
+  @@map("partner_webhook_delivery")
 }
 
 /// One credit grant, hold, refund, or refill. Stripe event IDs are idempotency keys.

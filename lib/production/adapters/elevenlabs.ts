@@ -105,7 +105,7 @@ export const addInstantVoice = async (input: {
   if (!json.voice_id) throw new Error("The voice service didn't return a voice.");
   if (json.requires_verification) {
     await deleteInstantVoice(json.voice_id).catch(() => undefined);
-    throw new VoiceServiceError("ElevenLabs requires the speaker to verify this voice. Complete verification with ElevenLabs before using it in PoliVid.");
+    throw new VoiceServiceError("ElevenLabs requires the speaker to verify this voice. Complete verification with ElevenLabs before using it here.");
   }
   voices = null;
   return json.voice_id;

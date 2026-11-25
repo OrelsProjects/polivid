@@ -194,6 +194,21 @@ export const transitionVideoJob = async (
     triggerRunId?: string | null;
   } = {},
 ) => {
+  const saved = await saveTransition(jobId, to, patch);
+  // A partner's user's video that ended is reported to the partner, after the change is saved.
+  if (to === "succeeded" || to === "failed" || to === "canceled") {
+    void import("@/lib/partners/webhooks")
+      .then(({ notifyPartnerOfVideo }) => notifyPartnerOfVideo(jobId, to))
+      .catch((error) => console.error("Could not report the video to its partner", error));
+  }
+  return saved;
+};
+
+const saveTransition = async (
+  jobId: string,
+  to: JobStatus,
+  patch: Parameters<typeof transitionVideoJob>[2] = {},
+) => {
   return db.$transaction(async (tx) => {
     const job = await tx.videoJob.findUnique({ where: { id: jobId } });
     if (!job) throw new Error("Video job not found.");

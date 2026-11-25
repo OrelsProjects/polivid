@@ -8,6 +8,8 @@ export const TOKEN_PREFIX = {
   code: "pvc_",
   client: "pvcl_",
   quote: "pvq_",
+  /** A partner product's server secret (lib/partners). Never accepted by the MCP endpoint. */
+  partner: "pvp_",
 } as const;
 
 export type TokenKind = keyof typeof TOKEN_PREFIX;
