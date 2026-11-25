@@ -332,7 +332,8 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
   }
   if (!saved && !(await markVideoJobProgress(jobId, "script", 10))) return;
   const stitch = isStitchedMode(input.mode);
-  const approvedCuts = input.mode === "prompt" && input.cuts && input.cuts.length > 0 ? input.cuts : null;
+  // Planned shots, and a skit's beats, set the clips.
+  const approvedCuts = (input.mode === "prompt" || input.mode === "skit") && input.cuts && input.cuts.length > 0 ? input.cuts : null;
   const segments =
     saved?.segments ??
     (approvedCuts
@@ -373,9 +374,12 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     () => isStillRunning(userId, jobId),
     null,
   );
-  const voiced = speech ? await storeVoiced(jobId, clip.bytes, speech, clip.durationSec) : clip.bytes;
+  const voiced = speech ? await storeVoiced(jobId, clip.bytes, speech, clip.durationSec, voicing(input)) : clip.bytes;
   await storeClip(userId, jobId, input, clip.durationSec, voiced, prepared.spoken?.trim() || prepared.prompt);
 };
+
+/** A skit's shots make their own sound; only the character's voice is kept over them. */
+const voicing = (input: { mode?: string }) => ({ voiceOnly: input.mode === "skit" });
 
 /**
  * Avatar 6 lip-syncs the picture to the voice track, so the voice is made first and sent with it.
@@ -655,7 +659,7 @@ const finishKnownFootage = async (userId: string, jobId: string, providerJobId: 
       ? await clipSeconds(bytes, input.length)
       : clipDuration(input.length, model.durations);
     const speech = model.talkingHead ? null : await narrationAudio(userId, jobInput.characterId, spoken);
-    const voiced = speech ? await storeVoiced(jobId, bytes, speech, durationSec) : bytes;
+    const voiced = speech ? await storeVoiced(jobId, bytes, speech, durationSec, voicing(jobInput)) : bytes;
     await storeClip(userId, jobId, jobInput, durationSec, voiced, spoken || undefined);
   } catch (error) {
     if (error instanceof FootageStopped) return;
@@ -773,7 +777,7 @@ const publishPartial = async (
   let bytes = await stitchClips(stored, segments.slice(0, stored.length));
   if (speech) {
     try {
-      bytes = await storeVoiced(jobId, bytes, speech, duration);
+      bytes = await storeVoiced(jobId, bytes, speech, duration, voicing(input));
     } catch (error) {
       console.error("Could not add narration to the partial video", error);
     }
@@ -1192,7 +1196,9 @@ const filmSegments = async (
       startFrame: index === 0 ? prepared.imageDataUrl : lastFrame,
     });
     clipBytes.push(clip.bytes);
-    if (index < segments.length - 1) lastFrame = await lastFrameDataUrl(clip.bytes);
+    // A skit's beats are separate shots, each filmed from the character's pictures, so none starts
+    // where the last one ended. That lets every beat change the scene.
+    if (index < segments.length - 1 && input.mode !== "skit") lastFrame = await lastFrameDataUrl(clip.bytes);
     if (!(await markVideoJobProgress(jobId, "videos", progressFor("videos", index + 1, segments.length)))) {
       throw new FootageStopped();
     }
@@ -1204,7 +1210,7 @@ const filmSegments = async (
 
   const stitched = await stitchClips(clipBytes, segments);
   const duration = segments.reduce((sum, part) => sum + part, 0);
-  const voiced = speech ? await storeVoiced(jobId, stitched, speech, duration) : stitched;
+  const voiced = speech ? await storeVoiced(jobId, stitched, speech, duration, voicing(input)) : stitched;
   await storeClip(userId, jobId, input, duration, voiced, prepared.spoken?.trim() || beats.join("\n\n"));
   await Promise.all(segments.map((_, index) => deleteVideoMedia(segmentKey(jobId, index)).catch(() => undefined)));
 };

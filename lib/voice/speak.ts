@@ -65,10 +65,11 @@ export const fitNarration = (speech: Uint8Array, durationSec: number) =>
   );
 
 /**
- * Keeps the footage sound under the voice. A clip with no audio stream gets the voice alone.
+ * Keeps the footage sound under the voice. A clip with no audio stream gets the voice alone, and so
+ * does one where `voiceOnly` is asked for: a skit's shots make their own sound, which isn't wanted.
  */
-export const mixNarration = (video: Uint8Array, speech: Uint8Array, durationSec: number) =>
-  mixVideoAudio(video, speech, durationSec);
+export const mixNarration = (video: Uint8Array, speech: Uint8Array, durationSec: number, voiceOnly = false) =>
+  mixVideoAudio(video, speech, durationSec, voiceOnly);
 
 /** Speaks each beat, fits it to that clip, and joins them so the voice follows the picture. */
 export const speakFittedBeats = async (
@@ -192,7 +193,7 @@ const concatNarration = async (parts: Uint8Array[]) => {
   }
 };
 
-const mixVideoAudio = async (video: Uint8Array, audio: Uint8Array, durationSec: number) => {
+const mixVideoAudio = async (video: Uint8Array, audio: Uint8Array, durationSec: number, voiceOnly: boolean) => {
   const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-voice-"));
   try {
     const videoPath = path.join(dir, "picture.mp4");
@@ -202,7 +203,7 @@ const mixVideoAudio = async (video: Uint8Array, audio: Uint8Array, durationSec: 
     await writeFile(audioPath, audio);
     const probe = await probeFile(videoPath).catch(() => null);
     const duration = probe?.durationSec && probe.durationSec > 0.4 ? probe.durationSec : durationSec;
-    const args = probe?.hasAudio
+    const args = probe?.hasAudio && !voiceOnly
       ? mixAudioArgs(videoPath, audioPath, output, duration)
       : replaceAudioArgs(videoPath, audioPath, output, duration);
     await execFileAsync("ffmpeg", args, { timeout: 120_000 });

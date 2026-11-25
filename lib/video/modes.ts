@@ -49,6 +49,7 @@ export const VIDEO_MODE_IDS = [
   "direct",
   "swap",
   "ugc",
+  "skit",
 ] as const;
 export type VideoModeId = (typeof VIDEO_MODE_IDS)[number];
 
@@ -91,6 +92,8 @@ export interface VideoMode {
    * and a UGC ad's product photo is optional.
    */
   uploadOptional?: boolean;
+  /** Made only through the partner API. Kept off the Create page, the tool list, and the agent's catalog. */
+  partnerOnly?: boolean;
   tiers: Record<VideoTier, ModeTier> | null;
 }
 
@@ -104,6 +107,13 @@ const T2V_TIERS: Record<VideoTier, ModeTier> = {
   low: { model: "wan", resolution: "480p", strength: "Fast and inexpensive drafts." },
   pro: { model: "hailuo", resolution: "2K", strength: "Realistic motion at high resolution." },
   ultra: { model: "seedance", resolution: "720p", strength: "Cinematic scenes and longer clips." },
+};
+
+/** A skit films a shot per beat with the character's pictures as reference. Kling keeps the look. */
+const SKIT_TIERS: Record<VideoTier, ModeTier> = {
+  low: { model: "kling-4-flash", resolution: "720p", strength: "Quick, inexpensive shots." },
+  pro: { model: "kling-4", resolution: "720p", strength: "Livelier action and better motion." },
+  ultra: { model: "kling-4", resolution: "1080p", strength: "The same, sharper." },
 };
 
 /** Shorts put a real person on camera, so they skip Seedance, which turns down real people. */
@@ -252,6 +262,22 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     uploadOptional: true,
     placeholder: "Write what your character says about the product. Open with the problem, then the product.",
     tiers: AVATAR_TIERS,
+  },
+  {
+    id: "skit",
+    title: "Skit",
+    description: "Your character acts out your script, one shot per beat, in their own voice.",
+    icon: PersonStanding,
+    tint: "from-amber-200 to-rose-100",
+    status: "live",
+    phase: 4,
+    engine: "video",
+    upload: "none",
+    placeholder: "Write the script. A note in [brackets] says what your character does there.",
+    referenceImages: true,
+    spokenScript: true,
+    partnerOnly: true,
+    tiers: SKIT_TIERS,
   },
   {
     id: "image",

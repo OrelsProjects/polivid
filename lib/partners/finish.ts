@@ -220,6 +220,22 @@ export const retryPlanFor = (mode: string, input: JobInputFields, rawInput: unkn
       },
     };
   }
+  if (mode === "skit") {
+    if (!input.characterId) return null;
+    return {
+      kind: "create",
+      input: {
+        kind: "skit",
+        characterId: input.characterId,
+        ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
+        script: input.prompt,
+        ...(direction ? { direction } : {}),
+        format,
+        tier,
+        ...(finish ? { finish } : {}),
+      },
+    };
+  }
   if (mode === "voiceover") {
     return {
       kind: "create",

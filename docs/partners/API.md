@@ -54,7 +54,7 @@ A video holds its price when it starts and gives it back if it fails or is cance
 
 ## Characters
 
-UGC ads and talking avatars need a character: a person with a picture and a voice.
+UGC ads, talking avatars, and skits need a character: someone with a picture and a voice. A drawn character works too; it keeps its own art style.
 
 | Route | Does |
 | --- | --- |
@@ -113,6 +113,7 @@ More pictures make a UGC ad look more like the person. A UGC ad sends up to four
 { "kind": "avatar", "characterId": "…?", "photoKey": "…?", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { … }? }
 { "kind": "captions", "videoKey": "…" }
 { "kind": "faceless", "script": "…", "characterId": "…?", "direction": "…?", "format": "9:16", "tier": "pro" }
+{ "kind": "skit", "characterId": "…", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { "captions": "comic" }? }
 ```
 
 Field notes:
@@ -120,11 +121,20 @@ Field notes:
 - **`format`:** `9:16`, `16:9`, or `1:1`.
 - **`direction`:** how it looks and moves, in the person's words. Nothing else is added.
 
+### Skits
+
+A skit is the character acting the script out instead of talking to camera: one short filmed shot per beat, with the whole body, props, and a new scene whenever the script calls for one. The character's own voice reads the script word for word over the shots. The character needs a picture and a voice (`400 invalid` otherwise).
+
+- **Beats:** each sentence is a beat. A note in `[brackets]` says what the character does in that beat and is never read aloud: `[Quill slips on a stack of papers] I never saw it coming.` A beat with no note shows the character acting out its own line. A note at the end of a line steers the sentence before it. A very short line with no note is joined to its neighbour. A skit has at most 12 beats.
+- **Look:** every shot is filmed from the character's pictures and keeps their look and art style. Nothing else is added. `direction` goes on every shot, in the person's words.
+- **Length and price:** each beat's shot runs about as long as its words take to say, at least 3 seconds. The video runs as long as its shots, and the quote is priced from them. `low` is the quickest and cheapest, `pro` has livelier motion, and `ultra` is the same as `pro`, sharper.
+- **Sound and captions:** only the character's voice is kept; the shots' own sound is dropped. No captions are drawn on the shots. For captions, send a `finish` with a caption style. A skit takes a caption style but not a layout style (`400 invalid`), since layout styles re-cut one take of a speaker.
+
 Layout styles are `split-presenter`, `punch-in`, `source-reader` (needs a `post` upload), `framed-post`, `screen-demo` (needs a `recording` or `screenshot`), and `sketch-explainer`. Each `media` item is `{ key, role: post | screenshot | recording | picture, note? }`.
 
 ### Finishing a video in one request
 
-A UGC ad or talking avatar can say how it should be finished, so one request makes the finished video:
+A UGC ad or talking avatar can say how it should be finished, so one request makes the finished video. A skit can take the caption style only:
 
 ```json
 "finish": { "style": "punch-in", "media": [{ "key": "uploads/…/chart.png", "role": "picture" }], "captions": "yellow-pop" }

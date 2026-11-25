@@ -245,6 +245,30 @@ test("trying again rebuilds the same request, finish included, from what the job
   assert.deepEqual(retryPlanFor("avatar", readJobInput(photoRaw), photoRaw)?.kind, "create");
   assert.equal(retryPlanFor("avatar", readJobInput({ prompt: "Hi.", mode: "avatar" }), {}), null, "no picture and no character");
 
+  const skitRaw = {
+    prompt: "[Quill slips] I never saw it coming.",
+    mode: "skit",
+    tier: "ultra",
+    characterId: CHARACTER,
+    visualDirection: "Bouncy.",
+    partnerFinish: { captions: "comic" },
+  };
+  const skit = retryPlanFor("skit", readJobInput(skitRaw), skitRaw);
+  assert.deepEqual(skit, {
+    kind: "create",
+    input: {
+      kind: "skit",
+      characterId: CHARACTER,
+      script: "[Quill slips] I never saw it coming.",
+      direction: "Bouncy.",
+      format: "9:16",
+      tier: "ultra",
+      finish: { captions: "comic" },
+    },
+  });
+  assert.ok(skit?.kind === "create" && PartnerVideoSchema.safeParse(skit.input).success, "a skit retry passes the partner schema");
+  assert.equal(retryPlanFor("skit", readJobInput({ prompt: "Hi.", mode: "skit" }), {}), null, "no character to act it");
+
   const facelessRaw = { prompt: "One line. Another.", mode: "voiceover", tier: "pro", characterId: "studio" };
   assert.deepEqual(retryPlanFor("voiceover", readJobInput(facelessRaw), facelessRaw), {
     kind: "create",

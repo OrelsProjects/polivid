@@ -37,12 +37,13 @@ export const talkingHeadMotion = (visualDirection?: string) =>
   (visualDirection?.trim() || "The person speaks to the camera.").slice(0, MOTION_PROMPT_LIMIT);
 
 /**
- * The still a UGC ad starts from. It keeps the character's face, includes the product photo when
- * one was given, and otherwise follows only what the person wrote. Nothing else is added.
+ * The still a UGC ad starts from. It keeps the character as their pictures show them, in the same
+ * art style, so a drawn character stays drawn and a photo stays a photo. It includes the product
+ * photo when one was given, and otherwise follows only what the person wrote. Nothing else is added.
  */
 export const ugcStillPrompt = (input: { hasProduct: boolean; direction?: string }) =>
   [
-    "The person is the one in the subject reference pictures. Keep the same face, hair, skin, and build.",
+    "The character is the one in the subject reference pictures. Keep the same look and art style.",
     input.hasProduct ? "Include the product from the last reference picture, keeping its exact shape, colors, and label." : "",
     input.direction?.trim() ?? "",
   ]

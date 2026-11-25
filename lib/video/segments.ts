@@ -1,9 +1,9 @@
 import { clipDuration } from "./models";
 
-export const STITCHED_MODES = ["prompt", "voiceover", "lyrics", "image", "shorts"] as const;
+export const STITCHED_MODES = ["prompt", "voiceover", "lyrics", "image", "shorts", "skit"] as const;
 export type StitchedMode = (typeof STITCHED_MODES)[number];
 
-/** Prompt, Voiceover, Lyrics, Image, and older jobs that never stored a mode. */
+/** Prompt, Voiceover, Lyrics, Image, Shorts, Skit, and older jobs that never stored a mode. */
 export const isStitchedMode = (mode?: string | null) =>
   !mode || (STITCHED_MODES as readonly string[]).includes(mode);
 

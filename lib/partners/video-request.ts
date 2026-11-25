@@ -7,7 +7,7 @@ import { STUDIO_VOICE_ID } from "@/lib/voice/constants";
 import { PartnerError } from "./errors";
 
 /** The videos a partner can make. Each is one social-video tool; nothing else is reachable. */
-export const PARTNER_VIDEO_KINDS = ["ugc", "avatar", "captions", "faceless"] as const;
+export const PARTNER_VIDEO_KINDS = ["ugc", "avatar", "captions", "faceless", "skit"] as const;
 export type PartnerVideoKind = (typeof PARTNER_VIDEO_KINDS)[number] | "layout";
 
 const ID = z.string().trim().uuid();
@@ -78,6 +78,18 @@ export const PartnerVideoSchema = z.discriminatedUnion("kind", [
     videoKey: KEY,
   }),
   z.strictObject({
+    kind: z.literal("skit"),
+    /** The character acts the script out, one shot per beat, and reads it in their own voice. */
+    characterId: ID,
+    characterLookId: z.string().trim().min(1).optional(),
+    /** Read word for word. A note in [brackets] says what the character does there, and is not read. */
+    script: SCRIPT,
+    direction: DIRECTION,
+    format: z.enum(VIDEO_FORMATS).default("9:16"),
+    tier: TIER,
+    finish: FinishSchema.optional(),
+  }),
+  z.strictObject({
     kind: z.literal("faceless"),
     /** Said word for word over drawn, slowly moving pictures. */
     script: SCRIPT,
@@ -124,6 +136,21 @@ export const createBodyFor = (input: PartnerVideoInput): Record<string, unknown>
       ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
       ...(input.photoKey ? { mediaKey: input.photoKey } : {}),
       ...(input.direction ? { visualDirection: input.direction } : {}),
+    };
+  }
+  if (input.kind === "skit") {
+    return {
+      mode: "skit",
+      prompt: input.script,
+      verbatim: true,
+      format: input.format,
+      // The shots set the real length when it's queued; this only has to be a valid start.
+      length: Math.max(MIN_VIDEO_LENGTH, scriptSize(input.script).seconds),
+      tier: input.tier,
+      characterId: input.characterId,
+      ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
+      ...(input.direction ? { visualDirection: input.direction } : {}),
+      showText: false,
     };
   }
   if (input.kind === "captions") {

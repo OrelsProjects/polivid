@@ -125,7 +125,8 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
       credits.brollSeconds * usd + (typeof singerUsd === "number" ? credits.singerSeconds * singerUsd : 0);
     return jobCreditsFromUsd(picture + (input.songReady ? 0 : credits.songSeconds * SONG_USD_PER_SECOND));
   }
-  if (input.mode === "prompt" && input.cuts && input.cuts.length > 0) {
+  // Planned shots, and a skit's beats: each one is filmed at least as long as the model allows.
+  if ((input.mode === "prompt" || input.mode === "skit") && input.cuts && input.cuts.length > 0) {
     return jobCreditsFromUsd(usd * filmedSecondsForCuts(input.length, model.durations, input.cuts));
   }
   const seconds = isStitchedMode(input.mode)

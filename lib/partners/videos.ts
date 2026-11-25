@@ -7,7 +7,11 @@ import { CAPTIONS_CREDITS } from "@/lib/billing/plans";
 import { db } from "@/lib/db";
 import { publicAppUrl, signAssetToken } from "@/lib/editor/asset-token";
 import { creditsForToolInput } from "@/lib/tools/tool-credits";
+import { videoJobCredits } from "@/lib/billing/estimate";
+import { getPickableCharacter } from "@/lib/characters/store";
 import { CreateVideoError, queueVideoFromInput } from "@/lib/video/create-request";
+import { resolveModeTier } from "@/lib/video/modes";
+import { skitCharacterProblem, skitCuts } from "@/lib/video/skit";
 import { captionFinishedCredits, queueCaptionsForVideo } from "@/lib/video/caption-finished";
 import { cancelVideoJobForUser, getVideoJobForUser } from "@/lib/video/jobs";
 import { readJobInput, type JobStep } from "@/lib/video/job-status";
@@ -47,7 +51,7 @@ import {
 
 export { PARTNER_VIDEO_KINDS, PartnerVideoSchema, type PartnerVideoKind } from "./video-request";
 
-const TOOL_FOR: Record<Exclude<PartnerVideoInput["kind"], "captions">, string> = {
+const TOOL_FOR: Record<Exclude<PartnerVideoInput["kind"], "captions" | "skit">, string> = {
   ugc: "make_ugc_video",
   avatar: "make_avatar_video",
   faceless: "make_voiceover_video",
@@ -64,10 +68,30 @@ const checkFinish = (userId: string, finish: PartnerFinish) => {
   }
 };
 
+/** A skit's price: each beat's shot, filmed by the tier's model, the same way it's priced when queued. */
+const skitCredits = (script: string, tier: string) => {
+  const resolved = resolveModeTier("skit", tier);
+  if (!resolved?.model) throw new PartnerError("invalid", "That video can't be priced.");
+  const cuts = skitCuts(script, resolved.model.durations);
+  if (cuts.length === 0) throw new PartnerError("invalid", "Write the words to say. Notes in brackets are not read aloud.");
+  const length = cuts.reduce((sum, cut) => sum + cut.seconds, 0);
+  return videoJobCredits({ mode: "skit", tier, modelSlug: resolved.model.slug, resolution: resolved.resolution, length, cuts });
+};
+
+/** A skit needs a character with a picture and a voice. Checked before pricing, so a quote can't promise one. */
+const checkSkitCharacter = async (userId: string, input: PartnerVideoInput) => {
+  if (input.kind !== "skit") return;
+  const character = await getPickableCharacter(userId, input.characterId);
+  if (!character) throw new PartnerError("not_found", "That character wasn't found, or has no picture yet.");
+  const problem = skitCharacterProblem(character);
+  if (problem) throw new PartnerError("invalid", problem);
+};
+
 /** What the video itself costs, before any finish. */
 const videoCredits = (input: PartnerVideoInput) => {
   if (!hasOpenRouterKey()) return 0;
   if (input.kind === "captions") return CAPTIONS_CREDITS;
+  if (input.kind === "skit") return skitCredits(input.script, input.tier);
   const body = createBodyFor(input);
   const credits = creditsForToolInput(TOOL_FOR[input.kind], { ...body, prompt: body.prompt });
   if (credits === null) throw new PartnerError("invalid", "That video can't be priced.");
@@ -77,7 +101,11 @@ const videoCredits = (input: PartnerVideoInput) => {
 /** A video's price, split into the video and its finish when it has one. */
 const priceOf = (userId: string, input: PartnerVideoInput) => {
   const video = videoCredits(input);
-  if ((input.kind !== "ugc" && input.kind !== "avatar") || !input.finish) return { credits: video };
+  if ((input.kind !== "ugc" && input.kind !== "avatar" && input.kind !== "skit") || !input.finish) return { credits: video };
+  // Layout styles re-cut one take of a speaker. A skit is many shots, so it takes a caption look only.
+  if (input.kind === "skit" && input.finish.style) {
+    throw new PartnerError("invalid", "A skit can take a caption look, but not a layout style. Styles work on UGC and talking-avatar videos.");
+  }
   checkFinish(userId, input.finish);
   return priceWithFinish(video, finishCredits(input.script, input.finish, !hasOpenRouterKey()));
 };
@@ -99,7 +127,9 @@ export const quotePartnerVideo = async (userId: string, raw: unknown) => {
     const plan = await retryPlan(userId, String(record.videoId ?? ""));
     return { credits: await retryCredits(userId, plan) };
   }
-  return priceOf(userId, parseVideo(raw));
+  const input = parseVideo(raw);
+  await checkSkitCharacter(userId, input);
+  return priceOf(userId, input);
 };
 
 const toPartnerError = (error: unknown) => {
@@ -134,6 +164,7 @@ const rememberFinish = async (jobId: string, finish: PartnerFinish) => {
 
 /** Starts a parsed video, with its finish if it has one. */
 const startVideo = async (userId: string, input: PartnerVideoInput) => {
+  await checkSkitCharacter(userId, input);
   const finish = "finish" in input ? input.finish : undefined;
   if (finish) {
     // The video and its finish are paid for together, so a writer is never left with half of it.
@@ -186,6 +217,7 @@ const KIND_OF_MODE: Record<string, PartnerVideoKind> = {
   avatar: "avatar",
   captions: "captions",
   voiceover: "faceless",
+  skit: "skit",
   [LAYOUT_JOB_MODE]: "layout",
 };
 

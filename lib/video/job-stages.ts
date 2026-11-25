@@ -54,7 +54,7 @@ export const clipCountForJob = (job: {
   if (job.mode === "swap") {
     return swapPartCount(job.length, swapMethodForModel(job.model), isSwapOrientation(job.orientation) ? job.orientation : undefined);
   }
-  if ((job.mode === "lyrics" || job.mode === "prompt") && job.cuts && job.cuts.length > 0) return job.cuts.length;
+  if ((job.mode === "lyrics" || job.mode === "prompt" || job.mode === "skit") && job.cuts && job.cuts.length > 0) return job.cuts.length;
   const model = generationModelBySlug(job.model);
   if (!model || !isStitchedMode(job.mode)) return 1;
   return Math.max(planSegments(job.length, model.durations, job.clips || undefined).length, 1);

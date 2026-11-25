@@ -13,7 +13,7 @@ import { VIDEO_MODES, videoModeById, type VideoMode } from "@/lib/video/modes";
 
 /** Tools the brief can switch to. A tool that needs an uploaded file has nothing to film from a brief. */
 const briefTools = (current: string) =>
-  VIDEO_MODES.filter((mode) => mode.status === "live" && (mode.upload === "none" || mode.id === current));
+  VIDEO_MODES.filter((mode) => mode.status === "live" && !mode.partnerOnly && (mode.upload === "none" || mode.id === current));
 
 function ToolMark({ mode }: { mode: VideoMode | null }) {
   const Icon = mode?.icon ?? Wrench;

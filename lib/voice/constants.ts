@@ -87,7 +87,8 @@ export const modeCanNarrate = (mode?: string | null) =>
   mode === "lyrics" ||
   mode === "shorts" ||
   mode === "avatar" ||
-  mode === "ugc";
+  mode === "ugc" ||
+  mode === "skit";
 
 /** A saved character with a face and a voice. Off and the studio narrator have no picture. */
 export const isPresenterCharacter = (id?: string | null) =>

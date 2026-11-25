@@ -67,6 +67,7 @@ import { normalizeCuts, readSongBrief, type SongCut } from "@/lib/music/song-pla
 import { planCuts } from "@/lib/music/shot-plan";
 import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
 import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
+import { skitCharacterProblem, skitCuts } from "@/lib/video/skit";
 import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
@@ -238,6 +239,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   ) {
     throw new CreateVideoError("Pick a character to present this video.", 400);
   }
+  const skit = resolved?.mode.id === "skit";
+  if (skit && (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)) {
+    throw new CreateVideoError("Pick a character to act out this skit.", 400);
+  }
   if (resolved?.mode.id === "avatar" && !mediaKey && (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)) {
     throw new CreateVideoError("Upload a photo of the speaker, or pick a character.", 400);
   }
@@ -252,6 +257,8 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   if (characterId !== OFF_VOICE_ID && characterId !== STUDIO_VOICE_ID) {
     const character = await getPickableCharacter(userId, characterId);
     if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
+    const skitProblem = skit ? skitCharacterProblem(character) : null;
+    if (skitProblem) throw new CreateVideoError(skitProblem, 400);
     const media = character.media.map(mediaView);
     const look = parsed.data.characterLookId ? character.looks.find((item) => item.id === parsed.data.characterLookId) : null;
     if (parsed.data.characterLookId && !look) throw new CreateVideoError("That look isn't on this character.", 400);
@@ -278,9 +285,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
   const characterSlots = canUseCharacterImage
     ? Math.max(1, Math.min(characterPictures.length, MAX_REFERENCE_IMAGES - requestedKeys.length))
     : 0;
-  // A UGC ad paints its first still from the character's pictures, so they travel as references.
+  // A UGC ad paints its first still from the character's pictures, and a skit films every shot from
+  // them, so they travel as references.
   const characterKeys =
-    resolved?.mode.id === "ugc" ? characterPictures.slice(0, MAX_CHARACTER_REFERENCES) : characterPictures.slice(0, characterSlots);
+    resolved?.mode.id === "ugc" || skit ? characterPictures.slice(0, MAX_CHARACTER_REFERENCES) : characterPictures.slice(0, characterSlots);
   const referenceKeys = [...characterKeys, ...requestedKeys.filter((key) => !characterKeys.includes(key))].slice(
     0,
     MAX_REFERENCE_IMAGES,
@@ -387,6 +395,16 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     brief = planned.brief;
     attachmentRoles = planned.attachmentRoles;
     cuts = planned.cuts;
+  }
+
+  if (skit && videoModel) {
+    // One shot per beat of the script. The video runs as long as its shots, so the voice always fits.
+    cuts = skitCuts(prompt, videoModel.durations);
+    if (cuts.length === 0) throw new CreateVideoError("Write the words to say. Notes in brackets are not read aloud.", 400);
+    length = cuts.reduce((sum, cut) => sum + cut.seconds, 0);
+    if (length > maxLength) {
+      throw new CreateVideoError(`That skit runs about ${length} seconds. The limit is ${maxLength}. Shorten the script.`, 400);
+    }
   }
 
   try {

@@ -40,6 +40,23 @@ test("each kind of video maps to its own social tool and nothing else", () => {
   assert.deepEqual([faceless.mode, faceless.media, faceless.verbatim, faceless.characterId], ["voiceover", "stills", true, "studio"]);
 });
 
+test("a skit is the character acting out the script, read word for word, with no captions drawn by the model", () => {
+  const skit = createBodyFor(
+    PartnerVideoSchema.parse({ kind: "skit", characterId: CHARACTER, script: "[Quill slips] I never saw it coming.", tier: "low", direction: "Bouncy." }),
+  );
+  assert.deepEqual(
+    [skit.mode, skit.verbatim, skit.characterId, skit.tier, skit.format, skit.showText, skit.visualDirection, skit.prompt],
+    ["skit", true, CHARACTER, "low", "9:16", false, "Bouncy.", "[Quill slips] I never saw it coming."],
+  );
+  assert.equal(PartnerVideoSchema.safeParse({ kind: "skit", script: "No character to act it." }).success, false);
+  assert.equal(PartnerVideoSchema.safeParse({ kind: "skit", characterId: CHARACTER, script: "Hi there.", model: "kling-4" }).success, false);
+  assert.equal(PartnerVideoSchema.safeParse({ kind: "skit", characterId: CHARACTER, script: "Hi there.", productKey: "uploads/u/p.png" }).success, false);
+  assert.equal(
+    PartnerVideoSchema.safeParse({ kind: "skit", characterId: CHARACTER, script: "Hi there.", finish: { captions: "comic" } }).success,
+    true,
+  );
+});
+
 test("unknown kinds and unknown fields are refused, not ignored", () => {
   assert.equal(PartnerVideoSchema.safeParse({ kind: "music", script: "x" }).success, false);
   assert.equal(PartnerVideoSchema.safeParse({ kind: "ugc", characterId: CHARACTER, script: "Hi there.", model: "kling-4" }).success, false);

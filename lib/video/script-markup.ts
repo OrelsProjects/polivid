@@ -49,11 +49,11 @@ const PAUSE_NOTE = String.raw`\[\s*pause\b[^\[\]]*\]`;
 const PAUSE = new RegExp(`${BREAK_TAG}|${PAUSE_NOTE}`, "gi");
 const NOTE = /\[([^[\]]*)\]/g;
 
-const clampPause = (seconds: number) =>
+export const clampPause = (seconds: number) =>
   Number(Math.min(MAX_PAUSE_SECONDS, Math.max(MIN_PAUSE_SECONDS, seconds)).toFixed(2));
 
 /** Seconds a pause asks for. A pause with no readable length gets the default. */
-const pauseSeconds = (token: string) => {
+export const pauseSeconds = (token: string) => {
   const match = /(\d+(?:\.\d+)?|\.\d+)\s*(ms|milliseconds?|s|sec|secs|seconds?)?/i.exec(token.replace(/break|pause|time/gi, ""));
   if (!match) return DEFAULT_PAUSE_SECONDS;
   const amount = Number(match[1]);
@@ -61,7 +61,7 @@ const pauseSeconds = (token: string) => {
   return clampPause(/^m/i.test(match[2] ?? "") ? amount / 1000 : amount);
 };
 
-const tidy = (text: string) =>
+export const tidy = (text: string) =>
   text
     .replace(/\s+/g, " ")
     // Taking a note out can leave a space ahead of the full stop that followed it.

@@ -127,6 +127,7 @@ const MODE_CATEGORY: Record<VideoModeId, ToolCategoryId> = {
   direct: "creation",
   swap: "creation",
   ugc: "marketing",
+  skit: "social",
 };
 
 const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
@@ -144,6 +145,7 @@ const MODE_KEYWORDS: Record<VideoModeId, readonly string[]> = {
   direct: ["raw", "exact", "as typed", "no planning", "untouched", "model prompt", "one clip"],
   swap: ["swap", "replace person", "motion control", "copy moves", "dance", "performance", "video to video"],
   ugc: ["ugc", "creator", "testimonial", "review", "product", "selfie", "ad", "tiktok ad", "heygen"],
+  skit: ["skit", "act out", "cartoon", "funny", "character"],
 };
 
 const FEATURED_MODES: readonly VideoModeId[] = ["prompt", "voiceover", "shorts"];
@@ -590,7 +592,8 @@ const EDIT_VARIANTS: readonly CreateTool[] = [
 ];
 
 export const CREATE_TOOLS: readonly CreateTool[] = [
-  ...VIDEO_MODES.map(modeAsTool),
+  // A partner-only mode is reached through the partner API, never as a tool here.
+  ...VIDEO_MODES.filter((mode) => !mode.partnerOnly).map(modeAsTool),
   ...VARIANTS,
   ...STILLS_VARIANTS,
   ...LINK_VARIANTS,

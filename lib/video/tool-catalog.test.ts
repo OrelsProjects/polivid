@@ -53,6 +53,11 @@ test("slugs are unique and safe to put in a URL", () => {
 test("every mode is a tool under its own id, with the mode's copy", () => {
   for (const mode of VIDEO_MODES) {
     const tool = toolBySlug(mode.id);
+    // A partner-only mode is made through the partner API, so it has no tool here.
+    if (mode.partnerOnly) {
+      assert.equal(tool, null, mode.id);
+      continue;
+    }
     assert.ok(tool, mode.id);
     assert.equal(tool.mode, mode.id);
     assert.equal(tool.title, mode.title);

@@ -29,6 +29,9 @@ test("the motion prompt is only what the person wrote", () => {
 test("a UGC still adds nothing the person didn't give", () => {
   const bare = ugcStillPrompt({ hasProduct: false });
   assert.doesNotMatch(bare, /product|selfie|room|setting|hold/i);
+  // Neutral about what the character is: a cartoon stays a cartoon, and no style is added.
+  assert.equal(bare, "The character is the one in the subject reference pictures. Keep the same look and art style.");
+  assert.doesNotMatch(bare, /person|face|hair|skin|photo|realistic|cartoon/i);
   assert.match(ugcStillPrompt({ hasProduct: true }), /product from the last reference picture/);
   assert.match(ugcStillPrompt({ hasProduct: false, direction: "On a beach at sunset." }), /On a beach at sunset\.$/);
 });

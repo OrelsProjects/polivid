@@ -94,10 +94,16 @@ export const saveFootage = async (id: string, bytes: Uint8Array) => {
 };
 
 /** Saves the clean take and the fitted voice, then returns a mix for playback. */
-export const storeVoiced = async (jobId: string, footage: Uint8Array, speech: Uint8Array, durationSec: number) => {
+export const storeVoiced = async (
+  jobId: string,
+  footage: Uint8Array,
+  speech: Uint8Array,
+  durationSec: number,
+  options: { voiceOnly?: boolean } = {},
+) => {
   const id = assertVideoId(jobId);
   const fitted = await fitNarration(speech, durationSec);
-  const mixed = await mixNarration(footage, speech, durationSec);
+  const mixed = await mixNarration(footage, speech, durationSec, options.voiceOnly === true);
   await saveSourceFootage(id, footage);
   await putVideoMedia(voiceMediaKey(id), fitted, "audio/mpeg");
   return mixed;

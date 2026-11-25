@@ -19,7 +19,7 @@ const makeToolFor = (modeId: string) =>
   TOOL_DEFS.find((definition) => definition.videoMode === modeId && (definition.status ?? "live") === "live")?.name ?? null;
 
 export const listModesHandler: ToolHandler = async () => ({
-  modes: VIDEO_MODES.filter((mode) => mode.status === "live").map((mode) => ({
+  modes: VIDEO_MODES.filter((mode) => mode.status === "live" && !mode.partnerOnly).map((mode) => ({
     id: mode.id,
     title: mode.title,
     description: mode.description,

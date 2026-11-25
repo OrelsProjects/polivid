@@ -24,6 +24,7 @@ import {
   type PromptBrief,
 } from "./shot-plan";
 import type { VideoFormat } from "./schema";
+import { skitBeats, skitShotPrompt } from "./skit";
 
 export interface PreparedJob {
   prompt: string;
@@ -83,6 +84,7 @@ export const prepareModeJob = async (
 ): Promise<PreparedJob> => {
   const mode = input.mode ? videoModeById(input.mode) : null;
   if (mode && isTalkingHeadMode(mode.id)) return prepareTalkingHead(userId, mode.id as "avatar" | "ugc", input);
+  if (mode?.id === "skit") return prepareSkit(userId, input);
   const media = input.mediaKey ? await readOwnedMedia(userId, input.mediaKey) : null;
   const rawPrompt = (input.prompt.trim() || (mode ? defaultPromptForMode(mode) : "")).trim();
   const savedBeats = input.existingBeats?.filter((beat) => beat.trim().length > 0) ?? [];
@@ -257,6 +259,40 @@ const prepareTalkingHead = async (
   const stillKey = input.existingStillKey || (await makeUgcStill(userId, input));
   const still = await readOwnedMedia(userId, stillKey);
   return { ...base, stillKey, imageDataUrl: await framePicture(still.bytes, still.contentType, input.format) };
+};
+
+/**
+ * A skit: a shot per beat, each filmed from the character's pictures, and the character's voice
+ * reading the script word for word over them, one beat per shot. Notes in brackets steer the shots
+ * and are never read. No look is picked for it: the shots keep the pictures' own look and art style.
+ */
+const prepareSkit = async (userId: string, input: Parameters<typeof prepareModeJob>[1]): Promise<PreparedJob> => {
+  const model = generationModelBySlug(input.model);
+  const beats = skitBeats(input.prompt, model?.durations ?? []);
+  if (beats.length === 0) throw new Error("Write the words to say.");
+  const pictures = input.referenceKeys ?? [];
+  const shots =
+    input.existingBeats?.filter((beat) => beat.trim()).length === beats.length
+      ? input.existingBeats
+      : beats.map((beat) => skitShotPrompt({ beat, pictures: pictures.length, direction: input.visualDirection }));
+  const spokenBeats =
+    input.existingSpokenBeats?.filter((beat) => beat.trim()).length === beats.length
+      ? input.existingSpokenBeats
+      : beats.map((beat) => beat.say);
+  return {
+    prompt: shots[0]!,
+    beats: shots,
+    format: input.format,
+    length: input.length,
+    model: input.model,
+    resolution: input.resolution,
+    spoken: spokenBeats.join(" "),
+    spokenBeats,
+    shotReferences: await loadShotReferences(
+      userId,
+      beats.map(() => pictures),
+    ),
+  };
 };
 
 const makeUgcStill = async (userId: string, input: Parameters<typeof prepareModeJob>[1]) => {

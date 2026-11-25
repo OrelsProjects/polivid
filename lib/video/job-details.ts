@@ -111,7 +111,7 @@ export const jobDetailRows = (
   }
   if (model && isStitchedMode(job.mode)) {
     const lengths =
-      job.mode === "prompt" && job.cuts.length > 1
+      (job.mode === "prompt" || job.mode === "skit") && job.cuts.length > 1
         ? job.cuts.map((cut) => cut.seconds)
         : planSegments(job.length, model.durations, job.clips || undefined);
     push(rows, "This video", "Clips", formatClipSplit(lengths));
