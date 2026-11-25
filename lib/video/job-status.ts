@@ -4,6 +4,7 @@
  * paused → running resumes the clips that were not filmed.
  */
 
+import { readCaptioning, type CaptioningSettings } from "./captions";
 import { readLayoutSettings, type LayoutJobSettings } from "./layout/styles";
 import type { ClipPreviewSlot } from "./clip-preview";
 import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES, MAX_REFERENCE_IMAGES } from "./schema";
@@ -203,6 +204,8 @@ export interface JobInputFields {
   attachmentRoles: AttachmentAssignment[];
   /** A layout-style job's settings. Null on every other job. */
   layout: LayoutJobSettings | null;
+  /** A captions job that captions a finished video. Null when it captions an upload, and on every other job. */
+  captioning: CaptioningSettings | null;
 }
 
 const EMPTY_JOB_INPUT: JobInputFields = {
@@ -248,6 +251,7 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   brief: emptyPromptBrief(),
   attachmentRoles: [],
   layout: null,
+  captioning: null,
 };
 
 /** Prompt and settings stored on the job, with safe fallbacks for a bad payload. */
@@ -378,6 +382,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
     brief: readBrief(record.brief),
     attachmentRoles: readAttachmentRoles(record.attachmentRoles),
     layout: readLayoutSettings(record.layout),
+    captioning: readCaptioning(record.captioning),
   };
 };
 

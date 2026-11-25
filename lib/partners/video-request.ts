@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { captionPresetById } from "@/lib/editor/caption-presets";
+import { LAYOUT_MEDIA_ROLES, LAYOUT_STYLE_IDS } from "@/lib/video/layout/styles";
 import { MIN_VIDEO_LENGTH, VIDEO_FORMATS } from "@/lib/video/schema";
 import { scriptSize } from "@/lib/video/script-markup";
 import { STUDIO_VOICE_ID } from "@/lib/voice/constants";
@@ -15,6 +17,37 @@ const SCRIPT = z.string().trim().min(3).max(3000);
 const TIER = z.enum(["low", "pro", "ultra"]).default("pro");
 const DIRECTION = z.string().trim().max(600).optional();
 
+/** A caption preset's id, checked against the presets that exist. */
+export const CAPTION_STYLE = z
+  .string()
+  .trim()
+  .refine((id) => captionPresetById(id) !== null, "That caption style doesn't exist. List them with GET /videos/options.");
+
+/** Uploads a layout style may show, as `{ key, role }`. */
+export const LAYOUT_MEDIA = z
+  .array(z.strictObject({ key: MEDIA_KEY, role: z.enum(LAYOUT_MEDIA_ROLES), note: z.string().trim().max(300).optional() }))
+  .max(12);
+
+/**
+ * What happens to a UGC ad or talking avatar once it is filmed: laid out in a style, given a caption
+ * preset's look, or both. It runs by itself, as a new video linked to the first.
+ */
+export const FinishSchema = z
+  .strictObject({
+    style: z.enum(LAYOUT_STYLE_IDS).optional(),
+    media: LAYOUT_MEDIA.optional(),
+    /** A caption preset's id, or false for no captions. */
+    captions: z.union([CAPTION_STYLE, z.literal(false)]).optional(),
+  })
+  .refine((finish) => finish.style !== undefined || typeof finish.captions === "string", {
+    message: "Send a style, a caption style, or both.",
+  })
+  .refine((finish) => finish.style !== undefined || !finish.media?.length, {
+    message: "Uploads only go with a style.",
+    path: ["media"],
+  });
+export type PartnerFinish = z.infer<typeof FinishSchema>;
+
 /** Strict shapes: an unknown field is a mistake on the partner's side, so it is refused, not ignored. */
 export const PartnerVideoSchema = z.discriminatedUnion("kind", [
   z.strictObject({
@@ -27,6 +60,7 @@ export const PartnerVideoSchema = z.discriminatedUnion("kind", [
     format: z.enum(VIDEO_FORMATS).default("9:16"),
     tier: TIER,
     captions: z.boolean().optional(),
+    finish: FinishSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("avatar"),
@@ -37,6 +71,7 @@ export const PartnerVideoSchema = z.discriminatedUnion("kind", [
     direction: DIRECTION,
     format: z.enum(VIDEO_FORMATS).default("9:16"),
     tier: TIER,
+    finish: FinishSchema.optional(),
   }),
   z.strictObject({
     kind: z.literal("captions"),

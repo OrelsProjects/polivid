@@ -129,7 +129,12 @@ export interface LayoutJobSettings {
   style: LayoutStyleId;
   sourceVideoId: string;
   media: LayoutMedia[];
+  /** A caption preset's id. Unset keeps the style's own caption look. */
+  captionPreset?: string;
 }
+
+/** The shape of a caption preset id. Whether it names a real preset is checked where it is used. */
+export const CAPTION_PRESET_ID = /^[a-z0-9-]{1,40}$/;
 
 const MEDIA_KEY = /^uploads\/[^/]+\/.+/;
 
@@ -155,7 +160,19 @@ export const readLayoutSettings = (value: unknown): LayoutJobSettings | null => 
         ];
       })
     : [];
-  return { style: record.style, sourceVideoId: record.sourceVideoId, media: media.slice(0, 12) };
+  return {
+    style: record.style,
+    sourceVideoId: record.sourceVideoId,
+    media: media.slice(0, 12),
+    ...(typeof record.captionPreset === "string" && CAPTION_PRESET_ID.test(record.captionPreset) ? { captionPreset: record.captionPreset } : {}),
+  };
+};
+
+/** Why a style can't run with these uploads, or null when it can. A style that needs a post refuses to run without one. */
+export const styleNeedsProblem = (style: LayoutStyle, media: readonly { role: LayoutMediaRole }[]) => {
+  if (!style.needs || media.some((item) => style.needs!.includes(item.role))) return null;
+  const needs = new Intl.ListFormat("en", { type: "disjunction" }).format(style.needs.map((role) => `a ${role}`));
+  return `${style.title} needs ${needs}. Upload one first.`;
 };
 
 /** Pictures a style will likely draw for a take this long, before any upload is counted. */

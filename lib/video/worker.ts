@@ -1450,4 +1450,5 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
     : undefined,
   attachmentRoles: input.attachmentRoles.length > 0 ? input.attachmentRoles : undefined,
   layout: input.layout ?? undefined,
+  captioning: input.captioning ?? undefined,
 });

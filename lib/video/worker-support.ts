@@ -1,4 +1,5 @@
 import "server-only";
+import type { CaptioningSettings } from "./captions";
 import type { LayoutJobSettings } from "./layout/styles";
 import { db } from "@/lib/db";
 import type { ScenePlan, VideoFormat, VideoRecord } from "./schema";
@@ -56,6 +57,8 @@ export interface JobInput {
   attachmentRoles?: AttachmentAssignment[];
   /** A layout-style job: the style, the finished video it is applied to, and the uploads it may show. */
   layout?: LayoutJobSettings;
+  /** A captions job that captions a finished video instead of an upload. */
+  captioning?: CaptioningSettings;
   clips?: number;
 }
 

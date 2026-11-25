@@ -27,6 +27,7 @@ import { isModelChoice } from "./model-choice";
 import { presetById } from "./presets";
 import { stillPictureCount } from "./script-markup";
 import type { AttachmentAssignment, PromptBrief } from "./shot-plan";
+import type { CaptioningSettings } from "./captions";
 import type { LayoutJobSettings } from "./layout/styles";
 
 /** Model slug stamped on edit exports, so they can be kept out of the video library. */
@@ -91,6 +92,8 @@ export interface VideoJobInput {
   attachmentRoles?: AttachmentAssignment[];
   /** A layout-style job's settings. */
   layout?: LayoutJobSettings;
+  /** A captions job that captions one of the person's finished videos instead of an upload. */
+  captioning?: CaptioningSettings;
   creditsHeld?: number;
   /** Clips the person chose. Unset means the fewest the model needs. */
   clips?: number;
@@ -172,7 +175,17 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
               }
             : null,
           attachmentRoles: (input.attachmentRoles ?? []).map((role) => ({ index: role.index, role: role.role })),
-          ...(input.layout ? { layout: { style: input.layout.style, sourceVideoId: input.layout.sourceVideoId, media: input.layout.media.map((item) => ({ ...item })) } } : {}),
+          ...(input.layout
+            ? {
+                layout: {
+                  style: input.layout.style,
+                  sourceVideoId: input.layout.sourceVideoId,
+                  media: input.layout.media.map((item) => ({ ...item })),
+                  ...(input.layout.captionPreset ? { captionPreset: input.layout.captionPreset } : {}),
+                },
+              }
+            : {}),
+          ...(input.captioning ? { captioning: { sourceVideoId: input.captioning.sourceVideoId, preset: input.captioning.preset } } : {}),
         },
         artifacts: {},
       },

@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { reportEnded } from "./finish";
 import { signPartnerWebhook } from "./signature";
-import { partnerVideoView } from "./videos";
+import { partnerVideoView, startPartnerFinish } from "./videos";
 
 /** Statuses a partner hears about: the ones a video ends in. */
 const REPORTED = new Set(["succeeded", "failed", "canceled"]);
@@ -23,14 +24,22 @@ export const notifyPartnerOfVideo = async (jobId: string, status: string) => {
     select: { user: { select: { partnerId: true, partner: { select: { webhookUrl: true, active: true } } } } },
   });
   const partnerId = job?.user.partnerId;
-  if (!partnerId || !job.user.partner?.webhookUrl || !job.user.partner.active) return;
+  if (!partnerId || !job.user.partner?.active) return;
   const eventKey = `${jobId}:${status}`;
   const existing = await db.partnerWebhookDelivery.findUnique({ where: { eventKey }, select: { id: true } });
   if (existing) return;
   const delivery = await db.partnerWebhookDelivery
     .create({ data: { partnerId, jobId, status, eventKey } })
     .catch(() => null); // Another process recorded it first.
-  if (delivery) await deliver(delivery.id);
+  if (!delivery) return;
+  // Only the process that recorded this change gets here, so a follow-up is never started twice.
+  const webhookUrl = job.user.partner.webhookUrl;
+  await reportEnded(status, {
+    startFinish: () => startPartnerFinish(jobId),
+    deliver: async () => {
+      if (webhookUrl) await deliver(delivery.id);
+    },
+  });
 };
 
 /** The webhook body: the video as the partner reads it from GET /videos/:id, with its user's id. */

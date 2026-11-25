@@ -5,6 +5,8 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { hasScribe, transcribeWords } from "@/lib/ai/scribe";
 import { transcribeMedia } from "@/lib/ai/transcribe";
+import { applyCaptionPreset, captionPresetById } from "@/lib/editor/caption-presets";
+import { spokenWordsForVideo } from "@/lib/editor/caption-speech";
 import { db } from "@/lib/db";
 import { renderEditProject } from "@/lib/editor/render";
 import { probeFile } from "@/lib/production/review/ffmpeg";
@@ -17,6 +19,7 @@ import {
   evenCaptionLines,
   MAX_CAPTION_SECONDS,
   type CaptionLine,
+  type CaptioningSettings,
 } from "../captions";
 import { FootageStopped } from "../footage";
 import { markVideoJobProgress, transitionVideoJob } from "../jobs";
@@ -108,15 +111,31 @@ const scenesFor = (title: string, progress: CaptionProgress): ScenePlan["scenes"
   }));
 };
 
+/**
+ * The caption lines of one of the person's finished videos. The take's words were timed when it
+ * was made or laid out, so they are reused; otherwise the script is spread over its length.
+ */
+const listenToFinished = async (userId: string, settings: CaptioningSettings): Promise<CaptionProgress> => {
+  const video = await db.video.findFirst({
+    where: { id: settings.sourceVideoId, userId },
+    select: { length: true, format: true, status: true },
+  });
+  if (!video || video.status !== "ready") throw new Error("That video isn't in your library anymore.");
+  const format = video.format === "1:1" || video.format === "16:9" ? video.format : "9:16";
+  const words = await spokenWordsForVideo(userId, settings.sourceVideoId);
+  return { lines: captionLinesFromWords(words), seconds: video.length, format };
+};
+
 /** Captions an uploaded video: the words are transcribed, timed, and drawn into the picture. */
 export const composeCaptions = async (userId: string, jobId: string, input: JobInput) => {
+  const finished = input.captioning;
   const key = input.mediaKey;
-  if (!key || !isVideoKey(key)) throw new Error("Upload a video to caption.");
+  if (!finished && (!key || !isVideoKey(key))) throw new Error("Upload a video to caption.");
   const job = await db.videoJob.findFirst({ where: { id: jobId, userId }, select: { artifacts: true } });
   let progress = readProgress(job?.artifacts);
   if (!progress) {
     if (!(await markVideoJobProgress(jobId, "script", 10))) return;
-    progress = await transcribe(userId, key);
+    progress = finished ? await listenToFinished(userId, finished) : await transcribe(userId, key!);
     if (progress.lines.length === 0) throw new Error("No speech was found in that video.");
     const current =
       job?.artifacts && typeof job.artifacts === "object" && !Array.isArray(job.artifacts)
@@ -138,22 +157,24 @@ export const composeCaptions = async (userId: string, jobId: string, input: JobI
   }
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
 
-  const timeline = buildCaptionedTimeline({
+  const plain = buildCaptionedTimeline({
     format: progress.format,
-    videoKey: key,
+    ...(finished ? { videoId: finished.sourceVideoId } : { videoKey: key }),
     seconds: progress.seconds,
     lines: progress.lines,
   });
+  // A preset re-cuts the lines to its own length when the words are timed, and gives them its look.
+  const timeline = finished?.preset && captionPresetById(finished.preset) ? applyCaptionPreset(plain, finished.preset) : plain;
   if (!(await markVideoJobProgress(jobId, "render", RENDER_FROM))) return;
   await withRenderSlot(() => renderEditProject(userId, jobId, timeline, { from: RENDER_FROM, to: RENDER_TO }));
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
 
   const length = Math.max(2, Math.round(progress.seconds));
   const title = "Captioned video";
-  await saveVideoForJob(
-    userId,
-    readyRecord(jobId, { ...input, format: progress.format }, { title, scenes: scenesFor(title, progress) }, length, false),
-  );
+  await saveVideoForJob(userId, {
+    ...readyRecord(jobId, { ...input, format: progress.format }, { title, scenes: scenesFor(title, progress) }, length, false),
+    ...(finished ? { parentVideoId: finished.sourceVideoId } : {}),
+  });
   if (!(await isStillRunning(userId, jobId))) return;
   await markVideoJobProgress(jobId, "finalize", 100);
   await transitionVideoJob(jobId, "succeeded", { outputUrl: `/api/videos/${jobId}/file`, error: null });

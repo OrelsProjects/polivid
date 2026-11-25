@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import { hasOpenRouterKey } from "@/lib/ai/openrouter";
 import { layoutStyleCredits } from "@/lib/billing/estimate";
+import { captionPresetById } from "@/lib/editor/caption-presets";
 import { InsufficientCreditsError } from "@/lib/billing/errors";
 import { db } from "@/lib/db";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
@@ -17,7 +18,9 @@ import {
   LAYOUT_MODEL,
   LAYOUT_STYLE_IDS,
   layoutStyleById,
+  styleNeedsProblem,
   type LayoutMedia,
+  type LayoutStyle,
 } from "./styles";
 
 export class LayoutRequestError extends Error {
@@ -43,6 +46,12 @@ export const LayoutRequestSchema = z.object({
     .max(12)
     .optional(),
   showText: z.boolean().optional(),
+  /** A caption preset's id. Unset keeps the style's own caption look. */
+  captionPreset: z
+    .string()
+    .trim()
+    .refine((id) => captionPresetById(id) !== null, "That caption style doesn't exist.")
+    .optional(),
 });
 export type LayoutRequest = z.infer<typeof LayoutRequestSchema>;
 
@@ -65,7 +74,7 @@ const loadSource = async (userId: string, videoId: string) => {
 };
 
 /** Uploads checked as the person's own, typed as pictures or clips. */
-const checkMedia = (userId: string, media: LayoutRequest["media"]): LayoutMedia[] =>
+export const checkLayoutMedia = (userId: string, media: LayoutRequest["media"]): LayoutMedia[] =>
   (media ?? []).map((item) => {
     if (!isOwnedUploadKey(userId, item.key)) throw new LayoutRequestError("Use files from your own uploads.", 400);
     const kind = isImageKey(item.key) ? "image" : isVideoKey(item.key) ? "video" : null;
@@ -77,13 +86,19 @@ const checkMedia = (userId: string, media: LayoutRequest["media"]): LayoutMedia[
     return { key: item.key, kind, role: item.role, ...(item.note ? { note: item.note } : {}) };
   });
 
+/** A style that needs an upload, such as a post to react to, refuses to run without one. */
+export const assertStyleNeeds = (style: LayoutStyle, media: readonly Pick<LayoutMedia, "role">[]) => {
+  const problem = styleNeedsProblem(style, media);
+  if (problem) throw new LayoutRequestError(problem, 400);
+};
+
 /** What applying this style would cost, without queuing anything. */
 export const quoteLayoutStyle = async (userId: string, videoId: string, raw: unknown) => {
   const parsed = LayoutRequestSchema.safeParse(raw);
   if (!parsed.success) throw new LayoutRequestError("Pick a layout style.", 400);
   const style = layoutStyleById(parsed.data.style)!;
   const { video } = await loadSource(userId, videoId);
-  const media = checkMedia(userId, parsed.data.media);
+  const media = checkLayoutMedia(userId, parsed.data.media);
   return {
     credits: layoutStyleCredits({ style, seconds: video.length, uploads: media.length, demo: !hasOpenRouterKey() }),
     style,
@@ -104,11 +119,8 @@ export const queueLayoutStyle = async (userId: string, videoId: string, raw: unk
   if (style.avatar && !isTalkingHeadMode(input?.mode)) {
     throw new LayoutRequestError("Layout styles work on Talking Avatar and UGC videos, which have one take of the speaker.", 400);
   }
-  const media = checkMedia(userId, parsed.data.media);
-  if (style.needs && !media.some((item) => style.needs!.includes(item.role))) {
-    const needs = new Intl.ListFormat("en", { type: "disjunction" }).format(style.needs.map((role) => `a ${role}`));
-    throw new LayoutRequestError(`${style.title} needs ${needs}. Upload one first.`, 400);
-  }
+  const media = checkLayoutMedia(userId, parsed.data.media);
+  assertStyleNeeds(style, media);
   const format = isFormat(video.format) ? video.format : "9:16";
   const credits = layoutStyleCredits({ style, seconds: video.length, uploads: media.length, demo: !hasOpenRouterKey() });
   try {
@@ -120,7 +132,7 @@ export const queueLayoutStyle = async (userId: string, videoId: string, raw: unk
       mode: LAYOUT_JOB_MODE,
       characterId: input?.characterId || undefined,
       showText: parsed.data.showText,
-      layout: { style: style.id, sourceVideoId: video.id, media },
+      layout: { style: style.id, sourceVideoId: video.id, media, ...(parsed.data.captionPreset ? { captionPreset: parsed.data.captionPreset } : {}) },
       creditsHeld: credits,
     });
     kickVideoJob(userId, job.id);

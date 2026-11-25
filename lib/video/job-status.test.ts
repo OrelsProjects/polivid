@@ -91,6 +91,7 @@ test("reads the prompt stored on a video job", () => {
       },
       attachmentRoles: [],
       layout: null,
+      captioning: null,
     },
   );
   assert.deepEqual(readJobInput(null), {
@@ -143,6 +144,7 @@ test("reads the prompt stored on a video job", () => {
     },
     attachmentRoles: [],
     layout: null,
+    captioning: null,
   });
   assert.equal(readJobInput({ prompt: "  ", aspectRatio: "square", duration: 1.5 }).format, "9:16");
   assert.deepEqual(

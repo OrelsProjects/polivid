@@ -97,18 +97,20 @@ More pictures make a UGC ad look more like the person. A UGC ad sends up to four
 
 | Route | Does |
 | --- | --- |
-| `POST /videos/quote` | The same body as `POST /videos`, or `{ kind: "layout", videoId, style, media }`. Returns `{ credits }` and charges nothing. |
+| `POST /videos/quote` | The same body as `POST /videos`, or `{ kind: "layout", videoId, style, media }`, or `{ kind: "retry", videoId }`. Returns `{ credits }` and charges nothing. With a `finish`, it also returns `parts: { video, finish }`. |
 | `POST /videos` | Starts a video. Returns `{ id, credits, status: "queued" }`. |
 | `GET /videos` | The user's recent videos |
 | `GET /videos/:id` | `{ video }`. While `status` is `running`, `step` says what it's doing in words you can show as is ("Filming the video") and `progress` is 0–100. Once `status` is `succeeded`, `fileUrl` is a link that works for a day; copy the file to your own storage. |
 | `POST /videos/:id/cancel` | Stops it and gives the credits back |
-| `POST /videos/:id/layout` `{ style, media?, captions? }` | Re-edits a finished UGC or avatar video in a layout style, as a new video |
+| `POST /videos/:id/layout` `{ style, media?, captions? }` | Re-edits a finished UGC or avatar video in a layout style, as a new video. `captions` is `true`, `false`, or a caption style's id. |
+| `POST /videos/:id/retry` | Tries a `failed` or `canceled` video again: the same request and finish, as a new video with its own credits. Returns 201 `{ id, credits, status: "queued" }`. Any other status is `409 conflict`. |
+| `GET /videos/options` | The layout styles and caption styles to choose from, see below |
 
 `POST /videos` bodies. Unknown fields are refused.
 
 ```jsonc
-{ "kind": "ugc", "characterId": "…", "script": "…", "productKey": "…?", "direction": "…?", "format": "9:16", "tier": "pro", "captions": true }
-{ "kind": "avatar", "characterId": "…?", "photoKey": "…?", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro" }
+{ "kind": "ugc", "characterId": "…", "script": "…", "productKey": "…?", "direction": "…?", "format": "9:16", "tier": "pro", "captions": true, "finish": { … }? }
+{ "kind": "avatar", "characterId": "…?", "photoKey": "…?", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { … }? }
 { "kind": "captions", "videoKey": "…" }
 { "kind": "faceless", "script": "…", "characterId": "…?", "direction": "…?", "format": "9:16", "tier": "pro" }
 ```
@@ -119,6 +121,43 @@ Field notes:
 - **`direction`:** how it looks and moves, in the person's words. Nothing else is added.
 
 Layout styles are `split-presenter`, `punch-in`, `source-reader` (needs a `post` upload), `framed-post`, `screen-demo` (needs a `recording` or `screenshot`), and `sketch-explainer`. Each `media` item is `{ key, role: post | screenshot | recording | picture, note? }`.
+
+### Finishing a video in one request
+
+A UGC ad or talking avatar can say how it should be finished, so one request makes the finished video:
+
+```json
+"finish": { "style": "punch-in", "media": [{ "key": "uploads/…/chart.png", "role": "picture" }], "captions": "yellow-pop" }
+```
+
+- **`style`:** a layout style. **`media`:** uploads it may show, only with a style. **`captions`:** a caption style's id, or `false` for none. Send a style, a caption style, or both.
+- **Checks:** a style's needed upload, and that every upload is the user's own, are checked before anything is filmed.
+- **Price:** the quote is the video plus an estimate for the finish, from the script's length. `POST /videos` refuses with `402` unless the balance covers both. The video's credits are held now; the finish's are held when it starts, from the finished video's own length.
+- **What happens:** when the video succeeds, the finish starts by itself as a new video whose `parentId` is the first. A style lays it out (with the caption style, if one was sent). A caption style alone draws captions in that look. The first video is still delivered either way.
+- **Tracking it:** every video view carries `finish`:
+
+```json
+"finish": { "style": "punch-in", "captions": "yellow-pop", "status": "started", "videoId": "…", "reason": null }
+```
+
+`status` is `waiting` while the video is made, `started` once the follow-up is queued (`videoId` is the new video), or `skipped`, with `reason` in plain words, when it couldn't start (for example, too few credits left). The webhook for the first video is sent after the follow-up is queued, so it already names it; the follow-up sends its own webhook when it ends. `finish` is `null` on a video without one.
+
+### Options
+
+`GET /videos/options` returns what a finish or re-edit can use:
+
+```json
+{
+  "styles": [{ "id": "punch-in", "title": "Punch-in", "description": "…", "avatar": true, "needs": [] }],
+  "captionStyles": [{ "id": "yellow-pop", "label": "Yellow pop", "categories": ["Business & ads", "Story", "Education"] }]
+}
+```
+
+`avatar: false` means nobody is on camera. `needs` lists the upload roles a style needs, any one of which is enough.
+
+### When a video fails
+
+`error` on a failed video is always plain and safe to show. It says what to change when the writer can fix it (no speech to caption, a character with no picture, a picture or script turned down by the safety check, no face found). Otherwise it is `Something went wrong making this video. Your credits were returned.` Credits always come back for a failed video. `POST /videos/:id/retry` makes it again.
 
 ## Webhooks
 

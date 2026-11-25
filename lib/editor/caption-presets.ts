@@ -141,6 +141,24 @@ export const captionLinesFromWords = (words: readonly CaptionWord[], maxWords: n
 };
 
 /**
+ * Gives every caption a preset's look and leaves where and when each one shows alone. Used where
+ * the captions were already placed around a layout, so re-cutting or moving them would break it.
+ * An unknown preset changes nothing.
+ */
+export const restyleCaptionsInPlace = (timeline: Timeline, presetId: string): Timeline => {
+  const look = captionPresetById(presetId);
+  if (!look) return timeline;
+  const style = presetStyle(look, timeline.format);
+  return {
+    ...timeline,
+    tracks: timeline.tracks.map((track) => ({
+      ...track,
+      items: track.items.map((item) => (isCaption(item) ? { ...item, style, animationIn: look.animationIn } : item)),
+    })),
+  };
+};
+
+/**
  * Gives every caption a preset's look. When the captions know when each word is said, they are
  * also re-cut into lines of the preset's length, on the track where the first caption sits.
  * Other titles are left alone.

@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { spokenWordsForVideo } from "@/lib/editor/caption-speech";
 import { getCharacter } from "@/lib/characters/store";
 import { db } from "@/lib/db";
+import { restyleCaptionsInPlace } from "@/lib/editor/caption-presets";
 import { createProjectFromTimelineForUser } from "@/lib/editor/projects";
 import { renderEditProject } from "@/lib/editor/render";
 import type { Focus } from "@/lib/editor/schema";
@@ -218,7 +219,7 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
   });
   const characterName =
     sourceInput?.characterId ? ((await getCharacter(userId, sourceInput.characterId).catch(() => null))?.name ?? "") : "";
-  const timeline = buildLayoutTimeline({
+  const laidOut = buildLayoutTimeline({
     format,
     style,
     source: { videoId: sourceId, seconds: progress.seconds },
@@ -229,6 +230,8 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
     captions: input.showText !== false,
     header: { name: characterName, headline: source.title },
   });
+  // A chosen caption preset restyles the captions where the layout put them.
+  const timeline = settings.captionPreset && input.showText !== false ? restyleCaptionsInPlace(laidOut, settings.captionPreset) : laidOut;
 
   if (!(await markVideoJobProgress(jobId, "render", RENDER_FROM))) return;
   await withRenderSlot(() => renderEditProject(userId, jobId, timeline, { from: RENDER_FROM, to: RENDER_TO }));

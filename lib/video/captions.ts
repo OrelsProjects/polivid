@@ -98,3 +98,19 @@ export const closestFormat = (width: number | null, height: number | null): "9:1
   if (ratio > 1.28) return "16:9";
   return "1:1";
 };
+
+/** A captions job that captions one of the person's finished videos, in a caption preset's look. */
+export interface CaptioningSettings {
+  sourceVideoId: string;
+  /** A caption preset's id. Empty keeps the plain caption look. */
+  preset: string;
+}
+
+/** The settings stored on a job, or null when the job captions an upload instead. */
+export const readCaptioning = (value: unknown): CaptioningSettings | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record.sourceVideoId !== "string" || !/^[0-9a-f-]{36}$/i.test(record.sourceVideoId)) return null;
+  const preset = typeof record.preset === "string" && /^[a-z0-9-]{1,40}$/.test(record.preset) ? record.preset : "";
+  return { sourceVideoId: record.sourceVideoId, preset };
+};

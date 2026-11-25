@@ -250,7 +250,9 @@ export const buildLoopTimeline = (input: {
 export const buildCaptionedTimeline = (input: {
   format: VideoFormat;
   /** Upload key of the video being captioned. */
-  videoKey: string;
+  videoKey?: string;
+  /** Or one of the person's finished videos. */
+  videoId?: string;
   seconds: number;
   lines: readonly { text: string; start: number; end: number }[];
 }): Timeline => {
@@ -307,7 +309,7 @@ export const buildCaptionedTimeline = (input: {
       {
         id: "source",
         kind: "video",
-        source: { type: "upload", key: input.videoKey },
+        source: input.videoId ? { type: "video", videoId: input.videoId } : { type: "upload", key: input.videoKey ?? "" },
         name: "Your video",
         durationInFrames: total,
         width: null,
