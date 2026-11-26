@@ -140,7 +140,7 @@ test("an empty Kling account is a refusal, not a busy server to wait out", () =>
 
 test("replacing in a video sends the video to edit as base_video and the character as @image_1", () => {
   const call = klingSwapEditCall({
-    imageUrl: "https://x.test/greg.png",
+    imageUrls: ["https://x.test/greg.png"],
     videoUrl: "https://x.test/street.mp4",
     prompt: "Replace the monkey with @image_1.",
     resolution: "720p",
@@ -157,6 +157,27 @@ test("replacing in a video sends the video to edit as base_video and the charact
     settings: { resolution: "720p", duration: 7, audio: "original", multi_shot: false },
     options: { watermark_info: { enabled: false } },
   });
+});
+
+test("replacing several characters sends one picture each, in order, and no more than Kling takes", () => {
+  const call = klingSwapEditCall({
+    imageUrls: ["https://x.test/a.png", "https://x.test/b.png", "https://x.test/c.png", "https://x.test/d.png", "https://x.test/e.png"],
+    videoUrl: "https://x.test/street.mp4",
+    prompt: "Replace the monkey with @image_1 and the man with @image_2.",
+    resolution: "720p",
+    duration: 5,
+    keepSound: true,
+  });
+  const contents = call.body.contents as { type: string; url?: string; id?: string }[];
+  assert.deepEqual(
+    contents.filter((item) => item.type === "refer_image").map((item) => [item.id, item.url]),
+    [
+      ["image_1", "https://x.test/a.png"],
+      ["image_2", "https://x.test/b.png"],
+      ["image_3", "https://x.test/c.png"],
+      ["image_4", "https://x.test/d.png"],
+    ],
+  );
 });
 
 test("a task Kling accepts and then fails for the account's balance says credits were returned", () => {

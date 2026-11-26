@@ -7,10 +7,13 @@ import { stagesForJob } from "./job-stages";
 import { generationModelLabel } from "./models";
 import { describeModeTier, defaultPromptForMode, resolveModeTier, videoModeById } from "./modes";
 import { buildCreateBody } from "./create-body";
+import { readJobInput } from "./job-status";
 import { formSpecFor } from "./form-spec";
 import { CREATE_TOOLS } from "./tool-catalog";
 import {
+  MAX_SWAP_CHARACTERS,
   MAX_SWAP_SECONDS,
+  swapCastLimit,
   SWAP_EDIT_LABEL,
   SWAP_EDIT_MODEL,
   SWAP_LABEL,
@@ -153,6 +156,25 @@ test("the edit prompt points the character's name at the picture and keeps the r
   assert.match(swapEditPrompt("", null), /@image_1/);
 });
 
+test("several characters each point at their own picture, longest name first", () => {
+  const prompt = swapEditPrompt("replace the monkey with Schweppes and the man being grabbed with Eden", ["Schweppes", "Eden"], 2);
+  assert.match(prompt, /^replace the monkey with @image_1 and the man being grabbed with @image_2\. Keep everything else/);
+  // "Ed" is its own word, so it is never found inside "Eden".
+  assert.match(swapEditPrompt("Swap the dog for Eden and the cat for Ed", ["Ed", "Eden"], 2), /^Swap the dog for @image_2 and the cat for @image_1\./);
+  // A picture the text never names is still pointed out.
+  assert.match(swapEditPrompt("Replace the monkey with Greg", ["Greg", "Dana"], 2), /^Replace the monkey with @image_1\. The person in @image_2 also appears\./);
+  // Nothing written replaces the main person with the first character, and names the rest.
+  assert.match(swapEditPrompt("", ["Greg", "Dana"], 2), /^Replace the main person in the video with the person in @image_1\. The person in @image_2 also appears\./);
+  // @image_1 is not mistaken for @image_10-style tags.
+  assert.doesNotMatch(swapEditPrompt("Replace the monkey with Greg", ["Greg"], 1), /The new character/);
+});
+
+test("replace takes up to four characters; copying the moves takes one", () => {
+  assert.equal(swapCastLimit("replace"), MAX_SWAP_CHARACTERS);
+  assert.equal(MAX_SWAP_CHARACTERS, 4);
+  assert.equal(swapCastLimit("moves"), 1);
+});
+
 test("copying the moves sends notes only when written, with the name as the person in the picture", () => {
   assert.equal(swapMovesPrompt("Character swap", "Greg"), "");
   assert.equal(swapMovesPrompt("Greg in a red jacket", "Greg"), "the person in the picture in a red jacket");
@@ -231,4 +253,44 @@ test("no split note while every swap fits one task", () => {
   // Parts start past 15 seconds, and swaps stop at 10 for now.
   assert.equal(swapSplitNote(10, "replace"), null);
   assert.equal(swapSplitNote(22.8, "replace"), null);
+});
+
+test("the Create form sends every character of a swap with several, and the job keeps them in order", () => {
+  const body = buildCreateBody({
+    mode: "swap",
+    usesVideoModel: true,
+    values: {
+      prompt: "Replace the monkey with Schweppes and the man with Eden",
+      format: "9:16",
+      length: 6,
+      tier: "pro",
+      model: "wan",
+      mediaKey: "uploads/u/street.mp4",
+      referenceKeys: [],
+      showText: true,
+      presetId: "default",
+      visualDirection: "",
+      characterId: "c-1",
+      characterLookId: "look-1",
+      direction: "",
+      scene: "",
+      directionKeys: [],
+      sceneKeys: [],
+      swapMethod: "replace",
+      cast: [{ characterId: "c-1", characterLookId: "look-1" }, { characterId: "c-2" }],
+    },
+  });
+  assert.deepEqual((body as { cast?: unknown }).cast, [{ characterId: "c-1", characterLookId: "look-1" }, { characterId: "c-2" }]);
+  const input = readJobInput({
+    mode: "swap",
+    referenceKeys: ["uploads/u/a.png", "uploads/u/b.png"],
+    characterId: "c-1",
+    cast: [{ characterId: "c-1", characterLookId: "look-1" }, { characterId: "c-2" }, { nope: true }],
+  });
+  assert.deepEqual(input.cast, [
+    { characterId: "c-1", characterLookId: "look-1" },
+    { characterId: "c-2", characterLookId: "" },
+  ]);
+  // Older jobs have no cast.
+  assert.deepEqual(readJobInput({ mode: "swap" }).cast, []);
 });

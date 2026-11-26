@@ -46,6 +46,7 @@ import { composeStills } from "./compose/stills";
 import { finishKlingVideo, hasKlingKey, submitKlingSwap, submitKlingSwapEdit } from "./kling-footage";
 import {
   DEFAULT_SWAP_ORIENTATION,
+  MAX_SWAP_CHARACTERS,
   isSwapOrientation,
   swapEditDuration,
   swapEditPrompt,
@@ -464,8 +465,8 @@ const SWAP_LINK_SECONDS = 2 * 60 * 60;
  */
 const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   const uploadKey = input.mediaKey;
-  const pictureKey = input.referenceKeys?.find((key) => isImageKey(key));
-  if (!uploadKey || !pictureKey) throw new Error("This character swap is missing its video or its picture.");
+  const pictureKeys = (input.referenceKeys ?? []).filter((key) => isImageKey(key)).slice(0, MAX_SWAP_CHARACTERS);
+  if (!uploadKey || pictureKeys.length === 0) throw new Error("This character swap is missing its video or its picture.");
   if (!hasKlingKey()) throw new Error("Character swap isn't set up on this server.");
   if (!(await markVideoJobProgress(jobId, "videos", FILMING_PROGRESS))) return;
   // A video cut in the clip editor is cut here first; the swap then reads the cut like any upload.
@@ -473,7 +474,7 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   const method = swapMethodForModel(input.model);
   const orientation = isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION;
   if (swapPartCount(input.length, method, orientation) > 1) {
-    return filmSwapParts(userId, jobId, input, { videoKey, pictureKey, method, orientation });
+    return filmSwapParts(userId, jobId, input, { videoKey, pictureKeys, method, orientation });
   }
   const open = await db.providerJob.findFirst({
     where: { jobId, sceneIdx: 0, status: { in: ["pending", "in_progress"] } },
@@ -483,28 +484,28 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   let taskId = open?.providerJobId;
   if (!taskId) {
     const replace = swapMethodForModel(input.model) === "replace";
-    const [imageUrl, videoUrl, name] = await Promise.all([
-      swapPictureUrl(userId, jobId, pictureKey, SWAP_LINK_SECONDS),
+    const [imageUrls, videoUrl, names] = await Promise.all([
+      swapPictureUrls(userId, jobId, replace ? pictureKeys : pictureKeys.slice(0, 1)),
       replace
         ? swapEditVideoUrl(userId, jobId, videoKey, SWAP_LINK_SECONDS)
         : signedGetUrl(videoKey, SWAP_LINK_SECONDS),
-      characterName(userId, input.characterId),
+      castNames(userId, input),
     ]);
     const resolution = input.resolution || swapResolutionFor(input.tier);
     const keepSound = input.keepSound !== false;
     taskId = replace
       ? await submitKlingSwapEdit({
-          imageUrl,
+          imageUrls,
           videoUrl,
-          prompt: swapEditPrompt(input.prompt, name),
+          prompt: swapEditPrompt(input.prompt, names, imageUrls.length),
           resolution,
           duration: swapEditDuration(input.length),
           keepSound,
         })
       : await submitKlingSwap({
-          imageUrl,
+          imageUrl: imageUrls[0]!,
           videoUrl,
-          prompt: swapMovesPrompt(input.prompt, name),
+          prompt: swapMovesPrompt(input.prompt, names[0] ?? null),
           orientation: isSwapOrientation(input.orientation) ? input.orientation : DEFAULT_SWAP_ORIENTATION,
           resolution,
           keepSound,
@@ -513,7 +514,7 @@ const filmSwap = async (userId: string, jobId: string, input: JobInput) => {
   }
   const bytes = await finishKlingVideo(taskId, () => isStillRunning(userId, jobId));
   await finishProviderClip(taskId, "completed", input.model);
-  const finished = input.keepSound !== false && input.characterVoice !== false ? await withCharacterVoice(userId, jobId, input, bytes) : bytes;
+  const finished = revoices(input) ? await withCharacterVoice(userId, jobId, input, bytes) : bytes;
   await storeClip(userId, jobId, input, input.length, finished, "");
 };
 
@@ -528,7 +529,7 @@ const filmSwapParts = async (
   userId: string,
   jobId: string,
   input: JobInput,
-  swap: { videoKey: string; pictureKey: string; method: SwapMethod; orientation: SwapOrientation },
+  swap: { videoKey: string; pictureKeys: string[]; method: SwapMethod; orientation: SwapOrientation },
 ) => {
   const parts = await planSwapParts(userId, swap.videoKey, swapPartLimit(swap.method, swap.orientation));
   const replace = swap.method === "replace";
@@ -542,9 +543,9 @@ const filmSwapParts = async (
   const tasks = new Map(open.map((row) => [row.sceneIdx, row.providerJobId]));
   const missing = parts.map((_, index) => index).filter((index) => !stored[index] && !tasks.has(index));
   if (missing.length > 0) {
-    const [imageUrl, name, videoUrls] = await Promise.all([
-      swapPictureUrl(userId, jobId, swap.pictureKey, SWAP_LINK_SECONDS),
-      characterName(userId, input.characterId),
+    const [imageUrls, names, videoUrls] = await Promise.all([
+      swapPictureUrls(userId, jobId, replace ? swap.pictureKeys : swap.pictureKeys.slice(0, 1)),
+      castNames(userId, input),
       swapPartUrls(userId, jobId, swap.videoKey, parts, missing, swap.method, SWAP_LINK_SECONDS),
     ]);
     const resolution = input.resolution || swapResolutionFor(input.tier);
@@ -554,17 +555,17 @@ const filmSwapParts = async (
       const videoUrl = videoUrls.get(index)!;
       const taskId = replace
         ? await submitKlingSwapEdit({
-            imageUrl,
+            imageUrls,
             videoUrl,
-            prompt: swapEditPrompt(input.prompt, name),
+            prompt: swapEditPrompt(input.prompt, names, imageUrls.length),
             resolution,
             duration: swapPartTaskSeconds(parts[index]!),
             keepSound,
           })
         : await submitKlingSwap({
-            imageUrl,
+            imageUrl: imageUrls[0]!,
             videoUrl,
-            prompt: swapMovesPrompt(input.prompt, name),
+            prompt: swapMovesPrompt(input.prompt, names[0] ?? null),
             orientation: swap.orientation,
             resolution,
             keepSound,
@@ -587,7 +588,7 @@ const filmSwapParts = async (
   if (!(await markVideoJobProgress(jobId, "render", RENDER_PROGRESS))) return;
   // Each part is trimmed back to its own length, which drops the frames held to fill Kling's whole seconds.
   const joined = await stitchClips(clips, parts.map((part) => part.seconds));
-  const finished = input.keepSound !== false && input.characterVoice !== false ? await withCharacterVoice(userId, jobId, input, joined) : joined;
+  const finished = revoices(input) ? await withCharacterVoice(userId, jobId, input, joined) : joined;
   await storeClip(userId, jobId, input, input.length, finished, "");
   await Promise.all(
     parts.flatMap((_, index) => [deleteVideoMedia(segmentKey(jobId, index)), deleteVideoMedia(swapPartKey(jobId, index))].map((done) => done.catch(() => undefined))),
@@ -629,12 +630,24 @@ const rememberVoiceResult = async (jobId: string, result: VoiceResult) => {
   }
 };
 
-/** The saved character's name, so the prompt's mention of it can point at the picture Kling sees. */
-const characterName = async (userId: string, characterId: string | undefined) => {
-  if (!characterId) return null;
-  const character = await db.character.findFirst({ where: { id: characterId, userId }, select: { name: true } });
-  return character?.name ?? null;
+/**
+ * The swapped-in characters' names, in the order of their pictures, so each mention in the prompt can point
+ * at the picture Kling sees. A picture with no saved character (one they attached) has no name.
+ */
+const castNames = async (userId: string, input: JobInput): Promise<(string | null)[]> => {
+  const ids = input.cast?.length ? input.cast.map((member) => member.characterId) : input.characterId ? [input.characterId] : [];
+  if (ids.length === 0) return [null];
+  const rows = await db.character.findMany({ where: { userId, id: { in: ids } }, select: { id: true, name: true } });
+  const names = new Map(rows.map((row) => [row.id, row.name]));
+  return ids.map((id) => names.get(id) ?? null);
 };
+
+/** Each character picture fitted for Kling, in order. */
+const swapPictureUrls = (userId: string, jobId: string, keys: readonly string[]) =>
+  Promise.all(keys.map((key, index) => swapPictureUrl(userId, jobId, key, SWAP_LINK_SECONDS, index)));
+
+/** One voice can't speak for several people, so a swap with several characters keeps its own voices. */
+const revoices = (input: JobInput) => input.keepSound !== false && input.characterVoice !== false && (input.cast?.length ?? 0) <= 1;
 
 const finishKnownFootage = async (userId: string, jobId: string, providerJobId: string, provider: string) => {
   const job = await db.videoJob.findFirst({ where: { id: jobId, userId } });
@@ -1428,6 +1441,7 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   orientation: input.orientation || undefined,
   keepSound: input.keepSound,
   characterVoice: input.characterVoice,
+  cast: input.cast,
   mediaRanges: input.mediaRanges.length > 0 ? input.mediaRanges : undefined,
   backgroundId: input.backgroundId || undefined,
   backgroundKey: input.backgroundKey || undefined,

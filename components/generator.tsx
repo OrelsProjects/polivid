@@ -9,6 +9,7 @@ import {
   Scissors,
   Square,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -75,6 +76,7 @@ import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
 import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
 import {
   DEFAULT_SWAP_METHOD,
+  MAX_SWAP_CHARACTERS,
   MAX_SWAP_TOTAL_SECONDS,
   MIN_SWAP_SECONDS,
   SWAP_METHOD_LABELS,
@@ -189,6 +191,8 @@ export function Generator({
     setSceneKeys,
     characterId,
     setCharacterId,
+    swapExtras,
+    setSwapExtras,
     media,
     setMedia,
     verbatim,
@@ -255,6 +259,13 @@ export function Generator({
   const [swapVoice, setSwapVoice] = useState(true);
   const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap });
   const swapCharacter = swap ? savedCharacters?.find((item) => item.id === characterId) : undefined;
+  /**
+   * Replace in video: the characters swapped in after the first, each named in the prompt with /.
+   * The first stays in characterId and lookId, so a one-character swap works as it always has.
+   */
+  const swapsSeveral = swap && swapMethod === "replace";
+  const extraCast = swapsSeveral ? swapExtras : [];
+  const severalInSwap = extraCast.length > 0 && isPresenterCharacter(characterId);
   /** The mode works on an upload as it is: nothing to write, and the file sets the length. */
   const uploadOnly = !spec.showPrompt;
   const showLook = !loop && spec.sections.has("look");
@@ -557,7 +568,13 @@ export function Generator({
             opValue,
             swapMethod: swap ? swapMethod : undefined,
             mediaRanges: swap ? mediaRanges : undefined,
-            characterVoice: swap && swapCharacter?.hasVoice ? swapVoice : undefined,
+            characterVoice: swap && swapCharacter?.hasVoice && !severalInSwap ? swapVoice : undefined,
+            cast: severalInSwap
+              ? [
+                  { characterId, characterLookId: lookId || undefined },
+                  ...extraCast.map((item) => ({ characterId: item.id, characterLookId: item.lookId || undefined })),
+                ]
+              : undefined,
           },
           usesVideoModel,
           songId: approvedTake?.id,
@@ -731,7 +748,8 @@ export function Generator({
                   type="button"
                   role="radio"
                   aria-checked={swapMethod === choice}
-                  disabled={busy}
+                  // Copying the moves takes one picture, so it waits until only one character is left.
+                  disabled={busy || (choice === "moves" && severalInSwap)}
                   onClick={() => setSwapMethod(choice)}
                   className={cn(
                     "flex cursor-pointer flex-col items-start gap-0.5 rounded-xl border px-3 py-2.5 text-left transition disabled:opacity-50",
@@ -741,7 +759,9 @@ export function Generator({
                   )}
                 >
                   <span className="text-sm font-medium">{SWAP_METHOD_LABELS[choice].title}</span>
-                  <span className="text-xs text-muted-foreground">{SWAP_METHOD_LABELS[choice].detail}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {choice === "moves" && severalInSwap ? "Takes one character. Delete the other names to use it." : SWAP_METHOD_LABELS[choice].detail}
+                  </span>
                 </button>
               ))}
             </div>
@@ -893,6 +913,13 @@ export function Generator({
               onChange={setPrompt}
               characterId={characterId}
               onCharacter={(character) => {
+                if (swapsSeveral && isPresenterCharacter(characterId) && character.id !== characterId) {
+                  // Another character for the swap. One already in it is only named again.
+                  setSwapExtras((current) =>
+                    current.some((item) => item.id === character.id) ? current : [...current, { id: character.id, lookId: "" }],
+                  );
+                  return;
+                }
                 setCharacterId(character.id);
                 setLookId("");
                 setUseClip(false);
@@ -902,6 +929,24 @@ export function Generator({
                 setLookId("");
                 setUseClip(false);
               }}
+              {...(swapsSeveral
+                ? {
+                    attachedIds: [...(isPresenterCharacter(characterId) ? [characterId] : []), ...swapExtras.map((item) => item.id)],
+                    maxAttached: MAX_SWAP_CHARACTERS,
+                    onDetach: (id: string) => {
+                      if (id !== characterId) {
+                        setSwapExtras((current) => current.filter((item) => item.id !== id));
+                        return;
+                      }
+                      // The first character came off, so the next one takes their place.
+                      const [next, ...rest] = swapExtras;
+                      setCharacterId(next ? next.id : defaultVoiceForMode(videoMode?.id));
+                      setLookId(next?.lookId ?? "");
+                      setUseClip(false);
+                      setSwapExtras(rest);
+                    },
+                  }
+                : {})}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
                   event.preventDefault();
@@ -994,7 +1039,7 @@ export function Generator({
             <p className="text-xs text-muted-foreground">
               {swap
                 ? swapMethod === "replace"
-                  ? "Say what to replace and type / to pick who takes its place. Everything else in your video stays."
+                  ? `Say what to replace and type / to pick who takes its place, up to ${MAX_SWAP_CHARACTERS} characters. Everything else in your video stays.`
                   : "Type / to pick who appears. Notes are optional: wardrobe or style. The video sets the moves."
                 : videoMode?.id === "prompt"
                 ? "One prompt is enough. Attach pictures if you have them, then plan the shots."
@@ -1341,6 +1386,7 @@ export function Generator({
                   setCharacterId(next);
                   setLookId("");
                   setUseClip(false);
+                  setSwapExtras((current) => current.filter((item) => item.id !== next));
                 }}
                 disabled={busy}
                 usesImage={swap || talkingHead || (acceptsReferences && Boolean(filmingModel?.referenceImages))}
@@ -1395,7 +1441,52 @@ export function Generator({
                 modelTakesVideo={!swap && Boolean(filmingModel?.inputs.includes("video"))}
                 disabled={busy}
               />
-              {swapCharacter ? (
+              {severalInSwap ? (
+                <div className="mt-4">
+                  <p className="text-sm font-medium">Also in this video</p>
+                  <ul className="mt-2 flex flex-col gap-3">
+                    {extraCast.map((item) => {
+                      const extra = savedCharacters?.find((entry) => entry.id === item.id);
+                      return (
+                        <li key={item.id} className="rounded-xl border border-border px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            {extra?.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- character thumbnail from the upload library
+                              <img src={extra.imageUrl} alt="" className="size-8 shrink-0 rounded-lg object-cover" />
+                            ) : null}
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">{extra?.name ?? "Character"}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={busy}
+                              aria-label={`Take ${extra?.name ?? "this character"} out of the video`}
+                              onClick={() => setSwapExtras((current) => current.filter((entry) => entry.id !== item.id))}
+                            >
+                              <X data-icon="inline-start" />
+                              Remove
+                            </Button>
+                          </div>
+                          <CharacterLookOptions
+                            characterId={item.id}
+                            lookId={item.lookId}
+                            onLookId={(next) =>
+                              setSwapExtras((current) => current.map((entry) => (entry.id === item.id ? { ...entry, lookId: next } : entry)))
+                            }
+                            useClip={false}
+                            onUseClip={() => undefined}
+                            modelTakesVideo={false}
+                            disabled={busy}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Each character replaces what you name them for in the box above. With several characters, your video keeps its own voices.
+                  </p>
+                </div>
+              ) : swapCharacter ? (
                 swapCharacter.hasVoice ? (
                   <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-3 text-sm">
                     <input

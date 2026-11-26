@@ -66,8 +66,8 @@ export const swapEditVideoUrl = (userId: string, jobId: string, key: string, exp
     return url;
   });
 
-/** Where a fitted copy of the character picture is kept for Kling, next to the job's other files. */
-export const swapPictureKey = (jobId: string) => `${jobId}.swap-picture.jpg`;
+/** Where a fitted copy of a character picture is kept for Kling, next to the job's other files. The first keeps its old name. */
+export const swapPictureKey = (jobId: string, index = 0) => (index === 0 ? `${jobId}.swap-picture.jpg` : `${jobId}.swap-picture-${index + 1}.jpg`);
 
 /** Under this short side a picture is upscaled with AI before it is fitted. */
 const AI_UPSCALE_BELOW = 512;
@@ -108,7 +108,7 @@ const aiUpscale = async (source: string, dir: string, width: number, height: num
  * or narrower than 1:2.5 ("Image pixel is invalid"). A small picture is upscaled with AI (a plain resize
  * if that fails), and an odd shape gets plain margins. A picture that fits is sent as is.
  */
-export const swapPictureUrl = async (userId: string, jobId: string, key: string, expiresIn: number) => {
+export const swapPictureUrl = async (userId: string, jobId: string, key: string, expiresIn: number, index = 0) => {
   // A picture outside the person's uploads (a shared library character) is sent as it is.
   if (!isOwnedUploadKey(userId, key)) return signedGetUrl(key, expiresIn);
   return withUploadFile(userId, key, async (original, dir) => {
@@ -141,7 +141,7 @@ export const swapPictureUrl = async (userId: string, jobId: string, key: string,
       console.error("Could not fit the character picture for Kling", error);
       throw new Error("We couldn't prepare the character's picture for the swap. Try another picture.");
     }
-    const mediaKey = swapPictureKey(jobId);
+    const mediaKey = swapPictureKey(jobId, index);
     await putVideoMedia(mediaKey, new Uint8Array(await readFile(output)), "image/jpeg");
     const url = await signedVideoMediaUrl(mediaKey, expiresIn);
     if (!url) throw new Error("This server can't share the picture with Kling. Set up file storage first.");

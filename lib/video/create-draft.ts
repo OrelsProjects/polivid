@@ -1,10 +1,11 @@
 import { MAX_CLIP_RANGES, type ClipRange } from "./clip-edit";
-import { isCharacterId } from "@/lib/voice/constants";
+import { isCharacterId, isPresenterCharacter } from "@/lib/voice/constants";
 import { backgroundById, DEFAULT_BACKGROUND_ID } from "./backgrounds";
 import { editValueFor, isEditOp, type EditOp } from "./edit-ops";
 import { GENERATION_MODEL_IDS, type GenerationModelId } from "./models";
 import { isVideoTier, type VideoTier } from "./modes";
 import { MAX_VISUAL_DIRECTION } from "./presets";
+import { MAX_SWAP_CHARACTERS } from "./swap";
 import { isVisualMedia, type VisualMedia } from "./stills";
 import {
   isVideoLength,
@@ -15,6 +16,12 @@ import {
   VIDEO_FORMATS,
   type VideoFormat,
 } from "./schema";
+
+/** A character swapped in next to the first one. An empty lookId is their main picture. */
+export interface SwapExtra {
+  id: string;
+  lookId: string;
+}
 
 export const createDraftStorageKey = (mode?: string) => `polivid:create:${mode ?? "prompt"}`;
 
@@ -33,6 +40,8 @@ export interface CreateDraft {
   presetId: string;
   visualDirection: string;
   characterId: string;
+  /** Character swap: the characters swapped in after characterId, each with their look. Older drafts have none. */
+  swapExtras?: SwapExtra[];
   direction: string;
   scene: string;
   directionKeys: string[];
@@ -96,6 +105,13 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       : isCharacterId(data.voiceSettingId)
         ? data.voiceSettingId
         : "";
+    const swapExtras = Array.isArray(data.swapExtras)
+      ? data.swapExtras
+          .filter((item): item is { id: string; lookId?: unknown } => Boolean(item) && typeof item === "object" && isCharacterId((item as { id?: unknown }).id) && isPresenterCharacter((item as { id: string }).id))
+          .map((item) => ({ id: item.id, lookId: typeof item.lookId === "string" ? item.lookId.slice(0, 80) : "" }))
+          .filter((item, index, all) => item.id !== characterId && all.findIndex((other) => other.id === item.id) === index)
+          .slice(0, MAX_SWAP_CHARACTERS - 1)
+      : [];
     const op = isEditOp(data.op) ? data.op : "rotate";
     const note = (value: unknown) => (typeof value === "string" ? value.slice(0, MAX_LYRICS_NOTE) : "");
     const pictureKeys = (value: unknown) =>
@@ -114,6 +130,7 @@ export const parseCreateDraft = (raw: string | null): CreateDraft | null => {
       presetId,
       visualDirection,
       characterId,
+      swapExtras,
       direction: note(data.direction),
       scene: note(data.scene),
       directionKeys: pictureKeys(data.directionKeys),

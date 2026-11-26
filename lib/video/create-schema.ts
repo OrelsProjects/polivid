@@ -5,7 +5,7 @@ import { GENERATION_MODEL_IDS } from "@/lib/video/models";
 import { VIDEO_MODE_IDS, VIDEO_TIERS } from "@/lib/video/modes";
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LOOP_LENGTH, VISUAL_MEDIA } from "@/lib/video/stills";
-import { SWAP_METHODS, SWAP_ORIENTATIONS } from "@/lib/video/swap";
+import { MAX_SWAP_CHARACTERS, SWAP_METHODS, SWAP_ORIENTATIONS } from "@/lib/video/swap";
 import { ATTACHMENT_ROLES, MAX_BRIEF_LINE, MAX_DIRECTOR_LINE } from "@/lib/video/shot-plan";
 import { MAX_CLIP_RANGES } from "./clip-edit";
 import {
@@ -79,6 +79,15 @@ export const CreateVideoSchema = z.object({
   characterId: z.string().trim().max(80).optional().default(""),
   /** One of the character's looks. Its pictures and wardrobe are used. */
   characterLookId: z.string().trim().max(80).optional(),
+  /**
+   * Character swap, replacing in the video: every character to swap in, each named in the prompt.
+   * Their pictures go to Kling in this order. Copying the moves takes one. Left out uses characterId.
+   */
+  cast: z
+    .array(z.object({ characterId: z.string().trim().min(1).max(80), characterLookId: z.string().trim().max(80).optional() }))
+    .min(1)
+    .max(MAX_SWAP_CHARACTERS)
+    .optional(),
   /** Also send one of the character's clips to models that take video. */
   useCharacterClip: z.boolean().optional(),
   /** Spoken lines. `none` means the video keeps only the footage sound. */

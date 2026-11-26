@@ -25,6 +25,8 @@ export interface JobInput {
   keepSound?: boolean;
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice?: boolean;
+  /** Character swap: every character swapped in, in the order of their pictures. */
+  cast?: { characterId: string; characterLookId: string }[];
   /** The parts of the uploaded video to use, from the clip editor. */
   mediaRanges?: { start: number; end: number }[];
   /** Built-in clip behind a `loop` video. */

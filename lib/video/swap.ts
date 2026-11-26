@@ -28,6 +28,13 @@ export const SWAP_METHOD_LABELS: Record<SwapMethod, { title: string; detail: str
   },
 };
 
+/**
+ * Kling 3.0 Omni takes up to four pictures next to the video it edits, so Replace can swap in that many
+ * characters at once. Motion Control takes one picture, so Copy the moves takes one character.
+ */
+export const MAX_SWAP_CHARACTERS = 4;
+export const swapCastLimit = (method: SwapMethod) => (method === "replace" ? MAX_SWAP_CHARACTERS : 1);
+
 /** Stored as the job's model, the way a quick edit stores `edit`. The model says which method the job runs. */
 export const SWAP_MODEL = "kling-3.0-motion-control";
 export const SWAP_LABEL = "Kling 3.0 Motion Control";
@@ -219,19 +226,33 @@ export const SWAP_DEFAULT_PROMPT = "Character swap";
 const KEEP_THE_REST =
   "Keep everything else in the video unchanged: the scene, the other people and animals, the camera, the motion, and the timing.";
 
+const endSentence = (text: string) => text.replace(/[.\s]*$/, ".");
+
 /**
- * The instruction Kling gets when it edits a video. The character's name becomes @image_1, the
- * character's picture. With no instruction, the main person is the one replaced.
+ * The instruction Kling gets when it edits a video. Each character's name becomes their picture,
+ * in order: the first is @image_1, the second @image_2. With no instruction, the main person is
+ * the one replaced, by the first character. A picture the text never names is still pointed out.
  */
-export const swapEditPrompt = (prompt: string, characterName: string | null) => {
+export const swapEditPrompt = (prompt: string, characterNames: string | readonly (string | null)[] | null, pictures = 1) => {
+  const names = (typeof characterNames === "string" || characterNames === null ? [characterNames] : [...characterNames]).map((name) => name?.trim() ?? "");
+  const count = Math.max(1, pictures, names.length);
   const written = prompt.trim() && prompt.trim() !== SWAP_DEFAULT_PROMPT ? prompt.trim() : "";
-  let text = written
-    ? characterName
-      ? nameAsPicture(written, characterName, "@image_1")
-      : written
-    : "Replace the main person in the video with the person in @image_1.";
-  if (!text.includes("@image_1")) text = `${text.replace(/[.\s]*$/, ".")} The new character is the person in @image_1.`;
-  return `${text.replace(/[.\s]*$/, ".")} ${KEEP_THE_REST}`.slice(0, SWAP_PROMPT_LIMIT);
+  let text = written || "Replace the main person in the video with the person in @image_1.";
+  if (written) {
+    // Longest names first, so "Ed" never eats into "Eden".
+    const order = names.map((name, index) => ({ name, index })).filter((entry) => entry.name).sort((a, b) => b.name.length - a.name.length);
+    for (const { name, index } of order) text = nameAsPicture(text, name, `@image_${index + 1}`);
+  }
+  const unnamed = Array.from({ length: count }, (_, index) => `@image_${index + 1}`).filter(
+    (tag) => !new RegExp(`${tag}(?!\\d)`).test(text),
+  );
+  if (unnamed.length > 0) {
+    const [first, ...rest] = unnamed;
+    if (first === "@image_1") text = `${endSentence(text)} The new character is the person in @image_1.`;
+    const others = first === "@image_1" ? rest : unnamed;
+    for (const tag of others) text = `${endSentence(text)} The person in ${tag} also appears.`;
+  }
+  return `${endSentence(text)} ${KEEP_THE_REST}`.slice(0, SWAP_PROMPT_LIMIT);
 };
 
 /** Motion Control only sees the picture, so the character's name becomes words it understands. */

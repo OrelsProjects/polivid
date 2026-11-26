@@ -54,6 +54,8 @@ export interface CreateFormValues {
   characterVoice?: boolean;
   /** The parts of the upload to use, from the clip editor. Left out uses all of it. */
   mediaRanges?: { start: number; end: number }[] | null;
+  /** Character swap, replacing in the video: every character swapped in, in order. Left out for one. */
+  cast?: { characterId: string; characterLookId?: string }[];
 }
 
 export interface ApprovedPlan {
@@ -129,6 +131,7 @@ export const buildCreateBody = (input: {
       ...(values.swapMethod ? { swapMethod: values.swapMethod } : {}),
       ...(values.characterVoice === false ? { characterVoice: false } : {}),
       ...(values.mediaRanges && values.mediaRanges.length > 0 ? { mediaRanges: values.mediaRanges } : {}),
+      ...(values.cast && values.cast.length > 1 ? { cast: values.cast } : {}),
     };
   }
 

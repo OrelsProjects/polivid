@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ClipRange } from "@/lib/video/clip-edit";
-import { clearCreateDraft, readCreateDraft, writeCreateDraft } from "@/lib/video/create-draft";
+import { clearCreateDraft, readCreateDraft, writeCreateDraft, type SwapExtra } from "@/lib/video/create-draft";
 import { generationModelById, generationModelBySlug, type GenerationModelId } from "@/lib/video/models";
 import { DEFAULT_BACKGROUND_ID } from "@/lib/video/backgrounds";
 import { EDIT_CHOICES, editValueFor, type EditOp } from "@/lib/video/edit-ops";
@@ -116,6 +116,8 @@ export function useCreateForm({
   const [directionKeys, setDirectionKeys] = useState<string[]>([]);
   const [sceneKeys, setSceneKeys] = useState<string[]>([]);
   const [characterId, setCharacterId] = useState(defaults?.characterId ?? defaultCharacterForMode(mode?.id));
+  /** Character swap: the characters swapped in after characterId. */
+  const [swapExtras, setSwapExtras] = useState<SwapExtra[]>([]);
   const startMedia = defaults?.media && modeAllowsMedia(mode, defaults.media) ? defaults.media : "video";
   const [media, setMedia] = useState<VisualMedia>(startMedia);
   const [backgroundId, setBackgroundId] = useState(defaults?.backgroundId ?? DEFAULT_BACKGROUND_ID);
@@ -152,6 +154,7 @@ export function useCreateForm({
       if (draft.directionKeys.length > 0) setDirectionKeys(draft.directionKeys);
       if (draft.sceneKeys.length > 0) setSceneKeys(draft.sceneKeys);
       if (draft.characterId) setCharacterId(draft.characterId);
+      if (draft.swapExtras?.length) setSwapExtras(draft.swapExtras);
       // A tool is defined by its picture type and by whether it reads the script as written.
       // A saved draft changes those only while there is unfinished text to go with them.
       const idle = draft.prompt.trim().length === 0;
@@ -192,6 +195,7 @@ export function useCreateForm({
         directionKeys,
         sceneKeys,
         characterId,
+        swapExtras,
         media,
         verbatim,
         backgroundId,
@@ -221,6 +225,7 @@ export function useCreateForm({
     directionKeys,
     sceneKeys,
     characterId,
+    swapExtras,
     media,
     verbatim,
     backgroundId,
@@ -280,6 +285,8 @@ export function useCreateForm({
     setSceneKeys,
     characterId,
     setCharacterId,
+    swapExtras,
+    setSwapExtras,
     media,
     setMedia,
     verbatim,

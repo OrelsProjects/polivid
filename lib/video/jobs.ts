@@ -64,6 +64,8 @@ export interface VideoJobInput {
   keepSound?: boolean;
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice?: boolean;
+  /** Character swap: every character swapped in, in the order of their pictures. */
+  cast?: { characterId: string; characterLookId?: string }[];
   /** The parts of the uploaded video to use, in order, from the clip editor. */
   mediaRanges?: { start: number; end: number }[];
   /** Built-in clip behind a loop video. */
@@ -141,6 +143,7 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           orientation: input.orientation ?? "",
           keepSound: input.keepSound !== false,
           characterVoice: input.characterVoice !== false,
+          ...(input.cast?.length ? { cast: input.cast.map((member) => ({ characterId: member.characterId, characterLookId: member.characterLookId ?? "" })) } : {}),
           ...(input.mediaRanges?.length ? { mediaRanges: input.mediaRanges } : {}),
           backgroundId: input.backgroundId ?? "",
           backgroundKey: input.backgroundKey ?? "",
@@ -490,7 +493,9 @@ type JobRow = {
 };
 
 const loadJobLabels = async (userId: string, inputs: JobInputFields[]) => {
-  const characterIds = [...new Set(inputs.map((input) => input.characterId).filter((id) => JOB_ID.test(id)))];
+  const characterIds = [
+    ...new Set(inputs.flatMap((input) => [input.characterId, ...input.cast.map((member) => member.characterId)]).filter((id) => JOB_ID.test(id))),
+  ];
   const presetIds = [...new Set(inputs.map((input) => input.presetId).filter((id) => id && !presetById(id)))];
   const [characters, presets] = await Promise.all([
     characterIds.length
@@ -632,9 +637,13 @@ const toView = (
   if (!isJobStatus(job.status)) throw new Error(`Video job ${job.id} has an unknown status.`);
   const presetName = presetById(input.presetId)?.name ?? labels.presets.get(input.presetId) ?? "";
   const character = labels.characters.get(input.characterId);
-  const characterName = character?.name ?? "";
+  // A swap with several characters names them all, in the order of their pictures.
+  const castNames = input.cast.length > 1 ? input.cast.map((member) => labels.characters.get(member.characterId)?.name).filter(Boolean) : [];
+  const characterName = castNames.length > 1 ? castNames.join(", ") : (character?.name ?? "");
   // A swap gets the character's voice after the picture is made, when it keeps its sound and the character has one.
-  const voiceName = input.mode === "swap" && input.keepSound && input.characterVoice && character?.hasVoice ? character.name : null;
+  // With several characters the video keeps its own voices.
+  const voiceName =
+    input.mode === "swap" && input.keepSound && input.characterVoice && input.cast.length <= 1 && character?.hasVoice ? character.name : null;
   const currentStep = isJobStep(job.currentStep) ? job.currentStep : null;
   const clipTotal = clipCountForJob(input);
   const clipsDone = completedClipCount(clips);

@@ -477,6 +477,7 @@ Use when:
 - method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.
 - method moves makes a new clip of the character doing the video's moves. The scene is not kept.
 - Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.
+- To swap in several saved characters at once (replace only, up to 4), pass cast and name each one in the prompt: 'Replace the monkey with Greg and the man with Dana'. With several, the video keeps its own voices.
 - Lengths: 3 to 10 seconds for now. For a longer video, pass keep with the parts to use (they are joined in order); ask the person which part they want if it isn't clear. The price follows the seconds used. Its sound is kept unless keepSound is false.
 
 Don't use when:
@@ -491,6 +492,7 @@ Inputs:
 | mediaKey | no | Upload key of the performance video. Omit to use the attached video. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | characterLookId | no | Look id from get_character. Uses that look's pictures and wardrobe. Omit for the character's default pictures. |
+| cast | no | replace only: every saved character to swap in, up to 4, each named in the prompt. Takes the place of characterId. |
 | referenceKeys | no | One picture key of who should appear, when they are not a saved character. |
 | method | no | replace edits their video and swaps in the character (15s per part). moves makes a new clip of the character doing the video's moves (30s per part). Longer videos are done in parts and joined. Defaults to replace. |
 | prompt | no | For replace: what to replace, naming the character, e.g. 'Replace the monkey with Greg'. Empty replaces the main person. For moves: optional wardrobe or style notes. |

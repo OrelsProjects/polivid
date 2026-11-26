@@ -78,3 +78,18 @@ test("reads a saved preset and visual direction", () => {
   assert.equal(draft?.presetId, "pixar");
   assert.equal(draft?.visualDirection, "Warm key light.");
 });
+
+test("a swap draft keeps the characters after the first, without repeats or the first one again", () => {
+  const draft = parseCreateDraft(
+    JSON.stringify({
+      characterId: "11111111-1111-4111-8111-111111111111",
+      swapExtras: [{ id: "22222222-2222-4222-8222-222222222222", lookId: "look-2" }, { id: "22222222-2222-4222-8222-222222222222" }, { id: "11111111-1111-4111-8111-111111111111" }, { id: 7 }, { id: "off" }, { id: "33333333-3333-4333-8333-333333333333" }, { id: "44444444-4444-4444-8444-444444444444" }, { id: "55555555-5555-4555-8555-555555555555" }],
+    }),
+  );
+  assert.deepEqual(draft?.swapExtras, [
+    { id: "22222222-2222-4222-8222-222222222222", lookId: "look-2" },
+    { id: "33333333-3333-4333-8333-333333333333", lookId: "" },
+    { id: "44444444-4444-4444-8444-444444444444", lookId: "" },
+  ]);
+  assert.deepEqual(parseCreateDraft(JSON.stringify({ prompt: "old" }))?.swapExtras, []);
+});

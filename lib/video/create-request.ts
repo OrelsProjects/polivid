@@ -43,6 +43,8 @@ import {
   DEFAULT_SWAP_ORIENTATION,
   MAX_SWAP_TOTAL_SECONDS,
   MIN_SWAP_SECONDS,
+  MAX_SWAP_CHARACTERS,
+  swapCastLimit,
   swapEditShapeProblem,
   swapModelFor,
   swapLengthProblem,
@@ -142,6 +144,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       mediaRanges: parsed.data.mediaRanges,
       characterId: parsed.data.characterId,
       characterLookId: parsed.data.characterLookId,
+      cast: parsed.data.cast,
       pictureKey: parsed.data.referenceKeys?.[0] ?? parsed.data.referenceKey,
       tool: tool?.slug,
     });
@@ -571,25 +574,56 @@ const queueCaptions = async (userId: string, input: { key: string; tool: string 
 const MIN_SWAP_SIDE = 340;
 const MAX_SWAP_SIDE = 3850;
 
-/** The saved character's picture, in the chosen look, or the picture they attached instead. */
-const swapPicture = async (
+interface SwapPicture {
+  key: string;
+  characterId: string | undefined;
+  characterLookId: string | undefined;
+}
+
+/** A saved character's picture, in the chosen look. */
+const savedCharacterPicture = async (userId: string, characterId: string, characterLookId: string | undefined): Promise<SwapPicture> => {
+  const character = await getPickableCharacter(userId, characterId);
+  if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
+  const look = characterLookId ? character.looks.find((item) => item.id === characterLookId) : null;
+  if (characterLookId && !look) throw new CreateVideoError(`That look isn't on ${character.name}.`, 400);
+  const [key] = pickReferenceKeys({ mainKey: character.imageKey, media: character.media.map(mediaView), lookId: look?.id, max: 1 });
+  if (!key) throw new CreateVideoError(`${character.name} needs a picture first.`, 400);
+  return { key, characterId: character.id, characterLookId: look?.id };
+};
+
+/**
+ * Who is swapped in, in the order their pictures go to Kling: every character in the cast, else the
+ * one saved character, else the picture they attached instead. Replacing takes up to four; copying the moves one.
+ */
+const swapPictures = async (
   userId: string,
-  input: { characterId: string; characterLookId: string | undefined; pictureKey: string | undefined },
-) => {
-  const saved = input.characterId && input.characterId !== OFF_VOICE_ID && input.characterId !== STUDIO_VOICE_ID;
-  if (saved) {
-    const character = await getPickableCharacter(userId, input.characterId);
-    if (!character) throw new CreateVideoError("Pick a character that has a picture.", 400);
-    const look = input.characterLookId ? character.looks.find((item) => item.id === input.characterLookId) : null;
-    if (input.characterLookId && !look) throw new CreateVideoError("That look isn't on this character.", 400);
-    const [key] = pickReferenceKeys({ mainKey: character.imageKey, media: character.media.map(mediaView), lookId: look?.id, max: 1 });
-    if (!key) throw new CreateVideoError("Pick a character that has a picture.", 400);
-    return { key, characterId: character.id, characterLookId: look?.id };
+  input: {
+    method: SwapMethod;
+    characterId: string;
+    characterLookId: string | undefined;
+    cast: { characterId: string; characterLookId?: string }[] | undefined;
+    pictureKey: string | undefined;
+  },
+): Promise<SwapPicture[]> => {
+  const isSaved = (id: string) => Boolean(id) && id !== OFF_VOICE_ID && id !== STUDIO_VOICE_ID;
+  const seen = new Set<string>();
+  const cast = (input.cast ?? []).filter((member) => isSaved(member.characterId) && !seen.has(member.characterId) && seen.add(member.characterId));
+  if (cast.length > swapCastLimit(input.method)) {
+    throw new CreateVideoError(
+      input.method === "moves"
+        ? "Copy the moves takes one character. Use Replace in video for several."
+        : `A swap takes up to ${MAX_SWAP_CHARACTERS} characters.`,
+      400,
+    );
   }
+  if (cast.length > 0) {
+    return Promise.all(cast.map((member) => savedCharacterPicture(userId, member.characterId, member.characterLookId || undefined)));
+  }
+  if (isSaved(input.characterId)) return [await savedCharacterPicture(userId, input.characterId, input.characterLookId)];
   const key = input.pictureKey;
   if (!key) throw new CreateVideoError("Pick a character, or attach a picture of who should appear.", 400);
   if (!isOwnedUploadKey(userId, key) || !isImageKey(key)) throw new CreateVideoError("Upload a picture of who should appear.", 400);
-  return { key, characterId: undefined, characterLookId: undefined };
+  return [{ key, characterId: undefined, characterLookId: undefined }];
 };
 
 /**
@@ -610,11 +644,15 @@ const queueSwap = async (
     mediaRanges: ClipRange[] | undefined;
     characterId: string;
     characterLookId: string | undefined;
+    /** Every character to swap in, when there is more than the one in characterId. */
+    cast: { characterId: string; characterLookId?: string }[] | undefined;
     pictureKey: string | undefined;
     tool: string | undefined;
   },
 ) => {
-  const picture = await swapPicture(userId, input);
+  const pictures = await swapPictures(userId, input);
+  const [picture] = pictures as [SwapPicture, ...SwapPicture[]];
+  const several = pictures.length > 1;
   let seconds: number;
   let format: VideoFormat;
   let ranges: ClipRange[] | undefined;
@@ -659,12 +697,14 @@ const queueSwap = async (
       tier: input.tier,
       resolution,
       mediaKey: input.key,
-      referenceKeys: [picture.key],
+      referenceKeys: pictures.map((item) => item.key),
       characterId: picture.characterId,
       characterLookId: picture.characterLookId,
+      cast: several ? pictures.map((item) => ({ characterId: item.characterId!, characterLookId: item.characterLookId })) : undefined,
       orientation: input.method === "moves" ? input.orientation : undefined,
       keepSound: input.keepSound,
-      characterVoice: input.characterVoice,
+      // One voice can't speak for several people, so a swap with several characters keeps its own voices.
+      characterVoice: input.characterVoice && !several,
       mediaRanges: ranges,
       showText: false,
       creditsHeld: credits,

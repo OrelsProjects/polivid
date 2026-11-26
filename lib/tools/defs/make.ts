@@ -33,6 +33,7 @@ import { LAYOUT_MEDIA_ROLES, LAYOUT_STYLE_IDS } from "@/lib/video/layout/styles"
 import { MAX_VISUAL_DIRECTION } from "@/lib/video/presets";
 import { MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_REFERENCE_IMAGES, VIDEO_FORMATS } from "@/lib/video/schema";
 import {
+  MAX_SWAP_CHARACTERS,
   MAX_SWAP_EDIT_SECONDS,
   MAX_SWAP_TOTAL_SECONDS,
   MAX_SWAP_SECONDS,
@@ -435,6 +436,7 @@ export const makeTools = [
       "method replace (default) edits their video and keeps everything else. The prompt says what to replace, naming the character: 'Replace the monkey with Greg'.",
       "method moves makes a new clip of the character doing the video's moves. The scene is not kept.",
       "Pass characterId (and characterLookId), or one picture key in referenceKeys for someone not saved.",
+      `To swap in several saved characters at once (replace only, up to ${MAX_SWAP_CHARACTERS}), pass cast and name each one in the prompt: 'Replace the monkey with Greg and the man with Dana'. With several, the video keeps its own voices.`,
       `Lengths: ${MIN_SWAP_SECONDS} to ${MAX_SWAP_TOTAL_SECONDS} seconds for now. For a longer video, pass keep with the parts to use (they are joined in order); ask the person which part they want if it isn't clear. The price follows the seconds used. Its sound is kept unless keepSound is false.`,
     ],
     avoidWhen: [
@@ -446,6 +448,17 @@ export const makeTools = [
       mediaKey: mediaKeyField("Upload key of the performance video. Omit to use the attached video."),
       characterId: characterField(),
       characterLookId: characterLookField(),
+      cast: z
+        .array(
+          z.object({
+            characterId: z.string().trim().min(1).max(80).describe("A saved character's id from list_characters."),
+            characterLookId: z.string().trim().max(80).optional().describe("One of that character's looks. Omit for their main picture."),
+          }),
+        )
+        .min(1)
+        .max(MAX_SWAP_CHARACTERS)
+        .optional()
+        .describe(`replace only: every saved character to swap in, up to ${MAX_SWAP_CHARACTERS}, each named in the prompt. Takes the place of characterId.`),
       referenceKeys: z
         .array(z.string().trim().min(1).max(200))
         .max(1)

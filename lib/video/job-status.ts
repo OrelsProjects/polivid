@@ -8,6 +8,7 @@ import { readCaptioning, type CaptioningSettings } from "./captions";
 import { readLayoutSettings, type LayoutJobSettings } from "./layout/styles";
 import type { ClipPreviewSlot } from "./clip-preview";
 import { MAX_LYRICS_NOTE, MAX_LYRICS_REFERENCES, MAX_REFERENCE_IMAGES } from "./schema";
+import { MAX_SWAP_CHARACTERS } from "./swap";
 import { MAX_CUTS, type SongCut } from "@/lib/music/song-plan";
 import {
   emptyPromptBrief,
@@ -139,6 +140,13 @@ export interface VideoJobView {
 
 const VIDEO_FORMATS = ["9:16", "1:1", "16:9"] as const;
 
+/** One character in a character swap. */
+export interface SwapCastMember {
+  characterId: string;
+  /** Empty for the character's main picture. */
+  characterLookId: string;
+}
+
 export interface JobInputFields {
   prompt: string;
   format: string;
@@ -158,6 +166,11 @@ export interface JobInputFields {
   keepSound: boolean;
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice: boolean;
+  /**
+   * Character swap: every character swapped in, in the order of their pictures in referenceKeys.
+   * Empty on older jobs and every other mode, where characterId is the one character.
+   */
+  cast: SwapCastMember[];
   /** The parts of the uploaded video to use, from the clip editor. Empty uses all of it. */
   mediaRanges: { start: number; end: number }[];
   /** Built-in clip behind a loop video. */
@@ -221,6 +234,7 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   orientation: "",
   keepSound: true,
   characterVoice: true,
+  cast: [],
   mediaRanges: [],
   backgroundId: "",
   backgroundKey: "",
@@ -275,6 +289,14 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const orientation = record.orientation === "video" || record.orientation === "image" ? record.orientation : "";
   const keepSound = record.keepSound !== false;
   const characterVoice = record.characterVoice !== false;
+  const cast = Array.isArray(record.cast)
+    ? record.cast
+        .filter((member): member is { characterId: string; characterLookId?: unknown } =>
+          Boolean(member) && typeof member === "object" && typeof (member as { characterId?: unknown }).characterId === "string" && Boolean((member as { characterId: string }).characterId),
+        )
+        .slice(0, MAX_SWAP_CHARACTERS)
+        .map((member) => ({ characterId: member.characterId, characterLookId: typeof member.characterLookId === "string" ? member.characterLookId : "" }))
+    : [];
   const mediaRanges = Array.isArray(record.mediaRanges)
     ? record.mediaRanges
         .filter((range): range is { start: number; end: number } =>
@@ -349,6 +371,7 @@ export const readJobInput = (input: unknown): JobInputFields => {
     orientation,
     keepSound,
     characterVoice,
+    cast,
     mediaRanges,
     backgroundId,
     backgroundKey,

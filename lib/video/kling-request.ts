@@ -3,7 +3,7 @@
  * so the shape each model is sent can be tested.
  */
 
-import { SWAP_PROMPT_LIMIT, type SwapOrientation } from "./swap";
+import { MAX_SWAP_CHARACTERS, SWAP_PROMPT_LIMIT, type SwapOrientation } from "./swap";
 
 export const KLING_API = "https://api-singapore.klingai.com";
 
@@ -196,11 +196,11 @@ export const klingSwapCall = (request: KlingSwapRequest): KlingCall => {
 };
 
 export interface KlingSwapEditRequest {
-  /** The character picture, cited in the prompt as @image_1. */
-  imageUrl: string;
+  /** The character pictures, in order, cited in the prompt as @image_1, @image_2 and on. Kling takes up to four. */
+  imageUrls: readonly string[];
   /** The video to edit, cited in the prompt as @video_1. */
   videoUrl: string;
-  /** The full instruction, already naming @image_1. */
+  /** The full instruction, already naming each picture. */
   prompt: string;
   resolution: string;
   /** Seconds to make. Kling takes 3 to 15. */
@@ -216,7 +216,7 @@ export const klingSwapEditCall = (request: KlingSwapEditRequest): KlingCall => (
     contents: [
       { type: "prompt", text: request.prompt.slice(0, SWAP_PROMPT_LIMIT) },
       { type: "base_video", url: request.videoUrl, id: "video_1" },
-      { type: "refer_image", url: request.imageUrl, id: "image_1" },
+      ...request.imageUrls.slice(0, MAX_SWAP_CHARACTERS).map((url, index) => ({ type: "refer_image", url, id: `image_${index + 1}` })),
     ],
     settings: {
       resolution: request.resolution,
