@@ -113,7 +113,7 @@ More pictures make a UGC ad look more like the person. A UGC ad sends up to four
 { "kind": "avatar", "characterId": "…?", "photoKey": "…?", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { … }? }
 { "kind": "captions", "videoKey": "…" }
 { "kind": "faceless", "script": "…", "characterId": "…?", "direction": "…?", "format": "9:16", "tier": "pro" }
-{ "kind": "skit", "characterId": "…", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { "captions": "comic" }? }
+{ "kind": "skit", "characterId": "…", "script": "…", "look": "auto?", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { "captions": "comic" }? }
 ```
 
 Field notes:
@@ -125,8 +125,13 @@ Field notes:
 
 A skit is the character acting the script out instead of talking to camera: one short filmed shot per beat, with the whole body, props, and a new scene whenever the script calls for one. The character's own voice reads the script word for word over the shots. The character needs a picture and a voice (`400 invalid` otherwise).
 
-- **Beats:** each sentence is a beat. A note in `[brackets]` says what the character does in that beat and is never read aloud: `[Quill slips on a stack of papers] I never saw it coming.` A beat with no note shows the character acting out its own line. A note at the end of a line steers the sentence before it. A very short line with no note is joined to its neighbour. A skit has at most 12 beats.
-- **Look:** every shot is filmed from the character's pictures and keeps their look and art style. Nothing else is added. `direction` goes on every shot, in the person's words.
+- **Beats:** a note in `[brackets]` says what the character does and is never read aloud: `[Quill slips on a stack of papers] I never saw it coming. Three drafts, gone.` is one shot of the slip. A note steers every sentence up to the next note, unless that shot would run longer than the model films. Sentences before the first note, and a script with no notes, get a beat per sentence that shows the character acting out its line. A note at the end of a line steers the sentence before it. A very short line with no note is joined to its neighbour. A skit has at most 12 beats.
+- **Look:** skits are drawn by default. `look` is one of:
+  - `auto` (default): a character whose picture is a photo is drawn as a `retro-cartoon`; one that's already drawn (a cartoon, a mascot, a 3D render) keeps its own look.
+  - `retro-cartoon`, `pixar` (rounded 3D), `claymation`, or `pixel-art`: the character is drawn in that look.
+  - `own`: every shot is filmed from the character's pictures as they are, photo or drawing.
+
+  A drawn character is drawn once, keeping who they are, and every shot is filmed from that one picture so they look the same in every beat. That picture is priced into the quote (about one credit); `auto` always includes it. `direction` goes on every shot, in the person's words.
 - **Length and price:** each beat's shot runs about as long as its words take to say, at least 3 seconds. The video runs as long as its shots, and the quote is priced from them. `low` is the quickest and cheapest, `pro` has livelier motion, and `ultra` is the same as `pro`, sharper.
 - **Sound and captions:** only the character's voice is kept; the shots' own sound is dropped. No captions are drawn on the shots. For captions, send a `finish` with a caption style. A skit takes a caption style but not a layout style (`400 invalid`), since layout styles re-cut one take of a speaker.
 

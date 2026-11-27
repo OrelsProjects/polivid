@@ -24,7 +24,18 @@ import {
   type PromptBrief,
 } from "./shot-plan";
 import type { VideoFormat } from "./schema";
-import { skitBeats, skitShotPrompt } from "./skit";
+import {
+  DEFAULT_SKIT_LOOK,
+  SKIT_AUTO_LOOK,
+  SKIT_OWN_LOOK,
+  skitBeats,
+  skitCharacterPrompt,
+  skitLookOf,
+  skitLookPreset,
+  skitShotPrompt,
+  type SkitDrawnLook,
+} from "./skit";
+import { isDrawnPicture } from "./skit-look";
 
 export interface PreparedJob {
   prompt: string;
@@ -262,19 +273,51 @@ const prepareTalkingHead = async (
 };
 
 /**
- * A skit: a shot per beat, each filmed from the character's pictures, and the character's voice
- * reading the script word for word over them, one beat per shot. Notes in brackets steer the shots
- * and are never read. No look is picked for it: the shots keep the pictures' own look and art style.
+ * The drawn look a skit is filmed in, or null to film the character's pictures as they are. Auto
+ * draws a photo in the default look and leaves a character that's already drawn alone.
+ */
+const skitDrawnLook = async (userId: string, presetId: string | undefined, pictures: readonly string[]) => {
+  const look = skitLookOf(presetId) ?? SKIT_AUTO_LOOK;
+  if (look === SKIT_OWN_LOOK || pictures.length === 0) return null;
+  if (look !== SKIT_AUTO_LOOK) return look;
+  const first = await readOwnedMedia(userId, pictures[0]!);
+  return (await isDrawnPicture(first.dataUrl)) ? null : DEFAULT_SKIT_LOOK;
+};
+
+/**
+ * A skit: a shot per beat and the character's voice reading the script word for word over them,
+ * one beat per shot. Notes in brackets steer the shots and are never read. In a drawn look, the
+ * character is drawn once in that look and every shot is filmed from that one picture, so they look
+ * the same in every beat. Otherwise each shot is filmed from the character's own pictures.
  */
 const prepareSkit = async (userId: string, input: Parameters<typeof prepareModeJob>[1]): Promise<PreparedJob> => {
   const model = generationModelBySlug(input.model);
   const beats = skitBeats(input.prompt, model?.durations ?? []);
   if (beats.length === 0) throw new Error("Write the words to say.");
-  const pictures = input.referenceKeys ?? [];
+  let pictures = input.referenceKeys ?? [];
+  let stillKey = input.existingStillKey;
+  let look: SkitDrawnLook | null = null;
+  if (stillKey) {
+    // A retry films from the picture already drawn for this skit.
+    pictures = [stillKey];
+  } else {
+    look = await skitDrawnLook(userId, input.presetId, pictures);
+    if (look) {
+      const [subjectKey, ...moreSubjectKeys] = pictures;
+      ({ imageKey: stillKey } = await generateImage(userId, {
+        prompt: skitCharacterPrompt(skitLookPreset(look)),
+        format: input.format,
+        subjectKey,
+        moreSubjectKeys: moreSubjectKeys.slice(0, 3),
+      }));
+      pictures = [stillKey];
+    }
+  }
+  const lookPreset = look ? skitLookPreset(look) : null;
   const shots =
     input.existingBeats?.filter((beat) => beat.trim()).length === beats.length
       ? input.existingBeats
-      : beats.map((beat) => skitShotPrompt({ beat, pictures: pictures.length, direction: input.visualDirection }));
+      : beats.map((beat) => skitShotPrompt({ beat, pictures: pictures.length, direction: input.visualDirection, look: lookPreset }));
   const spokenBeats =
     input.existingSpokenBeats?.filter((beat) => beat.trim()).length === beats.length
       ? input.existingSpokenBeats
@@ -288,6 +331,7 @@ const prepareSkit = async (userId: string, input: Parameters<typeof prepareModeJ
     resolution: input.resolution,
     spoken: spokenBeats.join(" "),
     spokenBeats,
+    ...(stillKey ? { stillKey } : {}),
     shotReferences: await loadShotReferences(
       userId,
       beats.map(() => pictures),

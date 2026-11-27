@@ -11,7 +11,7 @@ import { videoJobCredits } from "@/lib/billing/estimate";
 import { getPickableCharacter } from "@/lib/characters/store";
 import { CreateVideoError, queueVideoFromInput } from "@/lib/video/create-request";
 import { resolveModeTier } from "@/lib/video/modes";
-import { skitCharacterProblem, skitCuts } from "@/lib/video/skit";
+import { skitCharacterProblem, skitCuts, skitLookOf, skitMayDrawCharacter } from "@/lib/video/skit";
 import { captionFinishedCredits, queueCaptionsForVideo } from "@/lib/video/caption-finished";
 import { cancelVideoJobForUser, getVideoJobForUser } from "@/lib/video/jobs";
 import { readJobInput, type JobStep } from "@/lib/video/job-status";
@@ -69,13 +69,21 @@ const checkFinish = (userId: string, finish: PartnerFinish) => {
 };
 
 /** A skit's price: each beat's shot, filmed by the tier's model, the same way it's priced when queued. */
-const skitCredits = (script: string, tier: string) => {
+const skitCredits = (script: string, tier: string, look: string) => {
   const resolved = resolveModeTier("skit", tier);
   if (!resolved?.model) throw new PartnerError("invalid", "That video can't be priced.");
   const cuts = skitCuts(script, resolved.model.durations);
   if (cuts.length === 0) throw new PartnerError("invalid", "Write the words to say. Notes in brackets are not read aloud.");
   const length = cuts.reduce((sum, cut) => sum + cut.seconds, 0);
-  return videoJobCredits({ mode: "skit", tier, modelSlug: resolved.model.slug, resolution: resolved.resolution, length, cuts });
+  return videoJobCredits({
+    mode: "skit",
+    tier,
+    modelSlug: resolved.model.slug,
+    resolution: resolved.resolution,
+    length,
+    cuts,
+    drawsCharacter: skitMayDrawCharacter(skitLookOf(look)),
+  });
 };
 
 /** A skit needs a character with a picture and a voice. Checked before pricing, so a quote can't promise one. */
@@ -91,7 +99,7 @@ const checkSkitCharacter = async (userId: string, input: PartnerVideoInput) => {
 const videoCredits = (input: PartnerVideoInput) => {
   if (!hasOpenRouterKey()) return 0;
   if (input.kind === "captions") return CAPTIONS_CREDITS;
-  if (input.kind === "skit") return skitCredits(input.script, input.tier);
+  if (input.kind === "skit") return skitCredits(input.script, input.tier, input.look);
   const body = createBodyFor(input);
   const credits = creditsForToolInput(TOOL_FOR[input.kind], { ...body, prompt: body.prompt });
   if (credits === null) throw new PartnerError("invalid", "That video can't be priced.");

@@ -355,6 +355,8 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     existingStillKey: readStillKey(job?.artifacts),
   });
   if (prepared.spoken) await rememberSpoken(jobId, job?.artifacts, prepared.spoken, prepared.spokenBeats);
+  // A skit's drawn character is kept, so a retried shot is filmed from the same picture.
+  if (prepared.stillKey && input.mode === "skit") await rememberStillKey(jobId, prepared.stillKey);
   if (model.talkingHead) {
     await filmTalkingHead(userId, jobId, input, prepared);
     return;
@@ -1170,6 +1172,8 @@ const filmSegments = async (
         beats,
         spoken: prepared.spoken ?? "",
         spokenBeats: prepared.spokenBeats ?? [],
+        // A skit's drawn character, so a retried shot is filmed from the same picture.
+        ...(prepared.stillKey && input.mode === "skit" ? { stillKey: prepared.stillKey } : {}),
         brief: input.brief
           ? {
               subject: input.brief.subject,

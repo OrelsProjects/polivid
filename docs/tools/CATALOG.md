@@ -283,7 +283,8 @@ Use when:
 - Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.
 - Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.
 - Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.
-- Pass characterId. It must be a saved character with a picture and a voice. A cartoon picture makes a cartoon skit.
+- Pass characterId. It must be a saved character with a picture and a voice.
+- Skits are drawn by default: a photo character is drawn as a retro cartoon, and a character that's already drawn keeps its look. presetId picks another look, or own for the pictures as they are.
 - 4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.
 
 Don't use when:
@@ -297,6 +298,7 @@ Inputs:
 | --- | --- | --- |
 | prompt | yes | The script: a [note] for what the character does, then the words spoken over it. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| presetId | no | The look. auto (default): a photo character is drawn in retro-cartoon, a drawn one stays as it is. own: film the character's pictures as they are. retro-cartoon, pixar (rounded 3D), claymation, pixel-art: draw the character in that look first. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
 | visualDirection | no | Look and shot notes, at most 600 characters. |

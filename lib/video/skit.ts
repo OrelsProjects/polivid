@@ -12,6 +12,7 @@
  * Nothing here touches the network, so the price and the filmed video plan the same beats.
  */
 import { NO_ON_SCREEN_TEXT } from "./on-screen-text";
+import { AUTO_PRESET_ID, presetById, type GenerationPreset } from "./presets";
 import { clampPause, pauseSeconds, tidy } from "./script-markup";
 import { countWords, WORDS_PER_SECOND } from "./stills";
 import { filmSecondsFor } from "./shot-plan";
@@ -179,11 +180,49 @@ export const skitCuts = (script: string, durations: readonly number[]) =>
 /** Seconds the finished skit runs: every shot, back to back. */
 export const skitSeconds = (beats: readonly SkitBeat[]) => beats.reduce((sum, beat) => sum + beat.seconds, 0);
 
+/** The drawn looks a skit offers. The first is the default for a character whose picture is a photo. */
+export const SKIT_LOOKS = ["retro-cartoon", "pixar", "claymation", "pixel-art"] as const;
+export type SkitDrawnLook = (typeof SKIT_LOOKS)[number];
+/** Films the character exactly as their pictures look, photo or drawing. */
+export const SKIT_OWN_LOOK = "own";
+/** Draws a photo in the default look, and keeps a character that's already drawn as it is. */
+export const SKIT_AUTO_LOOK = "auto";
+export const SKIT_LOOK_CHOICES = [SKIT_AUTO_LOOK, SKIT_OWN_LOOK, ...SKIT_LOOKS] as const;
+export type SkitLook = (typeof SKIT_LOOK_CHOICES)[number];
+export const DEFAULT_SKIT_LOOK: SkitDrawnLook = "retro-cartoon";
+
+/** The look a skit asked for, from its preset id. Unset and Auto are "auto"; null means it isn't a skit look. */
+export const skitLookOf = (presetId: string | null | undefined): SkitLook | null => {
+  const id = presetId?.trim() ?? "";
+  if (!id || id === AUTO_PRESET_ID || id === SKIT_AUTO_LOOK) return SKIT_AUTO_LOOK;
+  return (SKIT_LOOK_CHOICES as readonly string[]).includes(id) ? (id as SkitLook) : null;
+};
+
+/** True when a skit with this look may draw the character first, which costs one picture. */
+export const skitMayDrawCharacter = (look: SkitLook | null) => look !== SKIT_OWN_LOOK;
+
+/** The drawn look's preset, or null for the character's own look. */
+export const skitLookPreset = (look: SkitDrawnLook): GenerationPreset => presetById(look)!;
+
+/**
+ * The one picture of the character every shot is filmed from, in the skit's drawn look. Only the
+ * look changes: who they are, their colours and their outfit stay, so the writer still sees their
+ * character. A plain background keeps the picture about the character alone.
+ */
+export const skitCharacterPrompt = (look: GenerationPreset) =>
+  [
+    `Redraw the character from the subject reference pictures as one full-body picture in this art style: ${look.promptFragment}`,
+    "Keep who they are: face, hair, colours, outfit and proportions, so they are instantly recognisable as the same character.",
+    "One character only, standing, plain light background.",
+    "No text, letters, logos or watermarks.",
+  ].join("\n");
+
 /**
  * What one shot films. The character is whoever the reference pictures show, kept exactly as they
- * look there, in their own art style. Nothing else is added: no look, no setting, no mood.
+ * look there, in their art style. A drawn look names its style too, so the scene matches the
+ * character. Nothing else is added: no setting, no mood.
  */
-export const skitShotPrompt = (input: { beat: SkitBeat; pictures: number; direction?: string }) => {
+export const skitShotPrompt = (input: { beat: SkitBeat; pictures: number; direction?: string; look?: GenerationPreset | null }) => {
   const label = input.pictures > 1 ? `Images 1-${input.pictures} show` : "Image 1 shows";
   return [
     "One continuous shot. Film only this beat.",
@@ -191,6 +230,7 @@ export const skitShotPrompt = (input: { beat: SkitBeat; pictures: number; direct
       ? `Action: ${input.beat.show}`
       : `Action: the character acts out this line, without saying it: "${input.beat.say}"`,
     input.direction?.trim() ? `Direction: ${input.direction.trim()}` : "",
+    input.look ? `Art style, for the character and the whole scene: ${input.look.promptFragment}` : "",
     input.pictures > 0 ? `${label} the character. Keep their exact look and art style.` : "",
     NO_ON_SCREEN_TEXT,
   ]

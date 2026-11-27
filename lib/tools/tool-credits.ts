@@ -1,5 +1,5 @@
 import { AUTO_APPROVE_UNDER_CREDITS, spendNeedsApproval } from "@/lib/billing/auto-approve";
-import { skitCuts } from "@/lib/video/skit";
+import { skitCuts, skitLookOf, skitMayDrawCharacter } from "@/lib/video/skit";
 import { songCredits, videoJobCredits } from "@/lib/billing/estimate";
 import { storyboardCreditsFor } from "@/lib/coach/storyboard";
 import { toolByName } from "@/lib/tools/registry";
@@ -76,6 +76,7 @@ const skitToolCredits = (input: Record<string, unknown>, options: ToolCreditOpti
     modelId: filming.model.id,
     resolution: filming.resolution,
     cuts,
+    drawsCharacter: skitMayDrawCharacter(skitLookOf(typeof input.presetId === "string" ? input.presetId : undefined)),
   });
 };
 

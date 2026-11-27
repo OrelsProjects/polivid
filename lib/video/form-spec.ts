@@ -52,6 +52,13 @@ export const formSpecFor = (mode: VideoMode | null, tool?: CreateTool | null): F
     sections.add("tier");
     sections.add("model");
     sections.add("character");
+  } else if (mode?.id === "skit") {
+    // The script sets the beats and the length. The look is how the character is drawn.
+    sections.add("look");
+    sections.add("format");
+    sections.add("visualDirection");
+    sections.add("tier");
+    sections.add("character");
   } else if (mode?.engine === "compose") {
     // Captions and the like work on an upload as it is. Its shape and length come from the file.
   } else {

@@ -3,6 +3,7 @@
  * a style, given a caption preset's look, or both, as a new video linked to the first. Everything
  * here is plain logic; the routes and the webhook pass in what touches the database.
  */
+import { skitLookOf } from "@/lib/video/skit";
 import { InsufficientCreditsError } from "@/lib/billing/errors";
 import { layoutStyleCredits, videoJobCredits } from "@/lib/billing/estimate";
 import type { JobInputFields } from "@/lib/video/job-status";
@@ -229,6 +230,8 @@ export const retryPlanFor = (mode: string, input: JobInputFields, rawInput: unkn
         characterId: input.characterId,
         ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
         script: input.prompt,
+        // A retry keeps the look the skit asked for.
+        look: skitLookOf(input.presetId) ?? "auto",
         ...(direction ? { direction } : {}),
         format,
         tier,

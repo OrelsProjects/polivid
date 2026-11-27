@@ -1,3 +1,4 @@
+import { SKIT_LOOK_CHOICES } from "@/lib/video/skit";
 import { z } from "zod";
 import { captionPresetById } from "@/lib/editor/caption-presets";
 import { LAYOUT_MEDIA_ROLES, LAYOUT_STYLE_IDS } from "@/lib/video/layout/styles";
@@ -84,6 +85,11 @@ export const PartnerVideoSchema = z.discriminatedUnion("kind", [
     characterLookId: z.string().trim().min(1).optional(),
     /** Read word for word. A note in [brackets] says what the character does there, and is not read. */
     script: SCRIPT,
+    /**
+     * auto (default) draws a photo character in retro-cartoon and keeps a drawn one as it is; own
+     * films the character's pictures as they are; the rest draw the character in that look.
+     */
+    look: z.enum(SKIT_LOOK_CHOICES).default("auto"),
     direction: DIRECTION,
     format: z.enum(VIDEO_FORMATS).default("9:16"),
     tier: TIER,
@@ -150,6 +156,7 @@ export const createBodyFor = (input: PartnerVideoInput): Record<string, unknown>
       characterId: input.characterId,
       ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
       ...(input.direction ? { visualDirection: input.direction } : {}),
+      presetId: input.look,
       showText: false,
     };
   }

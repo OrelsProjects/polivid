@@ -69,7 +69,7 @@ import { normalizeCuts, readSongBrief, type SongCut } from "@/lib/music/song-pla
 import { planCuts } from "@/lib/music/shot-plan";
 import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
 import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
-import { skitCharacterProblem, skitCuts } from "@/lib/video/skit";
+import { skitCharacterProblem, skitCuts, skitLookOf, skitMayDrawCharacter } from "@/lib/video/skit";
 import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
@@ -243,6 +243,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     throw new CreateVideoError("Pick a character to present this video.", 400);
   }
   const skit = resolved?.mode.id === "skit";
+  const skitLook = skit ? skitLookOf(parsed.data.presetId) : null;
+  if (skit && !skitLook) {
+    throw new CreateVideoError("Pick a look for the skit: Auto, the character's own look, Retro cartoon, Rounded 3D, Claymation, or Pixel art.", 400);
+  }
   if (skit && (characterId === OFF_VOICE_ID || characterId === STUDIO_VOICE_ID)) {
     throw new CreateVideoError("Pick a character to act out this skit.", 400);
   }
@@ -425,6 +429,7 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       songReady: Boolean(songId),
       cuts,
       clips: parsed.data.clips,
+      drawsCharacter: skit && skitMayDrawCharacter(skitLook),
     });
     const job = await createQueuedVideoJob(userId, {
       prompt,

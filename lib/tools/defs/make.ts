@@ -2,6 +2,7 @@ import { describeEdit, EDIT_CREDITS, EDIT_OPS, editValueFor, isEditOp } from "@/
 import { BACKGROUND_IDS } from "@/lib/video/backgrounds";
 import { VISUAL_MEDIA } from "@/lib/video/stills";
 import { z } from "zod";
+import { SKIT_LOOK_CHOICES } from "@/lib/video/skit";
 import { defineModeTool, defineTool } from "@/lib/tools/define";
 import { productionHintsField } from "@/lib/tools/defs/production";
 import {
@@ -297,7 +298,8 @@ export const makeTools = [
       "Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.",
       "Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.",
       "Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.",
-      "Pass characterId. It must be a saved character with a picture and a voice. A cartoon picture makes a cartoon skit.",
+      "Pass characterId. It must be a saved character with a picture and a voice.",
+      "Skits are drawn by default: a photo character is drawn as a retro cartoon, and a character that's already drawn keeps its look. presetId picks another look, or own for the pictures as they are.",
       "4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.",
     ],
     avoidWhen: [
@@ -308,6 +310,12 @@ export const makeTools = [
     inputSchema: z.object({
       prompt: promptField("The script: a [note] for what the character does, then the words spoken over it."),
       characterId: characterField(),
+      presetId: z
+        .enum(SKIT_LOOK_CHOICES)
+        .optional()
+        .describe(
+          "The look. auto (default): a photo character is drawn in retro-cartoon, a drawn one stays as it is. own: film the character's pictures as they are. retro-cartoon, pixar (rounded 3D), claymation, pixel-art: draw the character in that look first.",
+        ),
       format: formatField(),
       tier: tierField(),
       visualDirection: visualDirectionField(),

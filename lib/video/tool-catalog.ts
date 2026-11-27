@@ -1,3 +1,4 @@
+import { SKIT_LOOKS } from "./skit";
 import {
   AudioWaveform,
   BarChart3,
@@ -161,6 +162,8 @@ const modeAsTool = (mode: VideoMode): CreateTool => ({
   keywords: MODE_KEYWORDS[mode.id],
   icon: mode.icon,
   tint: mode.tint,
+  // A skit offers only its drawn looks. Auto draws a photo and keeps a drawn character as it is.
+  ...(mode.id === "skit" ? { presets: SKIT_LOOKS } : {}),
 });
 
 const REALISM_LOOKS = ["default", "ultra-realism", "realist", "photography", "movie"] as const;

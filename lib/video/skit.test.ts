@@ -5,7 +5,20 @@ import { generationModelBySlug } from "./models";
 import { resolveModeTier, VIDEO_MODES, videoModeById } from "./modes";
 import { NO_ON_SCREEN_TEXT } from "./on-screen-text";
 import { spokenScript } from "./script-markup";
-import { MAX_SKIT_BEATS, skitBeats, skitCharacterProblem, skitCuts, skitSeconds, skitShotPrompt } from "./skit";
+import {
+  DEFAULT_SKIT_LOOK,
+  MAX_SKIT_BEATS,
+  SKIT_LOOKS,
+  skitBeats,
+  skitCharacterPrompt,
+  skitCharacterProblem,
+  skitCuts,
+  skitLookOf,
+  skitLookPreset,
+  skitMayDrawCharacter,
+  skitSeconds,
+  skitShotPrompt,
+} from "./skit";
 import { CREATE_TOOLS } from "./tool-catalog";
 
 const KLING = generationModelBySlug("kling-4.0")!.durations;
@@ -157,4 +170,36 @@ test("a note covers the sentences after it: the script Quill wrote films three a
   );
   assert.equal(beats.length, 3);
   assert.ok(beats.every((beat) => beat.show !== ""));
+});
+
+test("a skit's look: unset or Auto is auto, own and the four drawn looks are kept, anything else is refused", () => {
+  assert.equal(skitLookOf(undefined), "auto");
+  assert.equal(skitLookOf(""), "auto");
+  assert.equal(skitLookOf("auto"), "auto");
+  assert.equal(skitLookOf("own"), "own");
+  for (const look of SKIT_LOOKS) assert.equal(skitLookOf(look), look);
+  assert.equal(skitLookOf("ultra-realism"), null);
+  assert.equal(DEFAULT_SKIT_LOOK, "retro-cartoon");
+  assert.equal(skitMayDrawCharacter("own"), false);
+  assert.equal(skitMayDrawCharacter("auto"), true);
+});
+
+test("a drawn skit draws the character once in the look, keeping who they are, and every shot names the look", () => {
+  const look = skitLookPreset("pixel-art");
+  const drawing = skitCharacterPrompt(look);
+  assert.match(drawing, /Pixel art/);
+  assert.match(drawing, /instantly recognisable as the same character/);
+  const shot = skitShotPrompt({ beat: { say: "Hi.", show: "waves", seconds: 3 }, pictures: 1, look });
+  assert.match(shot, /Art style, for the character and the whole scene: Pixel art/);
+  assert.match(shot, /Image 1 shows the character/);
+  assert.doesNotMatch(skitShotPrompt({ beat: { say: "Hi.", show: "waves", seconds: 3 }, pictures: 2 }), /Art style/);
+});
+
+test("drawing the character adds one picture to a skit's price, and the Create page offers only the drawn looks", () => {
+  const cuts = skitCuts("[waves] Hello there, friends. [bows] Thanks for watching.", KLING);
+  const length = cuts.reduce((sum, cut) => sum + cut.seconds, 0);
+  const base = { mode: "skit", tier: "pro", modelSlug: "kling-4.0", resolution: "720p", length, cuts };
+  assert.ok(videoJobCredits({ ...base, drawsCharacter: true }) > videoJobCredits(base));
+  const tool = CREATE_TOOLS.find((entry) => entry.mode === "skit");
+  assert.deepEqual(tool?.presets, SKIT_LOOKS);
 });

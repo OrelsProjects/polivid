@@ -51,6 +51,8 @@ export interface VideoCreditEstimateInput {
   cuts?: readonly { seconds: number; camera?: string }[];
   /** Clips the person chose. Unset means the fewest the model needs. */
   clips?: number;
+  /** A skit in a drawn look draws its character once, before filming. */
+  drawsCharacter?: boolean;
 }
 
 /** Credits for one song take: music by the second, plus a small charge when a character re-sings it. */
@@ -127,7 +129,8 @@ export const videoJobCredits = (input: VideoCreditEstimateInput) => {
   }
   // Planned shots, and a skit's beats: each one is filmed at least as long as the model allows.
   if ((input.mode === "prompt" || input.mode === "skit") && input.cuts && input.cuts.length > 0) {
-    return jobCreditsFromUsd(usd * filmedSecondsForCuts(input.length, model.durations, input.cuts));
+    const character = input.mode === "skit" && input.drawsCharacter ? STILL_IMAGE_USD.final : 0;
+    return jobCreditsFromUsd(usd * filmedSecondsForCuts(input.length, model.durations, input.cuts) + character);
   }
   const seconds = isStitchedMode(input.mode)
     ? filmedSeconds(input.length, model.durations, input.clips)

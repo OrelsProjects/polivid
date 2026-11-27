@@ -251,6 +251,7 @@ test("trying again rebuilds the same request, finish included, from what the job
     tier: "ultra",
     characterId: CHARACTER,
     visualDirection: "Bouncy.",
+    presetId: "claymation",
     partnerFinish: { captions: "comic" },
   };
   const skit = retryPlanFor("skit", readJobInput(skitRaw), skitRaw);
@@ -260,6 +261,7 @@ test("trying again rebuilds the same request, finish included, from what the job
       kind: "skit",
       characterId: CHARACTER,
       script: "[Quill slips] I never saw it coming.",
+      look: "claymation",
       direction: "Bouncy.",
       format: "9:16",
       tier: "ultra",
