@@ -273,6 +273,42 @@ Examples:
 {"prompt":"My skin was so dry every winter. Then I tried this serum. Two weeks in, it's honestly glowing. Link's below.","format":"9:16","tier":"pro","visualDirection":"A bright bathroom, morning light."}
 ```
 
+### make_skit_video
+
+**Skit.** Your character acts out your script, one shot per beat, in their own voice.
+
+Spends credits. Long-running. Needs approval at 200 credits or more.
+
+Use when:
+- Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.
+- Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.
+- Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.
+- Pass characterId. It must be a saved character with a picture and a voice. A cartoon picture makes a cartoon skit.
+- 4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.
+
+Don't use when:
+- The character should talk to camera. Use make_avatar_video.
+- The character should talk about a product, like a creator's ad. Use make_ugc_video.
+- There is no saved character. Create one first.
+
+Inputs:
+
+| Field | Required | Description |
+| --- | --- | --- |
+| prompt | yes | The script: a [note] for what the character does, then the words spoken over it. |
+| characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
+| format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
+| tier | no | Quality: low, pro, or ultra. Defaults to pro when omitted. |
+| visualDirection | no | Look and shot notes, at most 600 characters. |
+
+Examples:
+
+> Make a funny skit of Quill losing a draft.
+
+```json
+{"prompt":"[Quill types fast, a coffee cup wobbles] Day one of my big essay.\n[The coffee spills on the keyboard, the screen goes black] Three hours of work. Gone.\n[Quill opens a backup and does a tiny victory dance] Back up your drafts.","format":"9:16","tier":"pro"}
+```
+
 ### make_image_video
 
 **Image to Video.** Animate a still image into a short video clip.

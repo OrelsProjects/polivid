@@ -276,7 +276,6 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     placeholder: "Write the script. A note in [brackets] says what your character does there.",
     referenceImages: true,
     spokenScript: true,
-    partnerOnly: true,
     tiers: SKIT_TIERS,
   },
   {

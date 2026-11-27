@@ -10,7 +10,7 @@ import { CREATE_TOOLS } from "./tool-catalog";
 
 const KLING = generationModelBySlug("kling-4.0")!.durations;
 
-test("each sentence is a beat, and a note in brackets steers its shot without being read", () => {
+test("a note in brackets steers its shot, up to the next note, without being read", () => {
   const beats = skitBeats(
     "[Quill slips on a stack of papers] I never saw it coming. Three drafts, gone in one second.\n[Quill stands up, dusts off a wing] So I back up everything now.",
     KLING,
@@ -18,8 +18,7 @@ test("each sentence is a beat, and a note in brackets steers its shot without be
   assert.deepEqual(
     beats.map((beat) => [beat.say, beat.show]),
     [
-      ["I never saw it coming.", "Quill slips on a stack of papers"],
-      ["Three drafts, gone in one second.", ""],
+      ["I never saw it coming. Three drafts, gone in one second.", "Quill slips on a stack of papers"],
       ["So I back up everything now.", "Quill stands up, dusts off a wing"],
     ],
   );
@@ -76,9 +75,9 @@ test("a shot films the note, or acts out the line, and keeps the character's own
   assert.doesNotMatch(acted, /cartoon|realistic|cinematic|funny|comic|studio|office|lighting/i);
 });
 
-test("a skit is a partner-only mode filmed by Kling at each tier", () => {
+test("a skit is a mode on the Create page, filmed by Kling at each tier", () => {
   const mode = videoModeById("skit");
-  assert.ok(mode?.partnerOnly && mode.referenceImages && mode.spokenScript);
+  assert.ok(mode && !mode.partnerOnly && mode.referenceImages && mode.spokenScript);
   assert.deepEqual(
     (["low", "pro", "ultra"] as const).map((tier) => {
       const resolved = resolveModeTier("skit", tier)!;
@@ -90,7 +89,7 @@ test("a skit is a partner-only mode filmed by Kling at each tier", () => {
       ["kling-4.0", "1080p"],
     ],
   );
-  assert.ok(!CREATE_TOOLS.some((tool) => tool.mode === "skit"), "kept off the Create page");
+  assert.ok(CREATE_TOOLS.some((tool) => tool.mode === "skit"), "on the Create page");
   assert.ok(VIDEO_MODES.includes(mode));
 });
 
@@ -117,8 +116,7 @@ test("a note steers the sentence it sits in or comes before, or the one before i
     beats.map((beat) => [beat.say, beat.show]),
     [
       ["Hello.", "waves"],
-      ["I write daily.", "Quill bows"],
-      ["No notes here at all, just words.", ""],
+      ["I write daily. No notes here at all, just words.", "Quill bows"],
     ],
   );
   assert.equal(beats.map((beat) => beat.say).join(" "), spokenScript(script));
@@ -129,4 +127,34 @@ test("a skit's character needs a picture and a voice", () => {
   assert.match(skitCharacterProblem({ imageKey: null, providerVoiceId: "v" })!, /has a picture/);
   assert.match(skitCharacterProblem({ imageKey: "characters/u/a.png", providerVoiceId: null })!, /no voice yet/);
   assert.equal(skitCharacterProblem({ imageKey: "characters/u/a.png", providerVoiceId: "v" }), null);
+});
+
+test("with no notes, each sentence is its own beat that acts out its line", () => {
+  const beats = skitBeats("Mornings are hard for every writer I know. Coffee helps a little bit. Writing first thing helps more.", KLING);
+  assert.equal(beats.length, 3);
+  assert.ok(beats.every((beat) => beat.show === ""));
+});
+
+test("sentences before the first note keep their own beat, and a note never makes a shot longer than the model films", () => {
+  const beats = skitBeats("Want new readers who actually stay and read? [Orel stares at a Note with three likes] Give them a reason to stop.", KLING);
+  assert.deepEqual(
+    beats.map((beat) => [beat.say, beat.show]),
+    [
+      ["Want new readers who actually stay and read?", ""],
+      ["Give them a reason to stop.", "Orel stares at a Note with three likes"],
+    ],
+  );
+  const long = Array.from({ length: 12 }, () => "This sentence has exactly eight words in it.").join(" ");
+  for (const beat of skitBeats(`[paces the room] ${long}`, KLING)) {
+    assert.ok(beat.seconds <= Math.max(...KLING), `${beat.seconds}s fits one shot`);
+  }
+});
+
+test("a note covers the sentences after it: the script Quill wrote films three acted shots, not six", () => {
+  const beats = skitBeats(
+    "[Orel stares at a Note that gets likes from the same three friends] Want new readers? Give them a reason to stop. [He crosses out a line and writes a new one] Lead with the useful result. [A new reader pauses, tries the step, and taps follow] One clear takeaway. One step they can use. Make the Note for someone who doesn't know you yet.",
+    KLING,
+  );
+  assert.equal(beats.length, 3);
+  assert.ok(beats.every((beat) => beat.show !== ""));
 });

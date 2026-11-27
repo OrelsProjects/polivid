@@ -243,7 +243,8 @@ const filmQueuedJob = async (userId: string, jobId: string) => {
       throw new Error("This queued video is missing a model, format, or length.");
     }
     const mode = input.mode ? videoModeById(input.mode) : null;
-    if (mode && modeNeedsUpload(mode) && !mode.uploadOptional && !input.mediaKey) {
+    // Captioning a finished video uses that video, not an upload.
+    if (mode && modeNeedsUpload(mode) && !mode.uploadOptional && !input.mediaKey && !input.captioning) {
       throw new Error("Upload a file for this mode.");
     }
 

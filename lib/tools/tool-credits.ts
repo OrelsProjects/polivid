@@ -1,4 +1,5 @@
 import { AUTO_APPROVE_UNDER_CREDITS, spendNeedsApproval } from "@/lib/billing/auto-approve";
+import { skitCuts } from "@/lib/video/skit";
 import { songCredits, videoJobCredits } from "@/lib/billing/estimate";
 import { storyboardCreditsFor } from "@/lib/coach/storyboard";
 import { toolByName } from "@/lib/tools/registry";
@@ -59,11 +60,31 @@ const cutsFrom = (value: unknown) => {
   return cuts.length > 0 ? cuts : undefined;
 };
 
+/** A skit is one shot per beat of its script, filmed by the tier's model, priced the way it's queued. */
+const skitToolCredits = (input: Record<string, unknown>, options: ToolCreditOptions) => {
+  if (typeof input.prompt !== "string") return null;
+  const tier = typeof input.tier === "string" && input.tier.trim() ? input.tier.trim() : "pro";
+  const filming = resolveFilming({ mode: "skit", tier, modelId: options.generationModelId });
+  if (!filming.model) return null;
+  const cuts = skitCuts(input.prompt, filming.model.durations);
+  if (cuts.length === 0) return null;
+  return videoJobCredits({
+    demo: options.demo,
+    mode: "skit",
+    tier,
+    length: cuts.reduce((sum, cut) => sum + cut.seconds, 0),
+    modelId: filming.model.id,
+    resolution: filming.resolution,
+    cuts,
+  });
+};
+
 const videoCredits = (mode: string, input: Record<string, unknown>, options: ToolCreditOptions) => {
   // A quick edit has one price and takes its length from the upload.
   if (mode === "edit") return videoJobCredits({ demo: options.demo, mode, length: 0 });
   // A swap is priced by the uploaded video's length, which only the server can read.
   if (mode === "swap") return options.demo ? 0 : null;
+  if (mode === "skit" && typeof input.prompt === "string") return skitToolCredits(input, options);
   // A talking avatar or UGC ad says its script word for word, so the script sets the length.
   const talkingHead = isTalkingHeadMode(mode) && typeof input.prompt === "string";
   if (!talkingHead && (typeof input.length !== "number" || !Number.isInteger(input.length))) return null;

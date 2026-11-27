@@ -2,8 +2,10 @@
  * A skit: the writer's character acts the script out, one short filmed shot per beat, while the
  * character's own voice reads the script word for word over the shots.
  *
- * - Each sentence is a beat. A `[note]` says what the character does in that beat, and is never read.
- * - A beat with no note shows the character acting out its own line.
+ * - A `[note]` says what the character does, and is never read. It steers every sentence up to the
+ *   next note, so "[slips on paper] Ouch. Three drafts, gone." is one shot of the slip, not a slip
+ *   and then a talking face. A shot that would run longer than the model films keeps its own beat.
+ * - With no notes at all, each sentence is a beat, and shows the character acting out its line.
  * - A very short beat with no note is joined to a neighbour, since a shot can't be shorter than the
  *   model's shortest clip. A beat with a note keeps its own shot: that's the gag.
  *
@@ -134,9 +136,30 @@ const mergeOneShort = (pieces: Piece[], tooShort: number) => {
   return true;
 };
 
+/**
+ * Joins each sentence with no note to the noted beat before it, so a note covers its whole stretch
+ * of the script. Sentences before the first note keep their own beats, and a join that would run
+ * longer than `longest` seconds is skipped.
+ */
+const foldIntoNotes = (pieces: Piece[], longest: number) => {
+  const folded: Piece[] = [];
+  let noted = false;
+  for (const piece of pieces) {
+    const last = folded.at(-1);
+    if (piece.show) noted = true;
+    else if (noted && last && spokenSeconds(join(last, piece)) <= longest) {
+      folded[folded.length - 1] = join(last, piece);
+      continue;
+    }
+    folded.push(piece);
+  }
+  return folded;
+};
+
 /** The script's beats, each with the length of the shot that films it. */
 export const skitBeats = (script: string, durations: readonly number[]): SkitBeat[] => {
-  const pieces = piecesOf(script);
+  const longest = durations.length > 0 ? Math.max(...durations) : Number.POSITIVE_INFINITY;
+  const pieces = foldIntoNotes(piecesOf(script), longest);
   if (pieces.length === 0) return [];
   const shortest = durations.length > 0 ? Math.min(...durations) : 1;
   // Under half the shortest shot, a line on its own would be mostly silence.

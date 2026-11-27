@@ -16,6 +16,7 @@ export const makeMotionGraphicsHandler = modeHandler("motion-graphics");
 export const makeMusicVideoHandler = modeHandler("music");
 export const makeAvatarVideoHandler = modeHandler("avatar");
 export const makeUgcVideoHandler = modeHandler("ugc");
+export const makeSkitVideoHandler = modeHandler("skit");
 
 export const applyLayoutStyleHandler: ToolHandler = async (input, ctx) => {
   const row = asRecord(input);

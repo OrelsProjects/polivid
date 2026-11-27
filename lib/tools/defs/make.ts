@@ -291,6 +291,40 @@ export const makeTools = [
     ],
   }),
   defineModeTool({
+    modeId: "skit",
+    name: "make_skit_video",
+    whenToUse: [
+      "Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.",
+      "Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.",
+      "Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.",
+      "Pass characterId. It must be a saved character with a picture and a voice. A cartoon picture makes a cartoon skit.",
+      "4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.",
+    ],
+    avoidWhen: [
+      "The character should talk to camera. Use make_avatar_video.",
+      "The character should talk about a product, like a creator's ad. Use make_ugc_video.",
+      "There is no saved character. Create one first.",
+    ],
+    inputSchema: z.object({
+      prompt: promptField("The script: a [note] for what the character does, then the words spoken over it."),
+      characterId: characterField(),
+      format: formatField(),
+      tier: tierField(),
+      visualDirection: visualDirectionField(),
+    }),
+    approvalDetail: videoApprovalDetail("skit"),
+    examples: [
+      {
+        request: "Make a funny skit of Quill losing a draft.",
+        input: {
+          prompt: "[Quill types fast, a coffee cup wobbles] Day one of my big essay.\n[The coffee spills on the keyboard, the screen goes black] Three hours of work. Gone.\n[Quill opens a backup and does a tiny victory dance] Back up your drafts.",
+          format: "9:16",
+          tier: "pro",
+        },
+      },
+    ],
+  }),
+  defineModeTool({
     modeId: "image",
     name: "make_image_video",
     whenToUse: [

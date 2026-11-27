@@ -143,3 +143,12 @@ test("the direct mode tool is priced like a filmed clip", () => {
   assert.equal(typeof credits, "number");
   assert.ok((credits ?? 0) > 0);
 });
+
+test("make_skit_video is priced by its beats at each tier", () => {
+  const script =
+    "[Quill types fast, a coffee cup wobbles] Day one of my big essay.\n[The coffee spills on the keyboard] Three hours of work. Gone.\n[Quill does a tiny victory dance] Back up your drafts.";
+  const [low, pro, ultra] = (["low", "pro", "ultra"] as const).map((tier) => creditsForToolInput("make_skit_video", { prompt: script, format: "9:16", tier }) ?? 0);
+  assert.ok(low > 0 && low < pro && pro < ultra, `${low} < ${pro} < ${ultra}`);
+  const oneMoreBeat = creditsForToolInput("make_skit_video", { prompt: `${script}\n[Quill takes a bow] The end.`, format: "9:16", tier: "pro" }) ?? 0;
+  assert.ok(oneMoreBeat > pro, "another beat costs another shot");
+});
