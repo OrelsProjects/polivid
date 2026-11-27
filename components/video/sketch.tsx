@@ -72,7 +72,7 @@ const numeric = (value: string | undefined) => Number((value ?? "").replace(/[^\
  * One sketch-explainer beat: a hand-lettered headline and a simple drawing on paper, in two inks.
  * Everything shown comes from the sketch, which only carries words and numbers the person wrote.
  */
-export function SketchFrame({ sketch, vertical }: { sketch: Sketch; vertical: boolean }) {
+export function SketchFrame({ sketch, vertical, padding }: { sketch: Sketch; vertical: boolean; padding?: string }) {
   const title = useDraw(0);
   const figure = useDraw(12);
   const versus = useDraw(18);
@@ -87,7 +87,7 @@ export function SketchFrame({ sketch, vertical }: { sketch: Sketch; vertical: bo
         alignItems: "center",
         justifyContent: "center",
         gap: 56,
-        padding: vertical ? "220px 70px 460px" : "120px 160px 260px",
+        padding: padding ?? (vertical ? "220px 70px 460px" : "120px 160px 260px"),
         color: INK,
       }}
     >

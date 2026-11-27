@@ -2,7 +2,7 @@ import { describeEdit, EDIT_CREDITS, EDIT_OPS, editValueFor, isEditOp } from "@/
 import { BACKGROUND_IDS } from "@/lib/video/backgrounds";
 import { VISUAL_MEDIA } from "@/lib/video/stills";
 import { z } from "zod";
-import { SKIT_LOOK_CHOICES } from "@/lib/video/skit";
+import { MAX_SKIT_BEATS, MAX_SKIT_HOLD, MAX_SKIT_SHOT, MAX_SKIT_SOUND, SKIT_LOOK_CHOICES } from "@/lib/video/skit";
 import { defineModeTool, defineTool } from "@/lib/tools/define";
 import { productionHintsField } from "@/lib/tools/defs/production";
 import {
@@ -17,6 +17,7 @@ import {
   modelField,
   pictureKeysField,
   showTextField,
+  smoothTransitionsField,
   sourceUrlField,
   templateField,
   lengthField,
@@ -89,6 +90,7 @@ export const makeTools = [
       "They want a multi-scene film with dialogue control. Use start_production.",
     ],
     inputSchema: z.object({
+      smoothTransitions: smoothTransitionsField(),
       prompt: promptField("What to film. Numbered beats, one action each, in order."),
       ...filmed(),
       clips: clipsField(),
@@ -130,6 +132,7 @@ export const makeTools = [
       "A photo of a person should say the lines to camera. Use make_avatar_video.",
     ],
     inputSchema: z.object({
+      smoothTransitions: smoothTransitionsField(),
       prompt: promptField("The script to speak, or the article text to turn into narration."),
       ...filmed(),
       characterId: characterField(),
@@ -167,6 +170,7 @@ export const makeTools = [
       "They want several scenes or dialogue. Use start_production.",
     ],
     inputSchema: z.object({
+      smoothTransitions: smoothTransitionsField(),
       prompt: promptField("The script, word for word. The character says exactly this."),
       ...filmed(),
       characterId: characterField(),
@@ -297,10 +301,11 @@ export const makeTools = [
     whenToUse: [
       "Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.",
       "Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.",
-      "Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.",
+      "Every beat is filmed on Kling from the character's pictures. The character's voice reads the script in one take, and each shot runs while its line is heard, so the voice sets the length.",
       "Pass characterId. It must be a saved character with a picture and a voice.",
       "Skits are drawn by default: a photo character is drawn as a retro cartoon, and a character that's already drawn keeps its look. presetId picks another look, or own for the pictures as they are.",
       "4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.",
+      "skitPlan films an agreed plan exactly: one entry per beat, in order, with its shot, seconds, sound (empty for none) and hold (silent seconds after the line, usually 0). Use it when the person brought a plan from the Create page, or you agreed one together; the script must stay the same.",
     ],
     avoidWhen: [
       "The character should talk to camera. Use make_avatar_video.",
@@ -308,7 +313,27 @@ export const makeTools = [
       "There is no saved character. Create one first.",
     ],
     inputSchema: z.object({
+      smoothTransitions: smoothTransitionsField(),
       prompt: promptField("The script: a [note] for what the character does, then the words spoken over it."),
+      skitPlan: z
+        .array(
+          z.object({
+            shot: z.string().trim().min(1).max(MAX_SKIT_SHOT).describe("The full shot the video model films for this beat."),
+            seconds: z.number().int().min(1).max(30).describe("The plan's estimate of how long the shot runs, used for the price. The voice sets the real length."),
+            sound: z.string().trim().max(MAX_SKIT_SOUND).optional().default("").describe("One sound effect for this shot, or empty for silence under the voice."),
+            hold: z
+              .number()
+              .min(0)
+              .max(MAX_SKIT_HOLD)
+              // No default: a chat's earlier calls are checked against this schema, and a filled-in
+              // default would no longer match what was saved.
+              .optional()
+              .describe("Seconds the shot stays on after its line with no voice. 0 unless the person asked for a pause, a reaction or a longer skit."),
+          }),
+        )
+        .max(MAX_SKIT_BEATS)
+        .optional()
+        .describe("An agreed plan, one entry per beat in order. Leave it out to film each beat from its note."),
       characterId: characterField(),
       presetId: z
         .enum(SKIT_LOOK_CHOICES)
@@ -341,6 +366,7 @@ export const makeTools = [
     ],
     avoidWhen: ["They want a new picture first. Use generate_image, then pass its key here."],
     inputSchema: z.object({
+      smoothTransitions: smoothTransitionsField(),
       prompt: promptField("The motion. What moves, and how."),
       mediaKey: mediaKeyField("Still-image upload key. Omit to use the attached picture."),
       ...filmed(),

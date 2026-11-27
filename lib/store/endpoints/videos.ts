@@ -20,11 +20,12 @@ export type ShotPlanBody = {
   prompt: string;
   direction?: string;
   scene?: string;
-  length: number;
+  /** Seconds. A skit leaves it out to let its plan pick the length. */
+  length?: number;
   tier: string;
   referenceCount?: number;
   songReady?: boolean;
-  mode?: "prompt" | "lyrics";
+  mode?: "prompt" | "lyrics" | "skit";
   format?: "9:16" | "1:1" | "16:9";
   visualDirection?: string;
   presetId?: string;
@@ -42,6 +43,13 @@ export type ShotPlan = {
     mustAvoid: string;
   };
   attachmentRoles?: { index: number; role: "subject" | "person" | "product" | "location" | "framing" }[];
+};
+
+/** A skit's plan: each beat's line, the full shot filmed for it, its length and its sound. */
+export type SkitPlan = {
+  shots: { say: string; shot: string; seconds: number; sound: string; hold: number }[];
+  seconds: number;
+  credits: number;
 };
 
 export const videosApi = api.injectEndpoints({
@@ -64,6 +72,10 @@ export const videosApi = api.injectEndpoints({
     /** Plans lyrics-video cuts and their price. Nothing is filmed yet. */
     planVideoShots: build.mutation<ShotPlan, ShotPlanBody>({
       query: (body) => ({ url: "videos/shot-plan", method: "POST", body }),
+    }),
+    /** Plans a skit: every beat's shot, length and sound, priced. Nothing is filmed yet. */
+    planSkit: build.mutation<SkitPlan, Omit<ShotPlanBody, "mode">>({
+      query: (body) => ({ url: "videos/shot-plan", method: "POST", body: { ...body, mode: "skit" } }),
     }),
     getVideoJob: build.query<VideoJobView, string>({
       query: (id) => `videos/${id}`,
@@ -138,6 +150,7 @@ export const {
   useImprovePromptMutation,
   useReadLinkMutation,
   usePlanVideoShotsMutation,
+  usePlanSkitMutation,
   useGetVideoJobQuery,
   useGetActiveJobsQuery,
   useRetryVideoMutation,

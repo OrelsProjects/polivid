@@ -14,7 +14,7 @@ import { extractSongBrief } from "@/lib/music/song-brief";
 import { normalizeCuts, planShotsFromCuts, planSongSections, songReferences, splitLyricSections, type SongShot } from "@/lib/music/song-plan";
 import { readSongDraft, readSongDraftAudio } from "@/lib/music/song-draft";
 import { singAs } from "@/lib/music/sing-as";
-import { narrationAudio, resolveCharacterVoice, speakFittedBeats } from "@/lib/voice/speak";
+import { narrationAudio, resolveCharacterVoice, speakFittedBeats, speakSkitVoice } from "@/lib/voice/speak";
 import { clipFinishData, clipStartData } from "./clip-timing";
 import { DEMO_FACTS, DEMO_PLAN, DEMO_QUOTES } from "./demo";
 import { finishFootage, footageErrorMessage, FootageStopped, renderFootage, saveFootage, storeVoiced, type FootageRequest } from "./footage";
@@ -34,7 +34,9 @@ import { mediaSeconds, talkingHeadAudioKey, talkingHeadAudioUrl, talkingHeadSpee
 import { AUTO_PRESET_ID, withVisualStyle } from "./presets";
 import { filmSecondsFor } from "./shot-plan";
 import { isStitchedMode, planSegments, readStitchPlan, segmentMediaKey } from "./segments";
-import { assembleSongVideo, lastFrameDataUrl, sliceSong, stitchClips } from "./stitch";
+import { assembleSongVideo, lastFrameDataUrl, muteClip, sliceSong, stitchClips } from "./stitch";
+import { continuationPrompt, usesSmoothTransitions } from "./transitions";
+import { skitBeats, skitPlanHasSound, skitVoiceLines } from "./skit";
 import { voiceBeatTimings } from "./beat-text";
 import { writeBeats } from "./beats";
 import { composeCaptions } from "./compose/captions";
@@ -361,6 +363,15 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
     await filmTalkingHead(userId, jobId, input, prepared);
     return;
   }
+  // A skit's voice is read first, in one take, and each shot is filmed to run while its line is heard.
+  const skitVoice = input.mode === "skit" ? await skitVoiceFor(userId, jobId, input, prepared, model.durations) : null;
+  if (skitVoice) {
+    const filmed = saved?.segments.length === skitVoice.spans.length
+      ? saved.segments
+      : skitVoice.spans.map((span) => filmSecondsFor(Math.ceil(span), model.durations));
+    await filmSegments(userId, jobId, input, prepared, filmed, skitVoice.audio, skitVoice.spans);
+    return;
+  }
   const speech = await speechForCuts(userId, input.characterId, prepared, segments.length > 0 ? segments : [input.length]);
   if (prepared.reuseUploadAsFootage && prepared.mediaBytes) {
     await storeClip(userId, jobId, input, input.length, prepared.mediaBytes, prepared.transcript ?? prepared.prompt);
@@ -382,8 +393,58 @@ const filmWithModel = async (userId: string, jobId: string, input: JobInput) => 
   await storeClip(userId, jobId, input, clip.durationSec, voiced, prepared.spoken?.trim() || prepared.prompt);
 };
 
-/** A skit's shots make their own sound; only the character's voice is kept over them. */
-const voicing = (input: { mode?: string }) => ({ voiceOnly: input.mode === "skit" });
+const skitVoiceKey = (jobId: string) => `${jobId}.skit-voice.mp3`;
+
+const readVoiceSpans = (artifacts: unknown) => {
+  if (!artifacts || typeof artifacts !== "object" || Array.isArray(artifacts)) return [];
+  const spans = (artifacts as Record<string, unknown>).voiceSpans;
+  return Array.isArray(spans) && spans.every((span) => typeof span === "number" && span > 0) ? (spans as number[]) : [];
+};
+
+/**
+ * The skit's voice and how long each shot is on screen. It's read once and kept, so a retried or
+ * resumed skit films to the same take. Null when the character has no voice to read it.
+ */
+const skitVoiceFor = async (userId: string, jobId: string, input: JobInput, prepared: PreparedJob, durations: readonly number[]) => {
+  const beats = skitBeats(input.prompt, durations);
+  if (beats.length === 0) return null;
+  const job = await db.videoJob.findUnique({ where: { id: jobId }, select: { artifacts: true } });
+  const keptSpans = readVoiceSpans(job?.artifacts);
+  if (keptSpans.length === beats.length) {
+    const kept = await readVideoMedia(skitVoiceKey(jobId));
+    if (kept) return { audio: kept, spans: keptSpans };
+  }
+  const said = prepared.spokenBeats?.length === beats.length ? prepared.spokenBeats : beats.map((beat) => beat.say);
+  const lines = skitVoiceLines(
+    beats.map((beat, index) => ({ ...beat, say: said[index] ?? beat.say })),
+    input.skitPlan,
+  );
+  const voice = await speakSkitVoice(userId, input.characterId, lines);
+  if (!voice) return null;
+  await putVideoMedia(skitVoiceKey(jobId), voice.audio, "audio/mpeg");
+  const current =
+    job?.artifacts && typeof job.artifacts === "object" && !Array.isArray(job.artifacts) ? (job.artifacts as Record<string, unknown>) : {};
+  await db.videoJob.update({ where: { id: jobId }, data: { artifacts: { ...current, voiceSpans: voice.spans } } });
+  return voice;
+};
+
+/** Tells the video model how much of a shot is used, when it's filmed longer than it's shown. */
+const shownFor = (prompt: string, shown: number | undefined, filmed: number) =>
+  shown && shown < filmed - 0.25
+    ? `${prompt}\nTiming: only the first ${shown.toFixed(1)} seconds are used. The whole action plays out in that time.`
+    : prompt;
+
+/**
+ * A skit's shots make their own sound; only the character's voice is kept over them, unless its
+ * plan gave some shots a sound effect. Then those shots keep theirs (the rest are muted) under the voice.
+ */
+const voicing = (input: { mode?: string; skitPlan?: { sound: string }[] }) => ({
+  voiceOnly: input.mode === "skit" && !skitPlanHasSound(input.skitPlan),
+});
+
+/** Whether this clip keeps its own sound. Only a planned skit chooses per shot; everything else keeps it. */
+const keepsClipSound = (input: { mode?: string; skitPlan?: { sound: string }[] }, index: number) =>
+  input.mode !== "skit" || !skitPlanHasSound(input.skitPlan) || Boolean(input.skitPlan?.[index]?.sound.trim());
 
 /**
  * Avatar 6 lip-syncs the picture to the voice track, so the voice is made first and sent with it.
@@ -1162,8 +1223,11 @@ const filmSegments = async (
   prepared: PreparedJob,
   segments: number[],
   speech: Uint8Array | null,
+  /** Seconds each clip is on screen, when that's shorter than it's filmed: a skit's shots follow its voice. */
+  showFor?: number[],
 ) => {
   const beats = prepared.beats.length === segments.length ? prepared.beats : segments.map(() => prepared.prompt);
+  const shown = showFor?.length === segments.length ? showFor : segments;
   await db.videoJob.update({
     where: { id: jobId },
     data: {
@@ -1174,6 +1238,8 @@ const filmSegments = async (
         spokenBeats: prepared.spokenBeats ?? [],
         // A skit's drawn character, so a retried shot is filmed from the same picture.
         ...(prepared.stillKey && input.mode === "skit" ? { stillKey: prepared.stillKey } : {}),
+        // And its voice's timing, so the shots still follow the same take.
+        ...(showFor?.length === segments.length ? { voiceSpans: showFor } : {}),
         brief: input.brief
           ? {
               subject: input.brief.subject,
@@ -1200,6 +1266,7 @@ const filmSegments = async (
   }
 
   const clipBytes: Uint8Array[] = [];
+  const smooth = usesSmoothTransitions(input.mode, input.smoothTransitions);
   let lastFrame: string | undefined;
   for (let index = 0; index < segments.length; index += 1) {
     if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
@@ -1210,24 +1277,30 @@ const filmSegments = async (
       prepared,
       index,
       duration: segments[index]!,
-      prompt: beats[index] ?? prepared.prompt,
+      // A clip that runs on from the last one is told so, and starts on that clip's last frame.
+      prompt: (() => {
+        const shot = shownFor(beats[index] ?? prepared.prompt, showFor ? shown[index] : undefined, segments[index]!);
+        return index > 0 && lastFrame ? continuationPrompt(shot) : shot;
+      })(),
       startFrame: index === 0 ? prepared.imageDataUrl : lastFrame,
     });
-    clipBytes.push(clip.bytes);
-    // A skit's beats are separate shots, each filmed from the character's pictures, so none starts
-    // where the last one ended. That lets every beat change the scene.
-    if (index < segments.length - 1 && input.mode !== "skit") lastFrame = await lastFrameDataUrl(clip.bytes);
+    // A planned skit keeps a clip's sound only where its plan gave that shot a sound effect.
+    clipBytes.push(keepsClipSound(input, index) ? clip.bytes : await muteClip(clip.bytes));
+    // With smooth transitions off, each clip is its own shot and starts fresh, so it can cut to a new
+    // scene.
+    // A clip cut short is picked up from the frame it's cut on.
+    if (index < segments.length - 1 && smooth) lastFrame = await lastFrameDataUrl(clip.bytes, showFor ? shown[index] : undefined);
     if (!(await markVideoJobProgress(jobId, "videos", progressFor("videos", index + 1, segments.length)))) {
       throw new FootageStopped();
     }
     if (!clip.cached && shouldHoldAfterClip(index, segments.length, await stopRequested(jobId))) {
-      await publishPartial(userId, jobId, input, segments, beats, speech);
+      await publishPartial(userId, jobId, input, shown, beats, speech);
       return;
     }
   }
 
-  const stitched = await stitchClips(clipBytes, segments);
-  const duration = segments.reduce((sum, part) => sum + part, 0);
+  const stitched = await stitchClips(clipBytes, shown);
+  const duration = shown.reduce((sum, part) => sum + part, 0);
   const voiced = speech ? await storeVoiced(jobId, stitched, speech, duration, voicing(input)) : stitched;
   await storeClip(userId, jobId, input, duration, voiced, prepared.spoken?.trim() || beats.join("\n\n"));
   await Promise.all(segments.map((_, index) => deleteVideoMedia(segmentKey(jobId, index)).catch(() => undefined)));
@@ -1445,6 +1518,8 @@ const toJobInput = (input: ReturnType<typeof readJobInput>): JobInput => ({
   opValue: input.opValue || undefined,
   orientation: input.orientation || undefined,
   keepSound: input.keepSound,
+  smoothTransitions: input.smoothTransitions,
+  skitPlan: input.skitPlan.length > 0 ? input.skitPlan : undefined,
   characterVoice: input.characterVoice,
   cast: input.cast,
   mediaRanges: input.mediaRanges.length > 0 ? input.mediaRanges : undefined,

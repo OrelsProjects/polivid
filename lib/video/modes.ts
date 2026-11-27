@@ -273,7 +273,12 @@ export const VIDEO_MODES: readonly VideoMode[] = [
     phase: 4,
     engine: "video",
     upload: "none",
-    placeholder: "Write the script. A note in [brackets] says what your character does there.",
+    placeholder: [
+      "[What your character does in this shot] The words they say over it.",
+      "[Quill slips on a stack of drafts] Nobody warned me about the first draft.",
+      '<break time="1.0s" />',
+      "[Quill does a tiny victory dance] Now I back up everything.",
+    ].join("\n"),
     referenceImages: true,
     spokenScript: true,
     tiers: SKIT_TIERS,

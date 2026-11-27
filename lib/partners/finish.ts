@@ -230,8 +230,9 @@ export const retryPlanFor = (mode: string, input: JobInputFields, rawInput: unkn
         characterId: input.characterId,
         ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
         script: input.prompt,
-        // A retry keeps the look the skit asked for.
+        // A retry keeps the look the skit asked for, and how it moves between beats.
         look: skitLookOf(input.presetId) ?? "auto",
+        ...(typeof input.smoothTransitions === "boolean" ? { smoothTransitions: input.smoothTransitions } : {}),
         ...(direction ? { direction } : {}),
         format,
         tier,

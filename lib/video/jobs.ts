@@ -62,6 +62,10 @@ export interface VideoJobInput {
   orientation?: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound?: boolean;
+  /** Several clips run on from one another. Unset leaves it to the mode. */
+  smoothTransitions?: boolean;
+  /** A skit's approved plan: each beat's full shot, its sound, and any silent hold after its line. */
+  skitPlan?: { shot: string; sound: string; hold?: number }[];
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice?: boolean;
   /** Character swap: every character swapped in, in the order of their pictures. */
@@ -143,6 +147,8 @@ export const createQueuedVideoJob = async (userId: string, input: VideoJobInput)
           orientation: input.orientation ?? "",
           keepSound: input.keepSound !== false,
           characterVoice: input.characterVoice !== false,
+          ...(typeof input.smoothTransitions === "boolean" ? { smoothTransitions: input.smoothTransitions } : {}),
+          ...(input.skitPlan?.length ? { skitPlan: input.skitPlan.map((shot) => ({ shot: shot.shot, sound: shot.sound, hold: shot.hold ?? 0 })) } : {}),
           ...(input.cast?.length ? { cast: input.cast.map((member) => ({ characterId: member.characterId, characterLookId: member.characterLookId ?? "" })) } : {}),
           ...(input.mediaRanges?.length ? { mediaRanges: input.mediaRanges } : {}),
           backgroundId: input.backgroundId ?? "",

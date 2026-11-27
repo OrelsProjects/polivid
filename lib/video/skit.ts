@@ -25,6 +25,8 @@ export interface SkitBeat {
   say: string;
   /** What the writer asked the character to do here. Empty means: act out the line. */
   show: string;
+  /** Seconds of silence the script holds after the line, from its pauses. */
+  pause: number;
   /** How long the shot runs, a length the model can film. */
   seconds: number;
 }
@@ -39,7 +41,8 @@ const SENTENCE_END = /(?<=[.!?…]["'”’)]*)\s+/;
 /** A pause, a note, or a break tag, kept as its own token when a line is split. */
 const MARK = /(<\s*break\b[^>]*>|\[[^[\]]*\])/i;
 const IS_PAUSE = /^(<\s*break\b[^>]*>|\[\s*pause\b[^[\]]*\])$/i;
-const LEADING_PUNCTUATION = /^[.,!?;:…"'”’)]+/;
+/** Punctuation that ends the sentence before a note. A straight quote right before a word opens the next line instead. */
+const LEADING_PUNCTUATION = /^(?:[.,!?;:…”’)]|["'](?![\p{L}\p{N}]))+/u;
 
 const sentencesOf = (text: string) =>
   tidy(text)
@@ -169,9 +172,53 @@ export const skitBeats = (script: string, durations: readonly number[]): SkitBea
   return pieces.map((piece) => ({
     say: piece.say,
     show: piece.show,
+    pause: piece.pause,
     seconds: filmSecondsFor(Math.ceil(spokenSeconds(piece)), durations),
   }));
 };
+
+/** One beat of a planned skit: the full shot the video model films, how long it runs, and its sound. */
+export interface SkitPlanShot {
+  /** The shot, written out in full for the video model. */
+  shot: string;
+  /** How long the shot runs, a length the model can film. */
+  seconds: number;
+  /**
+   * Seconds the shot stays on after its line and the script's pauses, with no voice: only when the
+   * writer asked for a beat, a reaction or a longer skit. Usually 0, so the voice sets the length.
+   */
+  hold?: number;
+  /** The one sound effect this shot keeps, or empty: the shot is silent under the voice. */
+  sound: string;
+}
+
+export const MAX_SKIT_SHOT = 1200;
+export const MAX_SKIT_SOUND = 120;
+/** The longest silent hold one shot gets. */
+export const MAX_SKIT_HOLD = 10;
+
+/** What a skit's voice reads, beat by beat, with the silence after each line. */
+export const skitVoiceLines = (beats: readonly SkitBeat[], plan?: readonly { hold?: number }[] | null) =>
+  beats.map((beat, index) => ({
+    say: beat.say,
+    after: beat.pause + Math.min(MAX_SKIT_HOLD, Math.max(0, plan?.[index]?.hold ?? 0)),
+  }));
+
+/** Why a plan can't film this script, or null when it can. The plan must have a shot for every beat. */
+export const skitPlanProblem = (plan: readonly SkitPlanShot[], script: string, durations: readonly number[]) => {
+  const beats = skitBeats(script, durations);
+  if (plan.length !== beats.length) return "The script changed since the plan. Plan it again.";
+  if (plan.some((shot) => !shot.shot.trim())) return "Every shot needs a description.";
+  if (durations.length > 0 && plan.some((shot) => !durations.includes(shot.seconds))) return "A shot is a length the model can't film. Plan it again.";
+  return null;
+};
+
+/** The cuts a planned skit is filmed and priced as. */
+export const skitPlanCuts = (plan: readonly SkitPlanShot[]) =>
+  plan.map((shot) => ({ seconds: shot.seconds, camera: "", action: shot.shot.slice(0, 400) }));
+
+/** True when any shot of the plan keeps a sound, so the clips' sound is mixed under the voice. */
+export const skitPlanHasSound = (plan: readonly { sound: string }[] | null | undefined) => Boolean(plan?.some((shot) => shot.sound.trim()));
 
 /** The cuts a skit is filmed and priced as: one per beat. */
 export const skitCuts = (script: string, durations: readonly number[]) =>
@@ -222,13 +269,27 @@ export const skitCharacterPrompt = (look: GenerationPreset) =>
  * look there, in their art style. A drawn look names its style too, so the scene matches the
  * character. Nothing else is added: no setting, no mood.
  */
-export const skitShotPrompt = (input: { beat: SkitBeat; pictures: number; direction?: string; look?: GenerationPreset | null }) => {
+export const skitShotPrompt = (input: {
+  beat: SkitBeat;
+  pictures: number;
+  direction?: string;
+  look?: GenerationPreset | null;
+  /** The shot as the skit's plan wrote it, in place of the beat's note. */
+  planned?: { shot: string; sound: string } | null;
+}) => {
   const label = input.pictures > 1 ? `Images 1-${input.pictures} show` : "Image 1 shows";
+  const planned = input.planned?.shot.trim() ? input.planned : null;
   return [
     "One continuous shot. Film only this beat.",
-    input.beat.show
-      ? `Action: ${input.beat.show}`
-      : `Action: the character acts out this line, without saying it: "${input.beat.say}"`,
+    planned
+      ? `Action: ${planned.shot.trim()}`
+      : input.beat.show
+        ? `Action: ${input.beat.show}`
+        : `Action: the character acts out this line, without saying it: "${input.beat.say}"`,
+    planned ? "Nobody talks on camera: the line is heard as a voiceover added later." : "",
+    planned?.sound.trim()
+      ? `Sound: only this sound effect, at the moment it happens: ${planned.sound.trim()}. No music, no speech, no other sounds.`
+      : "",
     input.direction?.trim() ? `Direction: ${input.direction.trim()}` : "",
     input.look ? `Art style, for the character and the whole scene: ${input.look.promptFragment}` : "",
     input.pictures > 0 ? `${label} the character. Keep their exact look and art style.` : "",

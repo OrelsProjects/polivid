@@ -142,8 +142,28 @@ export function ImageLayer({ item, src, name }: { item: ImageItem; src: string |
   );
 }
 
+/** The page a sketch card is drawn at, then scaled into its box, so it reads the same at any size. */
+const SKETCH_PAGE_WIDTH = 1200;
+/** A sketch card's paper and its pencil edge. */
+const SKETCH_CARD_PAPER = "#FBF7EE";
+const SKETCH_CARD_EDGE = "#1F2937";
+
 export function SceneLayer({ item }: { item: SceneItem }) {
   const { width, height } = useVideoConfig();
+  if (item.sketch && item.region) {
+    // A paper card over the video: the page is laid out wide and scaled down into the card.
+    const box = regionBoxStyle(item, { width, height });
+    const boxWidth = (item.region.w / 100) * width;
+    const boxHeight = (item.region.h / 100) * height;
+    const scale = boxWidth / SKETCH_PAGE_WIDTH;
+    return (
+      <div style={{ ...box, background: SKETCH_CARD_PAPER, border: `6px solid ${SKETCH_CARD_EDGE}` }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: SKETCH_PAGE_WIDTH, height: boxHeight / scale, transform: `scale(${scale})`, transformOrigin: "0 0" }}>
+          <SketchFrame sketch={item.sketch} vertical={false} padding="36px 50px" />
+        </div>
+      </div>
+    );
+  }
   if (item.sketch) return <SketchFrame sketch={item.sketch} vertical={height > width} />;
   return (
     <AbsoluteFill>

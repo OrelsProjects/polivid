@@ -104,3 +104,22 @@ test("the end card carries only the last sentence", () => {
   assert.equal(beats.map((beat) => beat.say).join(" "), SCRIPT);
   assert.equal(beats.at(-2)!.end, beats.at(-1)!.start);
 });
+
+test("a sketch explainer draws its cards over the speaker's video, and fills the frame over a voice alone", () => {
+  const { style, beats, plans } = planFor("sketch-explainer");
+  const common = { format: "9:16" as const, style, source: { videoId: "video", seconds: total }, beats, plans, media: beats.map(() => null), captions: true };
+  const over = buildLayoutTimeline({ ...common, take: { focus: { x: 50, y: 35 } } });
+  TimelineSchema.parse(over);
+  const avatar = over.tracks.find((track) => track.id === "avatar")!;
+  assert.equal(avatar.items.length, beats.length, "the speaker is on screen for every beat");
+  const cards = over.tracks.find((track) => track.id === "over")!.items;
+  assert.equal(cards.length, beats.length - 1, "the hook is the speaker alone");
+  for (const card of cards) {
+    assert.equal(card.kind, "scene");
+    assert.ok(card.kind === "scene" && card.sketch && card.region, "each card is a sketch in its own box");
+  }
+  assert.ok(!over.assets.some((asset) => asset.id === "backdrop-paper"), "no paper page hides the video");
+  const voiceOnly = buildLayoutTimeline(common);
+  assert.ok(voiceOnly.assets.some((asset) => asset.id === "backdrop-paper"));
+  assert.ok(!voiceOnly.tracks.some((track) => track.id === "avatar"));
+});

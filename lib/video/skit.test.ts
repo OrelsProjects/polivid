@@ -16,10 +16,15 @@ import {
   skitLookOf,
   skitLookPreset,
   skitMayDrawCharacter,
+  skitPlanCuts,
+  skitPlanHasSound,
+  skitPlanProblem,
   skitSeconds,
   skitShotPrompt,
 } from "./skit";
 import { CREATE_TOOLS } from "./tool-catalog";
+import { CreateVideoSchema } from "./create-schema";
+import { MIN_VIDEO_LENGTH } from "./schema";
 
 const KLING = generationModelBySlug("kling-4.0")!.durations;
 
@@ -74,12 +79,12 @@ test("a long script is joined down to the most beats a skit films", () => {
 });
 
 test("a shot films the note, or acts out the line, and keeps the character's own look", () => {
-  const acted = skitShotPrompt({ beat: { say: "I never saw it coming.", show: "", seconds: 3 }, pictures: 3 });
+  const acted = skitShotPrompt({ beat: { say: "I never saw it coming.", show: "", pause: 0, seconds: 3 }, pictures: 3 });
   assert.match(acted, /acts out this line, without saying it: "I never saw it coming\."/);
   assert.match(acted, /Images 1-3 show the character\. Keep their exact look and art style\./);
   assert.ok(acted.includes(NO_ON_SCREEN_TEXT));
 
-  const noted = skitShotPrompt({ beat: { say: "Oops.", show: "Quill slips on papers", seconds: 3 }, pictures: 1, direction: "Bouncy energy." });
+  const noted = skitShotPrompt({ beat: { say: "Oops.", show: "Quill slips on papers", pause: 0, seconds: 3 }, pictures: 1, direction: "Bouncy energy." });
   assert.match(noted, /Action: Quill slips on papers/);
   assert.match(noted, /Image 1 shows the character/);
   assert.match(noted, /Direction: Bouncy energy\./);
@@ -189,10 +194,10 @@ test("a drawn skit draws the character once in the look, keeping who they are, a
   const drawing = skitCharacterPrompt(look);
   assert.match(drawing, /Pixel art/);
   assert.match(drawing, /instantly recognisable as the same character/);
-  const shot = skitShotPrompt({ beat: { say: "Hi.", show: "waves", seconds: 3 }, pictures: 1, look });
+  const shot = skitShotPrompt({ beat: { say: "Hi.", show: "waves", pause: 0, seconds: 3 }, pictures: 1, look });
   assert.match(shot, /Art style, for the character and the whole scene: Pixel art/);
   assert.match(shot, /Image 1 shows the character/);
-  assert.doesNotMatch(skitShotPrompt({ beat: { say: "Hi.", show: "waves", seconds: 3 }, pictures: 2 }), /Art style/);
+  assert.doesNotMatch(skitShotPrompt({ beat: { say: "Hi.", show: "waves", pause: 0, seconds: 3 }, pictures: 2 }), /Art style/);
 });
 
 test("drawing the character adds one picture to a skit's price, and the Create page offers only the drawn looks", () => {
@@ -202,4 +207,65 @@ test("drawing the character adds one picture to a skit's price, and the Create p
   assert.ok(videoJobCredits({ ...base, drawsCharacter: true }) > videoJobCredits(base));
   const tool = CREATE_TOOLS.find((entry) => entry.mode === "skit");
   assert.deepEqual(tool?.presets, SKIT_LOOKS);
+});
+
+test("an approved plan must cover every beat at lengths the model films", () => {
+  const script = "[waves] Hello there, friends. [bows] Thanks for watching.";
+  const good = [
+    { shot: "Quill waves wildly from a tiny stage.", seconds: 4, sound: "" },
+    { shot: "Quill bows so low he tips over.", seconds: 5, sound: "a soft thud" },
+  ];
+  assert.equal(skitPlanProblem(good, script, KLING), null);
+  assert.match(skitPlanProblem(good.slice(0, 1), script, KLING) ?? "", /script changed/);
+  assert.match(skitPlanProblem([good[0]!, { ...good[1]!, shot: " " }], script, KLING) ?? "", /description/);
+  assert.match(skitPlanProblem([good[0]!, { ...good[1]!, seconds: 999 }], script, KLING) ?? "", /can't film/);
+  assert.deepEqual(skitPlanCuts(good).map((cut) => cut.seconds), [4, 5]);
+  assert.equal(skitPlanHasSound(good), true);
+  assert.equal(skitPlanHasSound([{ sound: " " }]), false);
+});
+
+test("a planned shot films the plan's words, keeps nobody talking, and asks for its one sound only", () => {
+  const beat = { say: "Hello.", show: "waves", pause: 0, seconds: 3 };
+  const withSound = skitShotPrompt({ beat, pictures: 1, planned: { shot: "Quill bows so low he tips over.", sound: "a soft thud" } });
+  assert.match(withSound, /Action: Quill bows so low he tips over\./);
+  assert.doesNotMatch(withSound, /Action: waves/);
+  assert.match(withSound, /Nobody talks on camera/);
+  assert.match(withSound, /Sound: only this sound effect, at the moment it happens: a soft thud\. No music, no speech/);
+  assert.doesNotMatch(skitShotPrompt({ beat, pictures: 1, planned: { shot: "Quill bows.", sound: "" } }), /Sound:/);
+  assert.match(skitShotPrompt({ beat, pictures: 1, planned: { shot: " ", sound: "" } }), /Action: waves/, "an empty planned shot falls back to the note");
+});
+
+test("a skit from the connector passes the request schema with only a placeholder length and its plan", () => {
+  const parsed = CreateVideoSchema.safeParse({
+    prompt: "[waves] Hello there, friends. [bows] Thanks for watching.",
+    format: "9:16",
+    length: MIN_VIDEO_LENGTH,
+    mode: "skit",
+    tier: "low",
+    presetId: "pixar",
+    characterId: "00000000-0000-4000-8000-000000000001",
+    skitPlan: [
+      { shot: "Quill waves from a tiny stage.", seconds: 4, sound: "" },
+      { shot: "Quill bows so low he tips over.", seconds: 5, sound: "a soft thud" },
+    ],
+  });
+  assert.ok(parsed.success, JSON.stringify(parsed.error?.issues));
+  assert.equal(CreateVideoSchema.safeParse({ prompt: "Hi there.", format: "9:16", mode: "skit", tier: "low" }).success, false, "a length is still required");
+});
+
+test("lines in quotes keep their own notes: an opening quote starts the next line, not the last one", () => {
+  const script = `[Orel tosses a Note into a tiny room] "I posted a Note. Same three readers." [He unfolds a giant map] "Time to reach someone new." [It bonks him on the forehead] "Posting isn't a strategy."`;
+  assert.deepEqual(
+    skitBeats(script, KLING).map((beat) => [beat.say, beat.show]),
+    [
+      [`"I posted a Note. Same three readers."`, "Orel tosses a Note into a tiny room"],
+      [`"Time to reach someone new."`, "He unfolds a giant map"],
+      [`"Posting isn't a strategy."`, "It bonks him on the forehead"],
+    ],
+  );
+  // A closing quote right after a note still ends the line before it.
+  assert.deepEqual(
+    skitBeats(`"Hello there [waves]." Bye.`, KLING).map((beat) => beat.say),
+    [`"Hello there." Bye.`],
+  );
 });

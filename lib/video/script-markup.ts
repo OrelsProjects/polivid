@@ -49,6 +49,21 @@ const PAUSE_NOTE = String.raw`\[\s*pause\b[^\[\]]*\]`;
 const PAUSE = new RegExp(`${BREAK_TAG}|${PAUSE_NOTE}`, "gi");
 const NOTE = /\[([^[\]]*)\]/g;
 
+/** One marked stretch of a script, for colouring it in the box: a note, or a pause. */
+export interface ScriptMark {
+  start: number;
+  end: number;
+  kind: "note" | "pause";
+}
+
+/** Where a script's notes and pauses sit, in order. Text outside them is read aloud. */
+export const scriptMarks = (script: string): ScriptMark[] =>
+  [...script.matchAll(new RegExp(`${BREAK_TAG}|${PAUSE_NOTE}|\\[[^[\\]]*\\]`, "gi"))].map((match) => ({
+    start: match.index,
+    end: match.index + match[0].length,
+    kind: new RegExp(`^(?:${BREAK_TAG}|${PAUSE_NOTE})$`, "i").test(match[0]) ? "pause" : "note",
+  }));
+
 export const clampPause = (seconds: number) =>
   Number(Math.min(MAX_PAUSE_SECONDS, Math.max(MIN_PAUSE_SECONDS, seconds)).toFixed(2));
 

@@ -152,3 +152,42 @@ test("make_skit_video is priced by its beats at each tier", () => {
   const oneMoreBeat = creditsForToolInput("make_skit_video", { prompt: `${script}\n[Quill takes a bow] The end.`, format: "9:16", tier: "pro" }) ?? 0;
   assert.ok(oneMoreBeat > pro, "another beat costs another shot");
 });
+
+test("make_skit_video with an agreed plan is priced by the plan's shots", () => {
+  const script = "[waves] Hello there, friends. [bows] Thanks for watching.";
+  const short = creditsForToolInput("make_skit_video", {
+    prompt: script,
+    tier: "pro",
+    skitPlan: [
+      { shot: "Quill waves.", seconds: 3, sound: "" },
+      { shot: "Quill bows.", seconds: 3, sound: "" },
+    ],
+  }) ?? 0;
+  const long = creditsForToolInput("make_skit_video", {
+    prompt: script,
+    tier: "pro",
+    skitPlan: [
+      { shot: "Quill waves.", seconds: 10, sound: "" },
+      { shot: "Quill bows.", seconds: 10, sound: "a thud" },
+    ],
+  }) ?? 0;
+  assert.ok(short > 0 && long > short, `${short} < ${long}`);
+});
+
+test("a skit call saved in a chat before holds existed still reads back exactly as saved", () => {
+  // The AI SDK checks a chat's earlier tool calls against today's schema and fails the turn if
+  // parsing changes them, so a new field must not fill in a default.
+  const saved = {
+    tier: "low",
+    format: "9:16",
+    prompt: "[waves] Hello there. [bows] Bye.",
+    skitPlan: [
+      { shot: "Quill waves.", sound: "light applause", seconds: 3 },
+      { shot: "Quill bows.", sound: "", seconds: 2 },
+    ],
+    characterId: "character",
+  };
+  const schema = TOOL_DEFS.find((definition) => definition.name === "make_skit_video")!.inputSchema;
+  const parsed = schema.parse(saved) as { skitPlan: unknown };
+  assert.deepEqual(parsed.skitPlan, saved.skitPlan);
+});

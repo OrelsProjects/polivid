@@ -153,6 +153,15 @@ export const attachmentRolesField = () =>
     .optional()
     .describe(`What each reference picture is: ${ATTACHMENT_ROLES.join(", ")}. Only used together with cuts.`);
 
+/** A video joined from several clips: each runs on from the last one's final frame instead of cutting. */
+export const smoothTransitionsField = () =>
+  z
+    .boolean()
+    .optional()
+    .describe(
+      "Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes.",
+    );
+
 export const showTextField = () =>
   z.boolean().optional().describe("Whether on-screen text and titles are allowed. Defaults to yes.");
 

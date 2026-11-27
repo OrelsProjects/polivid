@@ -224,6 +224,9 @@ export const SceneItemSchema = z.object({
   trimStart: z.number().int().min(0),
   /** A sketch-explainer beat: drawn on paper instead of as a motion-graphics scene. */
   sketch: SketchSchema.optional(),
+  /** Where a sketch sits as a paper card over the video. Unset fills the frame. */
+  region: RegionSchema.optional(),
+  radius: RadiusSchema.optional(),
   layout: LayoutTagSchema.optional(),
 });
 export type SceneItem = z.infer<typeof SceneItemSchema>;

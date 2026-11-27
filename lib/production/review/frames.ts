@@ -45,6 +45,17 @@ export const extractLastFrame = async (video: Uint8Array): Promise<VideoFrame> =
     return { timeSec: durationSec, bytes: new Uint8Array(await readFile(output)), mime: "image/png" };
   });
 
+/** The frame shown at `atSec`, or the last frame when the clip ends before then. */
+export const extractFrameAt = async (video: Uint8Array, atSec: number): Promise<VideoFrame> =>
+  withTempVideo(video, async (input, dir) => {
+    const { durationSec } = await probeFile(input);
+    // A frame just before the cut, so it's the last one actually shown.
+    const at = Math.max(0, Math.min(atSec, durationSec) - 0.05);
+    const output = path.join(dir, "at.png");
+    await execFileAsync("ffmpeg", ["-y", "-ss", at.toFixed(3), "-i", input, "-frames:v", "1", output], { timeout: TIMEOUT_MS });
+    return { timeSec: at, bytes: new Uint8Array(await readFile(output)), mime: "image/png" };
+  });
+
 /** Evenly spaced frames across the clip, scaled down so a reviewer can follow the action cheaply. */
 export const sampleFrames = async (video: Uint8Array, count = 6, width = 640): Promise<VideoFrame[]> =>
   withTempVideo(video, async (input, dir) => {

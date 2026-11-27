@@ -5,7 +5,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { createElevenSpeechAdapter } from "@/lib/production/adapters/elevenlabs";
+import { createElevenSpeechAdapter, speakWithTimestamps } from "@/lib/production/adapters/elevenlabs";
+import { beatCutTimes, heldVoiceArgs, shotSpans, skitVoiceText, type SkitVoiceLine } from "@/lib/video/skit-voice";
 import { probeFile } from "@/lib/production/review/ffmpeg";
 import { OFF_VOICE_ID, STUDIO_VOICE_ID } from "./constants";
 import { fitNarrationArgs, mixAudioArgs, pausedNarrationArgs, replaceAudioArgs } from "./narration-filter";
@@ -136,6 +137,41 @@ export const speakTimedBeats = async (
     seconds: spoken.map((seconds) => seconds * scale),
     pauses: held.map((seconds) => seconds * scale),
   };
+};
+
+/**
+ * A skit's voice: the whole script read in one take, so it sounds like one person talking, with the
+ * script's pauses held between lines. Returns the audio and how long each beat's shot is on screen,
+ * so the picture is cut to the voice. If the one take can't be timed, each beat is read in turn
+ * and joined with no gaps.
+ */
+export const speakSkitVoice = async (userId: string, characterId: string | undefined, lines: readonly SkitVoiceLine[]) => {
+  if (lines.length === 0 || lines.every((line) => !line.say.trim())) return null;
+  const voice = await resolveCharacterVoice(userId, characterId);
+  if (!voice) return null;
+  const { text, ranges } = skitVoiceText(lines);
+  try {
+    const take = await speakWithTimestamps({ text, voiceId: voice.providerVoiceId, cloned: voice.cloned });
+    const cuts = beatCutTimes(text, ranges, take.alignment, await audioSeconds(take.audio));
+    if (cuts) {
+      const audio = lines.some((line) => line.after > 0)
+        ? await runVoiceFfmpeg(take.audio, 0, "held.mp3", (input, output) => heldVoiceArgs(input, output, cuts, lines))
+        : take.audio;
+      return { audio, spans: shotSpans(cuts, lines) };
+    }
+    console.error("The skit's one take came back with timings that don't match its words. Reading it beat by beat.");
+  } catch (error) {
+    console.error("Could not read the skit in one take. Reading it beat by beat.", error);
+  }
+  const timed = await speakTimedBeats(
+    userId,
+    characterId,
+    lines.map((line) => line.say),
+    undefined,
+    lines.map((line) => line.after),
+  );
+  if (!timed) return null;
+  return { audio: timed.audio, spans: timed.seconds.map((seconds, index) => Math.max(0.5, seconds + (timed.pauses[index] ?? 0))) };
 };
 
 const audioSeconds = async (bytes: Uint8Array) => {

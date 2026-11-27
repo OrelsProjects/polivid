@@ -9,6 +9,8 @@ export const slashTokenAt = (text: string, caret: number) => {
   const before = text.slice(0, Math.max(0, Math.min(caret, text.length)));
   const match = /(^|\s)\/([^\s/]{0,40})$/.exec(before);
   if (!match) return null;
+  // The end of a tag like <break time="1s" /> is not a mention.
+  if (/<[^<>]*$/.test(before.slice(0, before.length - match[2].length - 1))) return null;
   return { start: before.length - match[2].length - 1, query: match[2] };
 };
 

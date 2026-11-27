@@ -42,7 +42,7 @@ const STYLE_NOTES: Record<string, string> = {
   "screen-demo":
     "avatar-close is the hook. window shows the uploaded screen recording or screenshot in a rounded window, for every line that walks through it.",
   "sketch-explainer":
-    "sketch is the only layout: a hand-drawn page on paper, no person on camera. For each line also return sketch: a headline of about two words taken from the line, and one simple drawing that explains it. kind number shows one figure (one item with value); bars compares two to four figures (items with values); steps shows two to four short steps in order (items with labels only); compare sets two things side by side (two items with labels); words is the headline alone. A value must be a number said in that line, written the same way. Never make up, round, or combine numbers. Labels are one to three words. For other styles return sketch: null.",
+    "sketch is the only layout: a hand-drawn paper card shown over the speaker (or full frame when there's only a voice). For each line also return sketch: a headline of about two words taken from the line, and one simple drawing that explains it. kind number shows one figure (one item with value); bars compares two to four figures (items with values); steps shows two to four short steps in order (items with labels only); compare sets two things side by side (two items with labels); words is the headline alone. A value must be a number said in that line, written the same way. Never make up, round, or combine numbers. Labels are one to three words. For other styles return sketch: null.",
 };
 
 /**

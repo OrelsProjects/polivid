@@ -52,3 +52,9 @@ test("a video model is told the name means the person in the picture", () => {
   assert.equal(nameAsPicture("Replace the monkey with Orel", "Orel"), "Replace the monkey with the person in the picture");
   assert.equal(nameAsPicture("Oreland stays", "Orel"), "Oreland stays");
 });
+
+test("the slash closing a <break /> tag doesn't open the character menu", () => {
+  const text = 'Hello there.\n<break time="1.0s" /';
+  assert.equal(slashTokenAt(text, text.length), null);
+  assert.equal(slashTokenAt(`${text}>\n/Or`, text.length + 5)?.query, "Or");
+});

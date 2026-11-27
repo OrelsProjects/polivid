@@ -103,7 +103,8 @@ export const LAYOUT_STYLES: readonly LayoutStyle[] = [
   {
     id: "sketch-explainer",
     title: "Sketch explainer",
-    description: "No one on camera: a two-word headline and a simple drawn chart or diagram for each beat, on paper.",
+    description: "You stay on camera, with a paper card drawn over the video for each beat: a two-word headline and a simple chart or diagram. A video with only a voice gets the page full frame.",
+    /** Works on a voice alone too, so it doesn't need a take; it draws over one when there is. */
     avatar: false,
     beatSeconds: { target: 4, max: 7 },
     captionWords: 4,

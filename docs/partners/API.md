@@ -113,7 +113,7 @@ More pictures make a UGC ad look more like the person. A UGC ad sends up to four
 { "kind": "avatar", "characterId": "…?", "photoKey": "…?", "script": "…", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { … }? }
 { "kind": "captions", "videoKey": "…" }
 { "kind": "faceless", "script": "…", "characterId": "…?", "direction": "…?", "format": "9:16", "tier": "pro" }
-{ "kind": "skit", "characterId": "…", "script": "…", "look": "auto?", "direction": "…?", "format": "9:16", "tier": "pro", "finish": { "captions": "comic" }? }
+{ "kind": "skit", "characterId": "…", "script": "…", "look": "auto?", "smoothTransitions": true?, "direction": "…?", "format": "9:16", "tier": "pro", "finish": { "captions": "comic" }? }
 ```
 
 Field notes:
@@ -132,6 +132,7 @@ A skit is the character acting the script out instead of talking to camera: one 
   - `own`: every shot is filmed from the character's pictures as they are, photo or drawing.
 
   A drawn character is drawn once, keeping who they are, and every shot is filmed from that one picture so they look the same in every beat. That picture is priced into the quote (about one credit); `auto` always includes it. `direction` goes on every shot, in the person's words.
+- **Transitions:** each beat starts on the last frame of the one before and moves on from it with no cut, so the skit plays as one take. Send `smoothTransitions: false` for hard cuts between beats. It costs the same either way.
 - **Length and price:** each beat's shot runs about as long as its words take to say, at least 3 seconds. The video runs as long as its shots, and the quote is priced from them. `low` is the quickest and cheapest, `pro` has livelier motion, and `ultra` is the same as `pro`, sharper.
 - **Sound and captions:** only the character's voice is kept; the shots' own sound is dropped. No captions are drawn on the shots. For captions, send a `finish` with a caption style. A skit takes a caption style but not a layout style (`400 invalid`), since layout styles re-cut one take of a speaker.
 

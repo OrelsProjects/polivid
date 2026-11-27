@@ -23,6 +23,10 @@ export interface JobInput {
   orientation?: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound?: boolean;
+  /** Several clips run on from one another. Null or unset leaves it to the mode. */
+  smoothTransitions?: boolean | null;
+  /** A skit's approved plan: each beat's full shot and its sound. */
+  skitPlan?: { shot: string; sound: string; hold?: number }[];
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice?: boolean;
   /** Character swap: every character swapped in, in the order of their pictures. */

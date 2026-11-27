@@ -1,3 +1,4 @@
+import { smoothTransitionsApply } from "./transitions";
 import { modeCanNarrate } from "@/lib/voice/constants";
 import { DEFAULT_BACKGROUND_ID } from "./backgrounds";
 import type { CreateVideoSchema } from "./create-schema";
@@ -41,6 +42,10 @@ export interface CreateFormValues {
   sceneKeys: readonly string[];
   media?: VisualMedia;
   verbatim?: boolean;
+  /** Several clips run on from one another. Unset leaves it to the mode. */
+  smoothTransitions?: boolean;
+  /** A skit's approved plan, filmed exactly. */
+  skitPlan?: { shot: string; seconds: number; sound: string; hold?: number }[];
   /** The page the script text was read from. */
   sourceUrl?: string;
   backgroundId?: string;
@@ -152,6 +157,10 @@ export const buildCreateBody = (input: {
         : { backgroundId: values.backgroundId ?? DEFAULT_BACKGROUND_ID }
       : {}),
     ...(mode.spokenScript && values.verbatim ? { verbatim: true } : {}),
+    ...(smoothTransitionsApply(mode.id) && typeof values.smoothTransitions === "boolean" ? { smoothTransitions: values.smoothTransitions } : {}),
+    ...(mode.id === "skit" && values.skitPlan?.length
+      ? { skitPlan: values.skitPlan.map((shot) => ({ shot: shot.shot, seconds: shot.seconds, sound: shot.sound, hold: shot.hold ?? 0 })) }
+      : {}),
     ...(mode.spokenScript && values.sourceUrl ? { sourceUrl: values.sourceUrl } : {}),
     ...(input.usesVideoModel && media === "video" ? { model: values.model } : {}),
     ...(needsUpload && values.mediaKey ? { mediaKey: values.mediaKey, imageKey: values.mediaKey } : {}),

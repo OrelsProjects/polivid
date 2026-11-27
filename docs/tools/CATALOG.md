@@ -30,6 +30,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| smoothTransitions | no | Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes. |
 | prompt | yes | What to film. Numbered beats, one action each, in order. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
@@ -79,6 +80,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| smoothTransitions | no | Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes. |
 | prompt | yes | The script to speak, or the article text to turn into narration. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
@@ -118,6 +120,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| smoothTransitions | no | Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes. |
 | prompt | yes | The script, word for word. The character says exactly this. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
 | length | yes | Length in seconds, from 2 to 90. |
@@ -282,10 +285,11 @@ Spends credits. Long-running. Needs approval at 200 credits or more.
 Use when:
 - Their character should act a script out, full body: props, places, pratfalls, a funny or cartoon skit, not a talking head.
 - Each [note in brackets] says what the character does, and steers every sentence up to the next note. Notes are never read. Write one note per beat, then the line spoken over it.
-- Every beat is filmed on Kling from the character's pictures, keeping their own look and art style, and the character's voice reads the script word for word over the shots.
+- Every beat is filmed on Kling from the character's pictures. The character's voice reads the script in one take, and each shot runs while its line is heard, so the voice sets the length.
 - Pass characterId. It must be a saved character with a picture and a voice.
 - Skits are drawn by default: a photo character is drawn as a retro cartoon, and a character that's already drawn keeps its look. presetId picks another look, or own for the pictures as they are.
 - 4 to 8 beats is a good skit. Every beat is filmed, so beats are the cost.
+- skitPlan films an agreed plan exactly: one entry per beat, in order, with its shot, seconds, sound (empty for none) and hold (silent seconds after the line, usually 0). Use it when the person brought a plan from the Create page, or you agreed one together; the script must stay the same.
 
 Don't use when:
 - The character should talk to camera. Use make_avatar_video.
@@ -296,7 +300,9 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| smoothTransitions | no | Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes. |
 | prompt | yes | The script: a [note] for what the character does, then the words spoken over it. |
+| skitPlan | no | An agreed plan, one entry per beat in order. Leave it out to film each beat from its note. |
 | characterId | no | Character id from list_characters: off, studio, or a saved character that has a picture. |
 | presetId | no | The look. auto (default): a photo character is drawn in retro-cartoon, a drawn one stays as it is. own: film the character's pictures as they are. retro-cartoon, pixar (rounded 3D), claymation, pixel-art: draw the character in that look first. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |
@@ -328,6 +334,7 @@ Inputs:
 
 | Field | Required | Description |
 | --- | --- | --- |
+| smoothTransitions | no | Smooth transitions between clips: each clip starts on the last frame of the one before and moves on from it, with no cut. Defaults to on. Turn it off only when the person wants hard cuts between scenes. |
 | prompt | yes | The motion. What moves, and how. |
 | mediaKey | no | Still-image upload key. Omit to use the attached picture. |
 | format | yes | Frame. 9:16 for Reels, TikTok, and Shorts. 1:1 for feeds. 16:9 for YouTube. |

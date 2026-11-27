@@ -96,12 +96,19 @@ export const layoutRegions = (format: VideoFormat) => {
     bubble: { x: 100 - bubbleWidth - 5, y: 100 - bubbleHeight - (wide ? 6 : 13), w: bubbleWidth, h: bubbleHeight } satisfies Region,
     window: (wide ? { x: 10, y: 10, w: 80, h: 72 } : { x: 6, y: 20, w: 88, h: 50 }) satisfies Region,
     framedBand: (wide ? { x: 20, y: 20, w: 60, h: 56 } : { x: 0, y: 24, w: 100, h: 44 }) satisfies Region,
+    /**
+     * A sketch on a paper card over the speaker: beside them in a wide frame, across the top of a
+     * tall one, over the hair and the wall, so the eyes and mouth stay clear and the captions sit below.
+     */
+    sketchCard: (wide ? { x: 52, y: 8, w: 44, h: 60 } : format === "1:1" ? { x: 6, y: 4, w: 88, h: 32 } : { x: 5, y: 4, w: 90, h: 27 }) satisfies Region,
   };
 };
 
 /** Caption height for each layout, as `y` in percent below the centre of the frame. */
-const captionY = (layout: LayoutName, format: VideoFormat) => {
+const captionY = (layout: LayoutName, format: VideoFormat, overVideo = false) => {
   if (format === "16:9") return layout === "window" ? 40 : 34;
+  // Over a speaker the card is at the top, so the captions keep their usual place under the face.
+  if (layout === "sketch" && overVideo) return 26;
   if (layout === "split") return 0;
   // Clear of the round bubble in the lower corner: just under the middle over a post,
   // and in the band above the window on a screen.
@@ -213,7 +220,7 @@ export const buildLayoutTimeline = (input: {
   const backdrop: (ImageItem | VideoItem)[] = [];
   const pictures: (ImageItem | VideoItem | SceneItem)[] = [];
   const avatar: VideoItem[] = [];
-  const over: (ImageItem | VideoItem)[] = [];
+  const over: (ImageItem | VideoItem | SceneItem)[] = [];
   const captions: TextItem[] = [];
   const labels: TextItem[] = [];
   /** How far into each uploaded clip earlier beats already played, so a recording runs on instead of restarting. */
@@ -228,10 +235,13 @@ export const buildLayoutTimeline = (input: {
   if (input.plans.some((plan) => plan.layout === "window")) {
     assets.push({ id: "backdrop-dusk", kind: "image", source: { type: "library", id: "dusk" }, name: "Dusk gradient", durationInFrames: null, width: null, height: null });
   }
-  if (input.plans.some((plan) => plan.layout === "sketch")) {
+  // Over a speaker's take, a sketch is a paper card on the video. With no take, the page fills the frame.
+  if (!take && input.plans.some((plan) => plan.layout === "sketch")) {
     assets.push({ id: "backdrop-paper", kind: "image", source: { type: "library", id: "paper" }, name: "Paper", durationInFrames: null, width: null, height: null });
   }
   const sketch = style.id === "sketch-explainer";
+  /** Captions sit on paper only when there's no take: over a speaker they read like any caption. */
+  const paperCaptions = sketch && !take;
 
   input.beats.forEach((beat, index) => {
     const plan = input.plans[index];
@@ -334,6 +344,26 @@ export const buildLayoutTimeline = (input: {
         );
         break;
       case "sketch":
+        if (take) {
+          // The speaker stays on screen. The hook is theirs alone; every later beat draws its card over them.
+          avatar.push(takeCut("avatar"));
+          if (plan.sketch && (index > 0 || input.beats.length <= 2)) {
+            over.push({
+              id: `sketch-${index}`,
+              kind: "scene",
+              ...base,
+              scene: { type: "text", headline: plan.sketch.headline, narration: "", factIds: [], quote: null, durationSec: Math.min(12, Math.max(2, Number((frames / FPS).toFixed(2)))) },
+              facts: [],
+              quotes: [],
+              trimStart: 0,
+              sketch: plan.sketch,
+              region: regions.sketchCard,
+              radius: 6,
+              layout: tag("sketch"),
+            });
+          }
+          break;
+        }
         backdrop.push({ id: `backdrop-${index}`, kind: "image", assetId: "backdrop-paper", ...base, transform: defaultTransform(), opacity: 1, layout: tag("backdrop") });
         if (plan.sketch) {
           pictures.push({
@@ -361,8 +391,8 @@ export const buildLayoutTimeline = (input: {
             text: caption.text,
             from: Math.max(from, start),
             frames: Math.min(from + frames, end) - Math.max(from, start),
-            style: sketch ? paperCaptionStyle(format) : captionStyle(format),
-            y: captionY(plan.layout, format),
+            style: paperCaptions ? paperCaptionStyle(format) : captionStyle(format),
+            y: captionY(plan.layout, format, Boolean(take)),
             layout: tag("caption"),
             pop: true,
             highlight: plan.highlight && caption.text.toLowerCase().includes(plan.highlight.toLowerCase()) ? plan.highlight : undefined,

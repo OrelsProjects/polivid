@@ -91,6 +91,8 @@ export const prepareModeJob = async (
     attachmentRoles?: AttachmentAssignment[];
     /** A UGC still made on an earlier run of this job. */
     existingStillKey?: string;
+    /** A skit's approved plan: each beat's full shot and its sound. */
+    skitPlan?: { shot: string; sound: string; hold?: number }[];
   },
 ): Promise<PreparedJob> => {
   const mode = input.mode ? videoModeById(input.mode) : null;
@@ -314,10 +316,20 @@ const prepareSkit = async (userId: string, input: Parameters<typeof prepareModeJ
     }
   }
   const lookPreset = look ? skitLookPreset(look) : null;
+  // An approved plan films each beat as the plan wrote it. Without one, each beat films its note.
+  const plan = input.skitPlan?.length === beats.length ? input.skitPlan : null;
   const shots =
     input.existingBeats?.filter((beat) => beat.trim()).length === beats.length
       ? input.existingBeats
-      : beats.map((beat) => skitShotPrompt({ beat, pictures: pictures.length, direction: input.visualDirection, look: lookPreset }));
+      : beats.map((beat, index) =>
+          skitShotPrompt({
+            beat,
+            pictures: pictures.length,
+            direction: input.visualDirection,
+            look: lookPreset,
+            planned: plan?.[index] ?? null,
+          }),
+        );
   const spokenBeats =
     input.existingSpokenBeats?.filter((beat) => beat.trim()).length === beats.length
       ? input.existingSpokenBeats

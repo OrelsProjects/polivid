@@ -20,6 +20,7 @@ import { FootageStopped, footageKey } from "../footage";
 import { readJobInput } from "../job-status";
 import { markVideoJobProgress, transitionVideoJob } from "../jobs";
 import { readVideoMedia } from "../media-store";
+import { isTalkingHeadMode } from "../models";
 import { NO_ON_SCREEN_TEXT } from "../on-screen-text";
 import type { ScenePlan, VideoFormat } from "../schema";
 import { isStillRunning, readyRecord, titleFromPrompt, type JobInput } from "../worker-support";
@@ -149,6 +150,8 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
   const script = (typeof sourceArtifacts.spoken === "string" && sourceArtifacts.spoken.trim()) || sourceInput?.prompt || input.prompt;
   const media = settings.media.filter((item) => isOwnedUploadKey(userId, item.key));
   const progress = readProgress(job?.artifacts);
+  // A sketch explainer draws over the speaker when the video has one, and fills the frame when it's a voice alone.
+  const hasTake = style.avatar || isTalkingHeadMode(sourceInput?.mode);
 
   if (progress.words.length === 0 || !progress.face) {
     if (!(await markVideoJobProgress(jobId, "script", 8))) return;
@@ -162,8 +165,8 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
     }
     progress.words = words.length > 0 ? words : evenWords(script, take.seconds);
     progress.seconds = take.seconds;
-    // Only a take of a speaker has a face to keep in view. A sketch is drawn with nobody on camera.
-    progress.face = style.avatar ? await findFace(take.frame) : { x: 50, y: 50 };
+    // Only a take of a speaker has a face to keep in view. A sketch over a voice alone has nobody on camera.
+    progress.face = hasTake ? await findFace(take.frame) : { x: 50, y: 50 };
     await remember(jobId, progress);
   }
   if (!(await isStillRunning(userId, jobId))) throw new FootageStopped();
@@ -223,7 +226,7 @@ export const composeLayout = async (userId: string, jobId: string, input: JobInp
     format,
     style,
     source: { videoId: sourceId, seconds: progress.seconds },
-    take: style.avatar ? { focus: progress.face ?? { x: 50, y: 35 } } : undefined,
+    take: hasTake ? { focus: progress.face ?? { x: 50, y: 35 } } : undefined,
     beats,
     plans: progress.plans,
     media: beatMedia,

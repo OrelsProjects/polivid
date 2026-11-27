@@ -90,6 +90,8 @@ export const PartnerVideoSchema = z.discriminatedUnion("kind", [
      * films the character's pictures as they are; the rest draw the character in that look.
      */
     look: z.enum(SKIT_LOOK_CHOICES).default("auto"),
+    /** Each beat starts on the last frame of the one before and moves on from it, with no cut. On by default. */
+    smoothTransitions: z.boolean().optional(),
     direction: DIRECTION,
     format: z.enum(VIDEO_FORMATS).default("9:16"),
     tier: TIER,
@@ -157,6 +159,7 @@ export const createBodyFor = (input: PartnerVideoInput): Record<string, unknown>
       ...(input.characterLookId ? { characterLookId: input.characterLookId } : {}),
       ...(input.direction ? { visualDirection: input.direction } : {}),
       presetId: input.look,
+      ...(input.smoothTransitions !== undefined ? { smoothTransitions: input.smoothTransitions } : {}),
       showText: false,
     };
   }

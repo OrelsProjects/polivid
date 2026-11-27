@@ -164,6 +164,10 @@ export interface JobInputFields {
   orientation: string;
   /** Character swap: keep the uploaded video's sound. */
   keepSound: boolean;
+  /** Several clips run on from one another. Null leaves it to the mode. */
+  smoothTransitions: boolean | null;
+  /** A skit's approved plan: each beat's full shot and its sound. Empty when it wasn't planned. */
+  skitPlan: { shot: string; sound: string; hold: number }[];
   /** Character swap: re-voice the speech in the character's voice. */
   characterVoice: boolean;
   /**
@@ -233,6 +237,8 @@ const EMPTY_JOB_INPUT: JobInputFields = {
   opValue: "",
   orientation: "",
   keepSound: true,
+  smoothTransitions: null,
+  skitPlan: [],
   characterVoice: true,
   cast: [],
   mediaRanges: [],
@@ -288,6 +294,20 @@ export const readJobInput = (input: unknown): JobInputFields => {
   const opValue = typeof record.opValue === "string" ? record.opValue.slice(0, 20) : "";
   const orientation = record.orientation === "video" || record.orientation === "image" ? record.orientation : "";
   const keepSound = record.keepSound !== false;
+  const smoothTransitions = typeof record.smoothTransitions === "boolean" ? record.smoothTransitions : null;
+  const skitPlan = Array.isArray(record.skitPlan)
+    ? record.skitPlan.flatMap((shot) =>
+        shot && typeof shot === "object" && typeof (shot as { shot?: unknown }).shot === "string"
+          ? [
+              {
+                shot: (shot as { shot: string }).shot,
+                sound: typeof (shot as { sound?: unknown }).sound === "string" ? (shot as { sound: string }).sound : "",
+                hold: typeof (shot as { hold?: unknown }).hold === "number" ? Math.max(0, (shot as { hold: number }).hold) : 0,
+              },
+            ]
+          : [],
+      )
+    : [];
   const characterVoice = record.characterVoice !== false;
   const cast = Array.isArray(record.cast)
     ? record.cast
@@ -370,6 +390,8 @@ export const readJobInput = (input: unknown): JobInputFields => {
     opValue,
     orientation,
     keepSound,
+    smoothTransitions,
+    skitPlan,
     characterVoice,
     cast,
     mediaRanges,

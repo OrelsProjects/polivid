@@ -352,3 +352,46 @@ export const createScribeAdapter = (): MediaAdapter => ({
   poll: async (id) => ({ providerJobId: id, status: "completed", outputs: [], usage: { usd: 0, units: {} } }),
   collect: async (id) => ({ providerJobId: id, status: "completed", outputs: [], usage: { usd: 0, units: {} } }),
 });
+
+/** Each character of the spoken text with when it starts and ends, in seconds. */
+export interface SpeechAlignment {
+  characters: string[];
+  starts: number[];
+  ends: number[];
+}
+
+/** Reads the alignment ElevenLabs returns with timestamps, or null when it isn't usable. */
+export const parseSpeechAlignment = (value: unknown): SpeechAlignment | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const characters = record.characters;
+  const starts = record.character_start_times_seconds;
+  const ends = record.character_end_times_seconds;
+  if (!Array.isArray(characters) || !Array.isArray(starts) || !Array.isArray(ends)) return null;
+  if (characters.length === 0 || characters.length !== starts.length || characters.length !== ends.length) return null;
+  if (!characters.every((character) => typeof character === "string")) return null;
+  if (![...starts, ...ends].every((time) => typeof time === "number" && Number.isFinite(time))) return null;
+  return { characters: characters as string[], starts: starts as number[], ends: ends as number[] };
+};
+
+/**
+ * Speaks the text in one take and returns the audio with when each character of the text is said.
+ * Throws when the service fails or the timings don't come back.
+ */
+export const speakWithTimestamps = async (input: { text: string; voiceId: string; cloned: boolean }) => {
+  const voiceId = await resolveVoiceId(input.voiceId);
+  const response = await fetch(`${BASE}/v1/text-to-speech/${encodeURIComponent(voiceId)}/with-timestamps?output_format=mp3_44100_128`, {
+    method: "POST",
+    headers: { "xi-api-key": key(), "Content-Type": "application/json" },
+    body: JSON.stringify(speechRequestBody(input.text, "eleven_multilingual_v2", input.cloned ? { cloned: true } : undefined)),
+  });
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`ElevenLabs request failed (${response.status}). ${detail.slice(0, 180)}`);
+  }
+  const json = (await response.json()) as { audio_base64?: unknown; alignment?: unknown };
+  const audio = typeof json.audio_base64 === "string" ? new Uint8Array(Buffer.from(json.audio_base64, "base64")) : new Uint8Array();
+  const alignment = parseSpeechAlignment(json.alignment);
+  if (audio.byteLength === 0 || !alignment) throw new Error("ElevenLabs returned no timed audio.");
+  return { audio, alignment };
+};

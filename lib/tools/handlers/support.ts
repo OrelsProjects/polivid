@@ -75,8 +75,9 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
     const queued = await queueVideoFromInput(ctx.userId, {
       prompt: typeof input.prompt === "string" ? input.prompt : "",
       format: input.format ?? (fromUpload ? "9:16" : undefined),
-      // A talking head's length comes from its script on the server. This only fills the shared field.
-      length: input.length ?? (fromUpload ? 5 : isTalkingHeadMode(modeId) ? MIN_VIDEO_LENGTH : undefined),
+      // A talking head's length comes from its script on the server, and a skit's from its shots. This
+      // only fills the shared field.
+      length: input.length ?? (fromUpload ? 5 : isTalkingHeadMode(modeId) || modeId === "skit" ? MIN_VIDEO_LENGTH : undefined),
       mode: modeId,
       tier: typeof input.tier === "string" ? input.tier : "pro",
       ...(model ? { model } : {}),
@@ -111,6 +112,8 @@ export const queueModeVideo = async (ctx: ToolContext, modeId: VideoModeId, inpu
       swapMethod: isSwapMethod(input.method) ? input.method : undefined,
       orientation: isSwapOrientation(input.orientation) ? input.orientation : undefined,
       keepSound: typeof input.keepSound === "boolean" ? input.keepSound : undefined,
+      smoothTransitions: typeof input.smoothTransitions === "boolean" ? input.smoothTransitions : undefined,
+      skitPlan: modeId === "skit" && Array.isArray(input.skitPlan) && input.skitPlan.length > 0 ? input.skitPlan : undefined,
       characterVoice: typeof input.characterVoice === "boolean" ? input.characterVoice : undefined,
       mediaRanges: Array.isArray(input.keep) ? (input.keep as { start: number; end: number }[]) : undefined,
       cast: modeId === "swap" && Array.isArray(input.cast) && input.cast.length > 0 ? (input.cast as { characterId: string; characterLookId?: string }[]) : undefined,

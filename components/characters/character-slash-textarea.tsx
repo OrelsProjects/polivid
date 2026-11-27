@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { insertCharacterName, matchCharacters, mentionsName, nameRanges, slashTokenAt } from "@/lib/characters/slash";
 import type { CharacterSummary } from "@/lib/characters/types";
+import { scriptMarks, type ScriptMark } from "@/lib/video/script-markup";
 import { useGetCharactersQuery } from "@/lib/store/endpoints/characters";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,13 @@ const Thumb = ({ character }: { character: CharacterSummary }) => {
       <UserRound className="size-3.5" aria-hidden />
     </span>
   );
+};
+
+/** Colours for a script read word for word: what's said, what the picture shows, and the pauses. */
+const MARK_TEXT: Record<ScriptMark["kind"] | "say", string> = {
+  say: "text-foreground",
+  note: "text-emerald-600 dark:text-emerald-400",
+  pause: "text-sky-600 dark:text-sky-400",
 };
 
 /** How wide the character menu opens next to the `/`. */
@@ -75,6 +83,7 @@ export function CharacterSlashTextarea({
   attachedIds,
   onDetach,
   maxAttached,
+  markup = false,
   onKeyDown,
   disabled,
   className,
@@ -92,6 +101,8 @@ export function CharacterSlashTextarea({
   onDetach?: (id: string) => void;
   /** Several characters: how many may be attached. */
   maxAttached?: number;
+  /** A script read word for word: colour its [notes] and its pauses apart from the words said. */
+  markup?: boolean;
 }) {
   const listId = useId();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -231,16 +242,21 @@ export function CharacterSlashTextarea({
   };
 
   const segments = useMemo(() => {
-    const parts: { text: string; name: boolean }[] = [];
-    let at = 0;
-    for (const range of ranges) {
-      if (range.start > at) parts.push({ text: value.slice(at, range.start), name: false });
-      parts.push({ text: value.slice(range.start, range.end), name: true });
-      at = range.end;
+    // Each character's kind (said, note, pause) and whether it's part of a name, then runs of the same.
+    const kinds: (ScriptMark["kind"] | "say")[] = Array.from({ length: value.length }, () => "say");
+    if (markup) for (const mark of scriptMarks(value)) kinds.fill(mark.kind, mark.start, mark.end);
+    const named: boolean[] = Array.from({ length: value.length }, () => false);
+    for (const range of ranges) named.fill(true, range.start, range.end);
+    const parts: { text: string; name: boolean; kind: ScriptMark["kind"] | "say" }[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      const last = parts.at(-1);
+      if (last && last.kind === kinds[index] && last.name === named[index]) last.text += value[index];
+      else parts.push({ text: value[index]!, name: named[index]!, kind: kinds[index]! });
     }
-    parts.push({ text: value.slice(at), name: false });
     return parts;
-  }, [ranges, value]);
+  }, [markup, ranges, value]);
+  // With markup on, the layer draws the text in colour and the box's own text is hidden under it.
+  const colored = markup && value.length > 0;
 
   return (
     <div className="relative">
@@ -271,20 +287,33 @@ export function CharacterSlashTextarea({
         aria-autocomplete="list"
         aria-activedescendant={open && matches[active] ? `${listId}-${matches[active].id}` : undefined}
         aria-describedby={attachedList.length > 0 && ranges.length > 0 ? `${listId}-attached` : undefined}
-        className={className}
+        className={cn(className, colored && "text-transparent caret-foreground")}
       />
-      {layer && ranges.length > 0 ? (
+      {layer && (ranges.length > 0 || colored) ? (
         <div
           ref={layerRef}
           aria-hidden
           style={layer}
-          className="pointer-events-none absolute overflow-hidden border-solid border-transparent break-words whitespace-pre-wrap text-transparent"
+          className={cn(
+            "pointer-events-none absolute overflow-hidden border-solid border-transparent break-words whitespace-pre-wrap text-transparent",
+            colored && disabled && "opacity-50",
+          )}
         >
           {segments.map((segment, index) =>
             segment.name ? (
-              <mark key={index} className="rounded-[4px] bg-primary/30 text-transparent ring-1 ring-primary/50 box-decoration-clone">
+              <mark
+                key={index}
+                className={cn(
+                  "rounded-[4px] bg-primary/30 ring-1 ring-primary/50 box-decoration-clone",
+                  colored ? MARK_TEXT[segment.kind] : "text-transparent",
+                )}
+              >
                 {segment.text}
               </mark>
+            ) : colored ? (
+              <span key={index} className={MARK_TEXT[segment.kind]}>
+                {segment.text}
+              </span>
             ) : (
               <Fragment key={index}>{segment.text}</Fragment>
             ),

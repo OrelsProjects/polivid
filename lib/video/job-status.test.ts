@@ -53,6 +53,8 @@ test("reads the prompt stored on a video job", () => {
       opValue: "",
       orientation: "",
       keepSound: true,
+      smoothTransitions: null,
+      skitPlan: [],
       characterVoice: true,
       cast: [],
       mediaRanges: [],
@@ -107,6 +109,8 @@ test("reads the prompt stored on a video job", () => {
     opValue: "",
     orientation: "",
     keepSound: true,
+    smoothTransitions: null,
+    skitPlan: [],
     characterVoice: true,
     cast: [],
     mediaRanges: [],
@@ -271,4 +275,11 @@ test("a layout job keeps its style, source video, and checked uploads", () => {
     media: [{ key: "uploads/u/post.png", kind: "image", role: "post", note: "The post" }],
   });
   assert.equal(readJobInput({ prompt: "x", layout: { style: "made-up", sourceVideoId: "v" } }).layout, null);
+});
+
+test("a job keeps whether its clips run on from one another, and leaves it to the mode when unset", () => {
+  assert.equal(readJobInput({ prompt: "Hi", smoothTransitions: true }).smoothTransitions, true);
+  assert.equal(readJobInput({ prompt: "Hi", smoothTransitions: false }).smoothTransitions, false);
+  assert.equal(readJobInput({ prompt: "Hi" }).smoothTransitions, null);
+  assert.equal(readJobInput({ prompt: "Hi", smoothTransitions: "yes" }).smoothTransitions, null);
 });

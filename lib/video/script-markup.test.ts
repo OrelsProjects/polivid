@@ -7,6 +7,7 @@ import {
   hasScriptMarkup,
   loopBeatsForScript,
   parseScript,
+  scriptMarks,
   scriptSize,
   spokenScript,
   stillBeatsForScript,
@@ -158,4 +159,15 @@ test("a script with many short lines is charged for the pictures it draws", () =
     videoJobCredits({ mode: "voiceover", media: "stills", tier: "pro", length, pictures: MAX_STILLS }),
     "never charged for more than the picture limit",
   );
+});
+
+test("the box colours notes and pauses: [notes], [pause] and <break> tags are found where they sit", () => {
+  const script = '[Orel tosses a Note] I posted a Note.\n<break time="1.0s" />\nThe end. [pause 2s] [half typed';
+  const marks = scriptMarks(script).map((mark) => [script.slice(mark.start, mark.end), mark.kind]);
+  assert.deepEqual(marks, [
+    ["[Orel tosses a Note]", "note"],
+    ['<break time="1.0s" />', "pause"],
+    ["[pause 2s]", "pause"],
+  ]);
+  assert.deepEqual(scriptMarks("Just words."), []);
 });

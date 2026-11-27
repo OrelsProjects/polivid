@@ -69,7 +69,8 @@ import { normalizeCuts, readSongBrief, type SongCut } from "@/lib/music/song-pla
 import { planCuts } from "@/lib/music/shot-plan";
 import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
 import { planPromptCuts } from "@/lib/video/prompt-shot-plan";
-import { skitCharacterProblem, skitCuts, skitLookOf, skitMayDrawCharacter } from "@/lib/video/skit";
+import { skitCharacterProblem, skitCuts, skitLookOf, skitMayDrawCharacter, skitPlanCuts, skitPlanProblem } from "@/lib/video/skit";
+import { smoothTransitionsApply } from "@/lib/video/transitions";
 import { promptPlanFromOutput, type AttachmentAssignment, type PromptBrief } from "@/lib/video/shot-plan";
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { kickVideoJob } from "@/lib/jobs/dispatch";
@@ -404,7 +405,17 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
     cuts = planned.cuts;
   }
 
-  if (skit && videoModel) {
+  const skitPlan = skit ? parsed.data.skitPlan : undefined;
+  if (skit && videoModel && skitPlan) {
+    // The approved plan is filmed exactly: its shots, their lengths and their sounds.
+    const problem = skitPlanProblem(skitPlan, prompt, videoModel.durations);
+    if (problem) throw new CreateVideoError(problem, 400);
+    cuts = skitPlanCuts(skitPlan);
+    length = cuts.reduce((sum, cut) => sum + cut.seconds, 0);
+    if (length > maxLength) {
+      throw new CreateVideoError(`That skit runs about ${length} seconds. The limit is ${maxLength}. Shorten the script.`, 400);
+    }
+  } else if (skit && videoModel) {
     // One shot per beat of the script. The video runs as long as its shots, so the voice always fits.
     cuts = skitCuts(prompt, videoModel.durations);
     if (cuts.length === 0) throw new CreateVideoError("Write the words to say. Notes in brackets are not read aloud.", 400);
@@ -466,6 +477,10 @@ export const queueVideoFromInput = async (userId: string, raw: unknown) => {
       attachmentRoles,
       vo: parsed.data.vo,
       clips: parsed.data.clips,
+      ...(smoothTransitionsApply(resolved?.mode.id) && typeof parsed.data.smoothTransitions === "boolean"
+        ? { smoothTransitions: parsed.data.smoothTransitions }
+        : {}),
+      ...(skitPlan ? { skitPlan: skitPlan.map((shot) => ({ shot: shot.shot, sound: shot.sound, hold: shot.hold })) } : {}),
       creditsHeld: credits,
     });
     kickVideoJob(userId, job.id);

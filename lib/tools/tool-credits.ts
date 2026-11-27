@@ -1,5 +1,5 @@
 import { AUTO_APPROVE_UNDER_CREDITS, spendNeedsApproval } from "@/lib/billing/auto-approve";
-import { skitCuts, skitLookOf, skitMayDrawCharacter } from "@/lib/video/skit";
+import { skitCuts, skitLookOf, skitMayDrawCharacter, skitPlanCuts } from "@/lib/video/skit";
 import { songCredits, videoJobCredits } from "@/lib/billing/estimate";
 import { storyboardCreditsFor } from "@/lib/coach/storyboard";
 import { toolByName } from "@/lib/tools/registry";
@@ -66,7 +66,12 @@ const skitToolCredits = (input: Record<string, unknown>, options: ToolCreditOpti
   const tier = typeof input.tier === "string" && input.tier.trim() ? input.tier.trim() : "pro";
   const filming = resolveFilming({ mode: "skit", tier, modelId: options.generationModelId });
   if (!filming.model) return null;
-  const cuts = skitCuts(input.prompt, filming.model.durations);
+  // An agreed plan is priced by its own shots; otherwise each beat by its words.
+  const plan = Array.isArray(input.skitPlan) ? (input.skitPlan as { shot?: unknown; seconds?: unknown; sound?: unknown }[]) : [];
+  const cuts =
+    plan.length > 0 && plan.every((shot) => typeof shot.seconds === "number")
+      ? skitPlanCuts(plan.map((shot) => ({ shot: String(shot.shot ?? ""), seconds: shot.seconds as number, sound: String(shot.sound ?? "") })))
+      : skitCuts(input.prompt, filming.model.durations);
   if (cuts.length === 0) return null;
   return videoJobCredits({
     demo: options.demo,

@@ -23,9 +23,12 @@ import { PreviewSample, StylePoster } from "@/components/style-frame";
 import { VisualDirectionField } from "@/components/visual-direction-field";
 import { CharacterPicker } from "@/components/characters/character-picker";
 import { CharacterSlashTextarea } from "@/components/characters/character-slash-textarea";
+import { smoothTransitionsApply, usesSmoothTransitions } from "@/lib/video/transitions";
 import { useVideoDuration } from "@/components/use-video-duration";
 import { BackgroundPicker } from "@/components/create/background-picker";
 import { ShotPlanCard } from "@/components/create/shot-plan-card";
+import { SkitPlanCard } from "@/components/create/skit-plan-card";
+import { saveCoachHandoff, skitPlanForChat } from "@/lib/coach/handoff";
 import { LENGTH_CHOICES, useCreateForm } from "@/components/create/use-create-form";
 import { SongTakeStep } from "@/components/song-take-step";
 import { LyricsBriefCard } from "@/components/lyrics-brief-card";
@@ -42,8 +45,10 @@ import {
   useCreateVideoMutation,
   useImprovePromptMutation,
   usePlanVideoShotsMutation,
+  usePlanSkitMutation,
   useReadLinkMutation,
   type ShotPlan,
+  type SkitPlan,
   type SongTake,
   type SongTakeBody,
 } from "@/lib/store/endpoints/videos";
@@ -73,7 +78,8 @@ import { formatClipSplit, isStitchedMode, planSegments } from "@/lib/video/segme
 import { lyricsClipDurations } from "@/lib/video/singer-models";
 import { isVideoLength, MAX_LYRICS_NOTE, MAX_PROMPT_LENGTH, MAX_VIDEO_LENGTH, MIN_VIDEO_LENGTH, type VideoFormat } from "@/lib/video/schema";
 import { LYRICS_INPUTS } from "@/lib/video/lyrics-inputs";
-import { defaultVoiceForMode, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
+import { defaultVoiceForMode, isCharacterId, isPresenterCharacter, modeCanNarrate, OFF_VOICE_ID } from "@/lib/voice/constants";
+import { AUTO_PRESET_ID, presetById } from "@/lib/video/presets";
 import {
   DEFAULT_SWAP_METHOD,
   MAX_SWAP_CHARACTERS,
@@ -213,6 +219,12 @@ export function Generator({
   const { data: customPresets } = useGetPresetsQuery();
   const { data: creditBalance = null } = useGetCreditsQuery();
   const [planShots, { isLoading: planning }] = usePlanVideoShotsMutation();
+  // A skit is planned first: every beat's shot, length and sound, then the writer approves it.
+  const skitMode = videoMode?.id === "skit";
+  const [planSkitShots, { isLoading: planningSkit }] = usePlanSkitMutation();
+  /** Auto: the plan picks how long the skit runs. Otherwise the length row is a target. */
+  const [skitAutoLength, setSkitAutoLength] = useState(true);
+  const [skitPlan, setSkitPlan] = useState<{ key: string; plan: SkitPlan } | null>(null);
   const [improvePrompt, { isLoading: improving }] = useImprovePromptMutation();
   const [readLink, { isLoading: reading }] = useReadLinkMutation();
   const [linkOpen, setLinkOpen] = useState(spec.linkFirst);
@@ -229,10 +241,14 @@ export function Generator({
   const linkFieldId = useId();
   const [upgrade, setUpgrade] = useState<{ required: number; balance: number } | null>(null);
   const [shotPlan, setShotPlan] = useState<{ key: string; plan: ShotPlan } | null>(null);
-  const busy = improving || submitting || planning || reading;
+  const busy = improving || submitting || planning || planningSkit || reading;
   const styleNote = requestedStyle === "minimal" || requestedStyle === "editorial";
   const stills = media === "stills" && spec.sections.has("media");
   const loop = media === "loop" && spec.sections.has("media");
+  // Shots joined from several clips can run on from one another. Unset follows the mode's default.
+  const [smoothTransitions, setSmoothTransitions] = useState<boolean | null>(null);
+  const showSmooth = smoothTransitionsApply(videoMode?.id) && !stills && !loop;
+  const smoothOn = smoothTransitions ?? usesSmoothTransitions(videoMode?.id, null);
   /** Drawn or looped pictures. No footage model films these, and the voice sets their length. */
   const composed = stills || loop;
   const maxLength = maxLengthForMedia(composed ? media : "video");
@@ -257,7 +273,7 @@ export function Generator({
   }
   /** Character swap: re-voice the speech in the character's own voice. Kling only changes the picture. */
   const [swapVoice, setSwapVoice] = useState(true);
-  const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap });
+  const { data: savedCharacters } = useGetCharactersQuery(undefined, { skip: !swap && !skitMode });
   const swapCharacter = swap ? savedCharacters?.find((item) => item.id === characterId) : undefined;
   /**
    * Replace in video: the characters swapped in after the first, each named in the prompt with /.
@@ -325,7 +341,10 @@ export function Generator({
       : pickedLength;
   // A quick edit keeps the length of the upload, so there is no length to check.
   const lengthValid =
-    uploadOnly || swap || (Number.isInteger(activeLength) && activeLength >= MIN_VIDEO_LENGTH && activeLength <= maxLength);
+    uploadOnly ||
+    swap ||
+    (skitMode && skitAutoLength) ||
+    (Number.isInteger(activeLength) && activeLength >= MIN_VIDEO_LENGTH && activeLength <= maxLength);
   const songFirst = spec.planFirst === "song";
   const planFirst = spec.planFirst !== null;
   const shorts = videoMode?.id === "shorts";
@@ -391,6 +410,19 @@ export function Generator({
           characterId,
         });
   const activePlan = shotPlan && shotPlan.key === shotPlanKey ? shotPlan.plan : null;
+  // A skit's plan is kept while nothing it was made from changes.
+  const skitPlanKey = skitMode
+    ? JSON.stringify({
+        prompt: prompt.trim(),
+        tier,
+        format,
+        presetId,
+        visualDirection,
+        length: skitAutoLength ? "auto" : activeLength,
+        model: selectedModel,
+      })
+    : "";
+  const activeSkitPlan = skitPlan && skitPlan.key === skitPlanKey ? skitPlan.plan : null;
   // A script read word for word over drawn pictures sets how many pictures there are.
   const scriptPictures = useMemo(
     () =>
@@ -437,7 +469,7 @@ export function Generator({
       swapMethod,
     ],
   );
-  const estimatedCredits = activePlan?.credits ?? listedCredits;
+  const estimatedCredits = activeSkitPlan?.credits ?? activePlan?.credits ?? listedCredits;
   const shotLimit = useMemo(() => {
     if (!lengthValid || !filmingModel) return MAX_VIDEO_LENGTH;
     const durations =
@@ -506,6 +538,27 @@ export function Generator({
     if (needsPresenter || needsVoice || needsSwapCharacter || swapProblem) return;
     if (songFirst && !approvedTake) return;
 
+    if (skitMode && !activeSkitPlan) {
+      try {
+        const plan = await planSkitShots({
+          prompt: value,
+          tier,
+          format,
+          visualDirection,
+          presetId,
+          ...(skitAutoLength ? {} : { length: activeLength }),
+        }).unwrap();
+        setSkitPlan({ key: skitPlanKey, plan });
+      } catch (error) {
+        if (apiErrorStatus(error) === 401) {
+          router.push(loginPath(createPath));
+          return;
+        }
+        setStatus({ state: "failed", error: apiErrorMessage(error, "Couldn't plan the skit."), videoId: null });
+      }
+      return;
+    }
+
     if (planFirst && !activePlan) {
       try {
         const plan = await planShots({
@@ -544,7 +597,8 @@ export function Generator({
           values: {
             prompt: value,
             format,
-            length: activeLength,
+            length: activeSkitPlan ? activeSkitPlan.seconds : activeLength,
+            ...(activeSkitPlan ? { skitPlan: activeSkitPlan.shots } : {}),
             tier,
             model: selectedModel,
             mediaKey,
@@ -552,6 +606,7 @@ export function Generator({
             showText,
             presetId,
             visualDirection,
+            ...(showSmooth ? { smoothTransitions: smoothOn } : {}),
             characterId,
             characterLookId: lookId || undefined,
             useCharacterClip: useClip && Boolean(filmingModel?.inputs.includes("video")),
@@ -956,6 +1011,7 @@ export function Generator({
               rows={4}
               maxLength={MAX_PROMPT_LENGTH}
               disabled={busy}
+              markup={readAsWritten || videoMode?.id === "skit"}
               placeholder={
                 readAsWritten && stills
                   ? MARKED_SCRIPT_PLACEHOLDER
@@ -1091,6 +1147,25 @@ export function Generator({
               </span>
             </label>
           ) : null}
+          {showSmooth ? (
+            <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-border px-3 py-3 text-sm">
+              <input
+                type="checkbox"
+                checked={smoothOn}
+                disabled={busy}
+                onChange={(event) => setSmoothTransitions(event.target.checked)}
+                className="mt-0.5 size-4 shrink-0 accent-primary"
+              />
+              <span>
+                <span className="block font-medium">Smooth transitions</span>
+                <span className="block text-xs text-muted-foreground">
+                  {smoothOn
+                    ? "Each shot starts on the last frame of the one before and moves on from it, so the video plays as one take."
+                    : "Each shot starts fresh, with a cut between them."}
+                </span>
+              </span>
+            </label>
+          ) : null}
             </>
           )}
         </section>
@@ -1221,19 +1296,34 @@ export function Generator({
           ) : (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="mr-1 text-sm text-muted-foreground">Length</span>
+            {skitMode ? (
+              <button
+                type="button"
+                disabled={busy}
+                aria-pressed={skitAutoLength}
+                onClick={() => setSkitAutoLength(true)}
+                className={cn(
+                  "h-9 cursor-pointer rounded-xl px-3 text-sm font-medium transition disabled:opacity-50",
+                  skitAutoLength ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground",
+                )}
+              >
+                Auto
+              </button>
+            ) : null}
             {LENGTH_CHOICES.map((value) => (
               <button
                 key={value}
                 type="button"
                 disabled={busy}
-                aria-pressed={customLength === "" && length === value}
+                aria-pressed={!(skitMode && skitAutoLength) && customLength === "" && length === value}
                 onClick={() => {
+                  setSkitAutoLength(false);
                   setCustomLength("");
                   setLength(value);
                 }}
                 className={cn(
                   "h-9 cursor-pointer rounded-xl px-3 text-sm font-medium transition disabled:opacity-50",
-                  customLength === "" && length === value
+                  !(skitMode && skitAutoLength) && customLength === "" && length === value
                     ? "bg-foreground text-background"
                     : "bg-muted text-muted-foreground hover:text-foreground",
                 )}
@@ -1244,7 +1334,7 @@ export function Generator({
             <label
               className={cn(
                 "flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium transition",
-                customLength !== "" ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
+                customLength !== "" && !(skitMode && skitAutoLength) ? "bg-foreground text-background" : "bg-muted text-muted-foreground",
               )}
             >
               <span>Custom</span>
@@ -1257,6 +1347,7 @@ export function Generator({
                 placeholder="8"
                 onChange={(event) => {
                   const digits = event.target.value.replace(/\D/g, "").slice(0, 2);
+                  if (digits) setSkitAutoLength(false);
                   setCustomLength(digits);
                   if (digits === "") {
                     setLength((current) => ((LENGTH_CHOICES as readonly number[]).includes(current) ? current : 60));
@@ -1270,7 +1361,11 @@ export function Generator({
               <span className="text-xs">s</span>
             </label>
             <span className="text-xs text-muted-foreground">
-              {customLength !== "" && !isVideoLength(Number(customLength))
+              {skitMode && skitAutoLength
+                ? "The voice sets the length: it reads the script in one take, and each shot runs while its line is heard. Pauses in the script add time."
+                : skitMode
+                  ? `The voice sets the length. The plan adds pauses after lines to reach about ${activeLength} seconds.`
+                : customLength !== "" && !isVideoLength(Number(customLength))
                 ? `Use a whole number from ${MIN_VIDEO_LENGTH} to ${MAX_VIDEO_LENGTH}.`
                 : direct && filmingModel
                   ? `${filmingModel.name} films one clip of ${Math.min(...filmingModel.durations)} to ${Math.max(...filmingModel.durations)} seconds.${
@@ -1578,6 +1673,34 @@ export function Generator({
           </div>
         )}
 
+        {activeSkitPlan ? (
+          <SkitPlanCard
+            plan={activeSkitPlan}
+            disabled={busy}
+            onChange={(shots) => setSkitPlan({ key: skitPlanKey, plan: { ...activeSkitPlan, shots } })}
+            onReplan={() => setSkitPlan(null)}
+            onDiscuss={() => {
+              const look = presetById(presetId);
+              saveCoachHandoff({
+                text: skitPlanForChat({
+                  script: prompt,
+                  look: !presetId || presetId === AUTO_PRESET_ID || presetId === "auto"
+                    ? "Auto look (a photo is drawn as a retro cartoon)"
+                    : presetId === "own"
+                      ? "The character's own look"
+                      : `${look?.name ?? presetId} look`,
+                  quality: tier.charAt(0).toUpperCase() + tier.slice(1),
+                  seconds: activeSkitPlan.seconds,
+                  credits: activeSkitPlan.credits,
+                  smooth: smoothOn,
+                  shots: activeSkitPlan.shots,
+                }),
+                ...(isCharacterId(characterId) ? { characterId, characterName: savedCharacters?.find((item) => item.id === characterId)?.name ?? "" } : {}),
+              });
+              router.push("/coach");
+            }}
+          />
+        ) : null}
         {activePlan ? (
           <ShotPlanCard
             plan={activePlan}
@@ -1592,7 +1715,7 @@ export function Generator({
           <p className="text-xs text-muted-foreground">
             {demo
               ? "Demo mode is free · "
-              : !songFirst && (!planFirst || activePlan) && estimatedCredits > 0
+              : !songFirst && (!planFirst || activePlan) && (!skitMode || activeSkitPlan) && estimatedCredits > 0
                 ? `Uses ${estimatedCredits.toLocaleString()} credits · `
                 : ""}
             {needsUpgrade ? "You need more credits. " : ""}
@@ -1608,6 +1731,10 @@ export function Generator({
               ? `Upload a photo of the speaker, or pick a character in step ${qualityStep}.`
               : songFirst && !approvedTake
               ? "Make the song and listen to it first. Filming uses that exact song."
+              : activeSkitPlan
+                ? "Check the shots and sounds above, then press Film it. You'll go to My videos while it generates."
+              : skitMode
+                ? "Plan the skit first: every beat's shot, how long it runs, and its sound. Nothing is filmed until you press Film it."
               : activePlan
                 ? "Edit the shots above, then press Film it. You'll go to My videos while it generates."
                 : songFirst
@@ -1633,10 +1760,10 @@ export function Generator({
             }
             className="h-11 rounded-xl px-5"
           >
-            {planning ? (
+            {planning || planningSkit ? (
               <>
                 <LoaderCircle className="animate-spin" data-icon="inline-start" />
-                Planning shots…
+                {planningSkit ? "Planning the skit…" : "Planning shots…"}
               </>
             ) : submitting ? (
               <>
@@ -1645,7 +1772,7 @@ export function Generator({
               </>
             ) : (
               <>
-                {activePlan ? "Film it" : planFirst ? "Plan the shots" : editMode ? "Edit video" : uploadOnly ? "Add captions" : "Generate video"}
+                {activePlan || activeSkitPlan ? "Film it" : skitMode ? "Plan the skit" : planFirst ? "Plan the shots" : editMode ? "Edit video" : uploadOnly ? "Add captions" : "Generate video"}
                 <ArrowRight data-icon="inline-end" />
               </>
             )}

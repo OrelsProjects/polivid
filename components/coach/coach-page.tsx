@@ -1,5 +1,6 @@
 "use client";
 
+import { takeCoachHandoff } from "@/lib/coach/handoff";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import {
@@ -175,6 +176,18 @@ export function CoachPage({
   useEffect(() => {
     runWildRef.current = runWild;
   }, [runWild]);
+
+  // A new chat opened from another page (a skit's plan, say) starts with that page's words in the box.
+  useEffect(() => {
+    if (initialThreadId) return;
+    const handoff = takeCoachHandoff();
+    if (!handoff) return;
+    setInput(handoff.text);
+    if (handoff.characterId) {
+      setCharacterId(handoff.characterId);
+      setCharacterName(handoff.characterName ?? "");
+    }
+  }, [initialThreadId]);
 
   useEffect(() => {
     if (!threadId) return;

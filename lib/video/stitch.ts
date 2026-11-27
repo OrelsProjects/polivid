@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { SongWord } from "@/lib/music/song-plan";
-import { extractLastFrame } from "@/lib/production/review/frames";
+import { extractFrameAt, extractLastFrame } from "@/lib/production/review/frames";
 import { probeFile, type MediaProbe } from "@/lib/production/review/ffmpeg";
 import { captionLines, captionPng } from "./lyric-captions";
 
@@ -170,8 +170,9 @@ export const sliceSong = async (song: Uint8Array, startSec: number, durationSec:
   }
 };
 
-export const lastFrameDataUrl = async (video: Uint8Array) => {
-  const frame = await extractLastFrame(video);
+/** The clip's last frame as a data URL, or the frame it's cut on when it's shown for only `shownSec`. */
+export const lastFrameDataUrl = async (video: Uint8Array, shownSec?: number) => {
+  const frame = shownSec && shownSec > 0 ? await extractFrameAt(video, shownSec) : await extractLastFrame(video);
   return `data:${frame.mime};base64,${Buffer.from(frame.bytes).toString("base64")}`;
 };
 
@@ -237,4 +238,25 @@ const stitchArgs = (files: string[], probes: MediaProbe[], output: string, showF
     output,
   );
   return args;
+};
+
+/**
+ * The same clip with its sound turned all the way down. The audio track stays, silent, so clips
+ * join the same way whether or not they keep their sound.
+ */
+export const muteClip = async (clip: Uint8Array) => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), "polivid-mute-"));
+  try {
+    const input = path.join(dir, "clip.mp4");
+    const output = path.join(dir, "muted.mp4");
+    await writeFile(input, clip);
+    const probe = await probeFile(input).catch(() => null);
+    if (!probe?.hasAudio) return clip;
+    await execFileAsync("ffmpeg", ["-y", "-i", input, "-map", "0:v", "-map", "0:a", "-c:v", "copy", "-af", "volume=0", "-c:a", "aac", output], {
+      timeout: TIMEOUT_MS,
+    });
+    return new Uint8Array(await readFile(output));
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+  }
 };

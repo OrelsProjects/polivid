@@ -1,3 +1,4 @@
+import { MAX_SKIT_BEATS, MAX_SKIT_HOLD, MAX_SKIT_SHOT, MAX_SKIT_SOUND } from "./skit";
 import { z } from "zod";
 import { MAX_CUT_CAMERA, MAX_CUTS } from "@/lib/music/song-plan";
 import { EDIT_OPS } from "@/lib/video/edit-ops";
@@ -61,6 +62,24 @@ export const CreateVideoSchema = z.object({
     .optional(),
   /** Character swap: keep the uploaded video's sound. Defaults to true. */
   keepSound: z.boolean().optional(),
+  /**
+   * A video stitched from several clips: start each clip on the last frame of the one before and
+   * carry on from it, instead of cutting. Unset: on.
+   */
+  smoothTransitions: z.boolean().optional(),
+  /** A skit's approved plan: one full shot, length, sound and silent hold per beat, filmed exactly as approved. */
+  skitPlan: z
+    .array(
+      z.object({
+        shot: z.string().trim().min(1).max(MAX_SKIT_SHOT),
+        seconds: z.number().int().min(1).max(MAX_VIDEO_LENGTH),
+        sound: z.string().trim().max(MAX_SKIT_SOUND).optional().default(""),
+        hold: z.number().min(0).max(MAX_SKIT_HOLD).optional().default(0),
+      }),
+    )
+    .min(1)
+    .max(MAX_SKIT_BEATS)
+    .optional(),
   /** Character swap: re-voice the speech in the character's voice. Defaults to true; needs the character to have a voice. */
   characterVoice: z.boolean().optional(),
   /** Built-in clip behind a `loop` video. */
